@@ -14,6 +14,11 @@
 .env*
 !.env.example
 
+# Prisma / SQLite
+/prisma/*.db
+/prisma/*.db-journal
+/app/generated/prisma
+
 # Vercel
 .vercel
 

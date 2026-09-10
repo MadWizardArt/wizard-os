@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum ProjectType {
+  ARTWORK
+  COMMISSION
+  DIGITAL_PRODUCT
+  CONTENT
+  INTERNAL
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  WAITING
+  BLOCKED
+  COMPLETE
+  ARCHIVED
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  WAITING
+  COMPLETE
+  SKIPPED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  REFUND
+}
+
+enum IncomeClass {
+  ACTIVE
+  RECURRING
+  PASSIVE_LIKE
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  title        String
+  type         ProjectType
+  status       ProjectStatus @default(PLANNED)
+  progress     Int           @default(0)
+  valueCents   Int?
+  dueDate      DateTime?
+  nextAction   String?
+  notes        String?
+  templateId   String?
+  archivedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  template     WorkflowTemplate? @relation(fields: [templateId], references: [id])
+  stages       ProjectStage[]
+  transactions Transaction[]
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model WorkflowTemplate {
+  id          String      @id @default(cuid())
+  name        String
+  projectType ProjectType
+  version     Int         @default(1)
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  stages   WorkflowTemplateStage[]
+  projects Project[]
+}
+
+model WorkflowTemplateStage {
+  id                String @id @default(cuid())
+  templateId        String
+  name              String
+  position          Int
+  defaultFieldsJson String @default("{}")
+
+  template WorkflowTemplate @relation(
+    fields: [templateId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@unique([templateId, position])
+}
+
+model ProjectStage {
+  id          String      @id @default(cuid())
+  projectId   String
+  name        String
+  position    Int
+  status      StageStatus @default(NOT_STARTED)
+  progress    Int         @default(0)
+  fieldsJson  String      @default("{}")
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  project Project @relation(
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@unique([projectId, position])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  amountCents Int
+  occurredAt  DateTime
+  receivedAt  DateTime?
+  source      String
+  incomeClass IncomeClass?
+  isNonArt    Boolean         @default(false)
+  notes       String?
+  projectId   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@index([receivedAt])
+  @@index([type, incomeClass, isNonArt])
+}
