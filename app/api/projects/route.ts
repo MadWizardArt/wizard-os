@@ -55,6 +55,20 @@ export async function POST(request: NextRequest) {
     ? await prisma.workflowTemplate.findUnique({ where: { id: body.templateId }, include: { stages: { orderBy: { position: "asc" } } } })
     : null;
   if (!template) return NextResponse.json({ error: "Choose a workflow template." }, { status: 400 });
+  if (template.projectType !== body.type) return NextResponse.json({ error: "Choose a workflow made for this project type." }, { status: 400 });
+
+  const requestedStages = Array.isArray(body.stages)
+    ? body.stages.map((name: unknown) => typeof name === "string" ? name.trim() : "").filter(Boolean)
+    : [];
+  if (requestedStages.length > 12) return NextResponse.json({ error: "A workflow can have up to 12 stages." }, { status: 400 });
+  if (requestedStages.some((name: string) => name.length > 80)) return NextResponse.json({ error: "Workflow stage names must be 80 characters or fewer." }, { status: 400 });
+  const projectStages = requestedStages.length
+    ? requestedStages.map((name: string, position: number) => ({
+        name,
+        position,
+        fieldsJson: template.stages.find((stage) => stage.name === name)?.defaultFieldsJson ?? "{}",
+      }))
+    : template.stages.map((stage) => ({ name: stage.name, position: stage.position, fieldsJson: stage.defaultFieldsJson }));
 
   const project = await prisma.project.create({
     data: {
@@ -63,15 +77,11 @@ export async function POST(request: NextRequest) {
       status: ProjectStatus.PLANNED,
       valueCents: body.value ? Math.round(Number(body.value) * 100) : null,
       dueDate: body.dueDate ? new Date(`${body.dueDate}T12:00:00`) : null,
-      nextAction: typeof body.nextAction === "string" && body.nextAction.trim() ? body.nextAction.trim() : template.stages[0]?.name ?? "Choose next action",
+      nextAction: typeof body.nextAction === "string" && body.nextAction.trim() ? body.nextAction.trim() : projectStages[0]?.name ?? "Choose next action",
       templateId: template.id,
       customerId: body.customerId || null,
       stages: {
-        create: template.stages.map((stage) => ({
-          name: stage.name,
-          position: stage.position,
-          fieldsJson: stage.defaultFieldsJson,
-        })),
+        create: projectStages,
       },
     },
   });

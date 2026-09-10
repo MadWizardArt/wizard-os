@@ -7,7 +7,12 @@ export async function GET() {
   const templates = await prisma.workflowTemplate.findMany({
     where: { isDefault: true },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, projectType: true },
+    select: {
+      id: true,
+      name: true,
+      projectType: true,
+      stages: { orderBy: { position: "asc" }, select: { id: true, name: true, position: true } },
+    },
   });
   return NextResponse.json(templates);
 }
