@@ -34,7 +34,7 @@ const projects: Project[] = [
   { id: "wizard", title: "Wizard OS — Business Engine", kind: "Project", status: "In Development", progress: 35, next: "Test project workflows", value: "Internal", due: "Sep 18", tone: "navy" },
 ];
 
-const nav = ["Command", "Queue", "Money", "Ventures", "Clients", "Inventory", "Projects", "Content", "Automations"];
+const nav = ["The Crucible", "Queue", "Money", "Ventures", "Clients", "Inventory", "Projects", "Content", "Automations"];
 const marketingStates = ["Not Planned", "Planned", "Created", "Scheduled", "Published"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
@@ -61,9 +61,12 @@ export default function Home() {
     const checks = [artwork.completion === 100, artwork.finish.varnished, artwork.photography.hero, artwork.photography.edited, artwork.archive.ingested, !!artwork.pricing.price, artwork.publishing.bigCartel];
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [artwork]);
+
   const marketingReadiness = useMemo(() => {
-    const vals = Object.values(artwork.marketing); return Math.round((vals.filter((v) => v !== "Not Planned").length / vals.length) * 100);
+    const vals = Object.values(artwork.marketing);
+    return Math.round((vals.filter((v) => v !== "Not Planned").length / vals.length) * 100);
   }, [artwork.marketing]);
+
   const nextAction = useMemo(() => {
     if (artwork.completion < 100) return `Finish ${artwork.title} — ${100 - artwork.completion}% remaining`;
     if (!artwork.finish.varnished) return `Varnish ${artwork.title}`;
@@ -86,14 +89,14 @@ export default function Home() {
     { key: "fulfillment" as StageKey, icon: "◇", title: "Sale & Fulfillment", status: artwork.fulfillment.sold ? "Sold" : "Unsold", progress: artwork.fulfillment.sold ? 35 + [artwork.fulfillment.paid, artwork.fulfillment.packed, artwork.fulfillment.shipped, artwork.fulfillment.delivered].filter(Boolean).length * 16 : 0 },
   ];
 
-  const openProject = (project: Project) => {
-    setSelectedProject(project);
-    setView(project.id === "gabriel" ? "artwork" : "project");
+  const openProject = (p: Project) => {
+    setSelectedProject(p);
+    setView(p.id === "gabriel" ? "artwork" : "project");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const Dashboard = () => <>
-    <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>Command Center</h2></div><button className="primary">+ New Work Order</button></header>
+    <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><button className="primary">+ New Work Order</button></header>
     <section className="metrics">
       <article className="metric"><span>Month Revenue</span><strong>$4,270</strong><small>+12% vs. prior month</small></article>
       <article className="metric"><span>Recurring Income</span><strong>$420</strong><small>9.8% of revenue</small></article>
@@ -102,34 +105,23 @@ export default function Home() {
     </section>
 
     <section className="panel projectPanel">
-      <div className="panelHead"><div><p className="eyebrow">Studio + business</p><h3>Works in Progress</h3></div><span className="panelHint">Select any item to open its workspace</span></div>
-      <div className="projectGrid">
-        {projects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
-          <div className="projectCardTop"><span className={`status ${p.tone}`}>{p.kind}</span><span className="openHint">Open ↗</span></div>
-          <h3>{p.title}</h3><p>{p.status}</p>
-          <div className="progress"><i style={{ width: `${p.id === "gabriel" ? artwork.completion : p.progress}%` }} /></div>
-          <div className="projectMeta"><span>{p.id === "gabriel" ? artwork.completion : p.progress}%</span><span>{p.due}</span></div>
-          <small>Next: {p.id === "gabriel" ? nextAction : p.next}</small>
-        </button>)}
-      </div>
+      <div className="panelHead"><div><p className="eyebrow">Studio + business</p><h3>Works in Progress</h3></div><span className="panelHint">Select any item to enter its workspace</span></div>
+      <div className="projectGrid">{projects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
+        <div className="projectCardTop"><span className={`status ${p.tone}`}>{p.kind}</span><span className="openHint">Open ↗</span></div>
+        <h3>{p.title}</h3><p>{p.status}</p><div className="progress"><i style={{ width: `${p.id === "gabriel" ? artwork.completion : p.progress}%` }} /></div>
+        <div className="projectMeta"><span>{p.id === "gabriel" ? artwork.completion : p.progress}%</span><span>{p.due}</span></div><small>Next: {p.id === "gabriel" ? nextAction : p.next}</small>
+      </button>)}</div>
     </section>
 
-    <section className="panel queuePanel">
-      <div className="panelHead"><div><p className="eyebrow">FlightDeck-style queue</p><h3>Active Work</h3></div><div className="filters"><button>All</button><button>Due Soon</button><button>Waiting</button></div></div>
-      <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>
-        {projects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}
-      </tbody></table></div>
+    <section className="panel queuePanel"><div className="panelHead"><div><p className="eyebrow">FlightDeck-style queue</p><h3>Active Work</h3></div><div className="filters"><button>All</button><button>Due Soon</button><button>Waiting</button></div></div>
+      <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>{projects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}</tbody></table></div>
     </section>
 
-    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions">
-      <li><span>01</span><div><strong>{nextAction}</strong><p>Move Gabriel&apos;s Horn toward sale readiness.</p></div></li>
-      <li><span>02</span><div><strong>Close pending commission approval</strong><p>Follow up with collector today.</p></div></li>
-      <li><span>03</span><div><strong>Finish print release proof</strong><p>Unlock listing and launch content.</p></div></li>
-    </ol></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
+    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions"><li><span>01</span><div><strong>{nextAction}</strong><p>Move Gabriel&apos;s Horn toward sale readiness.</p></div></li><li><span>02</span><div><strong>Close pending commission approval</strong><p>Follow up with collector today.</p></div></li><li><span>03</span><div><strong>Finish print release proof</strong><p>Unlock listing and launch content.</p></div></li></ol></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
   </>;
 
   const ArtworkWorkspace = () => <>
-    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← Command Center</button><p className="eyebrow">Artwork workflow · Live record</p><h2>{artwork.title}</h2></div><span className="autosave">● Auto-saved locally</span></header>
+    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">Artwork workflow · Live record</p><h2>{artwork.title}</h2></div><span className="autosave">● Auto-saved locally</span></header>
     <section className="artHero panel"><div className="heroMain"><div className="artPlaceholder"><span>GH</span><small>Artwork image not added</small></div><div className="artIdentity"><p className="eyebrow">Mad Wizard Art · Original</p><input className="titleInput" value={artwork.title} onChange={(e) => patch("title", e.target.value)} /><div className="inlineFields"><input value={artwork.medium} onChange={(e) => patch("medium", e.target.value)} placeholder="Medium" /><input value={artwork.dimensions} onChange={(e) => patch("dimensions", e.target.value)} placeholder="Dimensions" /><input value={artwork.year} onChange={(e) => patch("year", e.target.value)} placeholder="Year" /></div><div className="completionRow"><span>Artwork completion</span><strong>{artwork.completion}%</strong></div><input className="range" type="range" min="0" max="100" value={artwork.completion} onChange={(e) => patch("completion", Number(e.target.value))} /></div></div><div className="readiness"><div><span>Artwork</span><strong>{artwork.completion}%</strong></div><div><span>Sales Ready</span><strong>{salesReadiness}%</strong></div><div><span>Marketing</span><strong>{marketingReadiness}%</strong></div></div></section>
     <section className="nextAction panel"><div><p className="eyebrow">Next action</p><h3>{nextAction}</h3></div><span className="actionArrow">→</span></section>
     <section className="workflowGrid">{stages.map((s) => <button className="stageCard" key={s.key} onClick={() => setOpenStage(s.key)}><div className="stageTop"><span className="stageIcon">{s.icon}</span><span className="editHint">Edit ↗</span></div><h3>{s.title}</h3><p>{s.status}</p><div className="progress"><i style={{ width: `${Math.min(s.progress, 100)}%` }} /></div></button>)}</section>
@@ -137,13 +129,13 @@ export default function Home() {
   </>;
 
   const ProjectWorkspace = () => selectedProject && <>
-    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← Command Center</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2></div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
+    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2></div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
     <section className="panel genericHero"><div><p className="eyebrow">Current progress</p><strong className="bigProgress">{selectedProject.progress}%</strong><div className="progress"><i style={{ width: `${selectedProject.progress}%` }} /></div></div><div className="genericStats"><div><span>Value</span><strong>{selectedProject.value}</strong></div><div><span>Due</span><strong>{selectedProject.due}</strong></div><div><span>Next action</span><strong>{selectedProject.next}</strong></div></div></section>
-    <section className="workflowGrid genericWorkflow"><article className="stageCard static"><div className="stageTop"><span className="stageIcon">01</span></div><h3>Plan</h3><p>Scope, requirements, assets</p></article><article className="stageCard static"><div className="stageTop"><span className="stageIcon">02</span></div><h3>Produce</h3><p>Core work and revisions</p></article><article className="stageCard static"><div className="stageTop"><span className="stageIcon">03</span></div><h3>Approve</h3><p>Proofs and stakeholder review</p></article><article className="stageCard static"><div className="stageTop"><span className="stageIcon">04</span></div><h3>Deliver</h3><p>Publish, handoff or fulfillment</p></article></section>
-    <section className="panel"><div className="panelHead"><div><p className="eyebrow">Project notes</p><h3>Workspace</h3></div></div><p className="note">This project now has its own drill-down workspace. The next iteration can give each project type a specialized editable workflow just like Gabriel&apos;s Horn.</p></section>
+    <section className="workflowGrid genericWorkflow">{["Plan","Produce","Approve","Deliver"].map((s, i) => <article className="stageCard static" key={s}><div className="stageTop"><span className="stageIcon">0{i+1}</span></div><h3>{s}</h3><p>{["Scope, requirements, assets","Core work and revisions","Proofs and stakeholder review","Publish, handoff or fulfillment"][i]}</p></article>)}</section>
+    <section className="panel"><div className="panelHead"><div><p className="eyebrow">Project notes</p><h3>Workspace</h3></div></div><p className="note">This project has its own drill-down workspace. Specialized project workflows can be added here as Wizard OS grows.</p></section>
   </>;
 
-  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item, i) => <button key={item} onClick={() => item === "Command" && setView("dashboard")} className={item === "Command" && view === "dashboard" ? "navItem active" : item === "Projects" && view !== "dashboard" ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
+  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" && setView("dashboard")} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Projects" && view !== "dashboard" ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
 
     {openStage && <div className="modalBackdrop" onMouseDown={() => setOpenStage(null)}><section className="editWindow" onMouseDown={(e) => e.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">Editable workflow window</p><h2>{stages.find(s => s.key === openStage)?.title}</h2></div><button className="close" onClick={() => setOpenStage(null)}>×</button></div>
       {openStage === "finish" && <div className="formGrid"><Toggle label="Varnished" checked={artwork.finish.varnished} onChange={(v) => patchStage("finish", { varnished: v })} /><Field label="Varnish type"><input value={artwork.finish.varnishType} onChange={(e) => patchStage("finish", { varnishType: e.target.value })} placeholder="Gloss, satin, matte…" /></Field><Field label="Coats"><input value={artwork.finish.coats} onChange={(e) => patchStage("finish", { coats: e.target.value })} /></Field><Field label="Cure status"><select value={artwork.finish.cureStatus} onChange={(e) => patchStage("finish", { cureStatus: e.target.value })}><option>Not started</option><option>Drying</option><option>Cured</option></select></Field><Toggle label="Framed" checked={artwork.finish.framed} onChange={(v) => patchStage("finish", { framed: v })} /><Toggle label="Hanging hardware installed" checked={artwork.finish.hardware} onChange={(v) => patchStage("finish", { hardware: v })} /></div>}
@@ -154,5 +146,9 @@ export default function Home() {
       {openStage === "marketing" && <div className="formGrid">{(["instagram","tiktok","youtubeShort","youtubeLong","pinterest","newsletter"] as const).map((k) => <Field key={k} label={k.replace(/([A-Z])/g, " $1")}><select value={artwork.marketing[k]} onChange={(e) => patchStage("marketing", { [k]: e.target.value })}>{marketingStates.map((s) => <option key={s}>{s}</option>)}</select></Field>)}</div>}
       {openStage === "fulfillment" && <div className="formGrid"><Toggle label="Sold" checked={artwork.fulfillment.sold} onChange={(v) => patchStage("fulfillment", { sold: v })} /><Field label="Buyer"><input value={artwork.fulfillment.buyer} onChange={(e) => patchStage("fulfillment", { buyer: e.target.value })} /></Field><Field label="Sale price ($)"><input value={artwork.fulfillment.salePrice} onChange={(e) => patchStage("fulfillment", { salePrice: e.target.value })} /></Field><Toggle label="Paid" checked={artwork.fulfillment.paid} onChange={(v) => patchStage("fulfillment", { paid: v })} /><Toggle label="Packed + COA" checked={artwork.fulfillment.packed} onChange={(v) => patchStage("fulfillment", { packed: v })} /><Toggle label="Shipped" checked={artwork.fulfillment.shipped} onChange={(v) => patchStage("fulfillment", { shipped: v })} /><Toggle label="Delivered" checked={artwork.fulfillment.delivered} onChange={(v) => patchStage("fulfillment", { delivered: v })} /></div>}
     </section></div>}
+
+    <style jsx global>{`
+      .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.metric{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:9px;padding:15px 16px}.metric span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}.metric strong{display:block;font-size:24px;font-weight:650}.metric small{display:block;margin-top:5px;color:#7f8b97;font-size:10px}.projectPanel,.queuePanel{margin-bottom:14px}.projectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.projectCard{text-align:left;min-width:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#0f1720;color:var(--ink);transition:.15s}.projectCard:hover{transform:translateY(-2px);border-color:#465463}.projectCardTop,.projectMeta{display:flex;align-items:center;justify-content:space-between;gap:10px}.projectCard h3{margin:16px 0 5px;font-family:Georgia,serif;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.projectCard p{margin:0 0 14px;color:var(--muted);font-size:10px}.projectCard .progress{margin-bottom:8px}.projectMeta{color:#9aa6b2;font-size:9px}.projectCard small{display:block;min-height:28px;margin-top:12px;color:#7f8b97;font-size:9px;line-height:1.45}.openHint,.panelHint{color:#697684;font-size:9px}.filters{display:flex;gap:6px}.filters button{background:#0f1720;border:1px solid var(--line);color:#9ca8b4;border-radius:6px;padding:6px 9px;font-size:10px}.tableWrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th{text-align:left;color:#7f8a96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:9px 10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #202a34;font-size:12px;color:#cbd3db}.clickRow{cursor:pointer}.clickRow:hover{background:rgba(255,255,255,.025)}.status{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:10px;border:1px solid transparent}.status.green{background:rgba(41,83,63,.32);border-color:#35654d;color:#9ac0a8}.status.burgundy{background:rgba(111,38,61,.30);border-color:#77344a;color:#d39aae}.status.navy{background:rgba(30,58,95,.34);border-color:#31587f;color:#9db6cc}.lowerGrid{display:grid;grid-template-columns:1.4fr .8fr;gap:14px}.actions{list-style:none;padding:0;margin:0}.actions li{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #202a34}.actions li>span{color:var(--gold);font-family:Georgia,serif;font-size:12px}.actions strong{font-size:12px}.actions p,.note{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5}.mix{display:grid;gap:9px}.mix div{display:flex;justify-content:space-between;font-size:12px;color:#bac4ce}.rule{text-align:center;color:var(--gold);opacity:.6;margin:16px 0 10px}.backButton{display:block;margin:0 0 11px;padding:0;border:0;background:transparent;color:var(--gold);font-size:11px}.genericHero{display:grid;grid-template-columns:.7fr 1.3fr;gap:24px;margin-bottom:12px}.bigProgress{font-size:42px}.genericStats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.genericStats div{padding:12px;border-left:1px solid var(--line)}.genericStats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}.genericStats strong{font-size:12px}.stageCard.static{cursor:default}.stageCard.static:hover{transform:none}.genericWorkflow{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1050px){.projectGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.projectGrid,.metrics,.lowerGrid,.genericHero,.genericStats{grid-template-columns:1fr}.panelHint{display:none}}
+    `}</style>
   </main>;
 }
