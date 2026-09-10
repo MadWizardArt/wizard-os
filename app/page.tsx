@@ -14,7 +14,10 @@ type Artwork = {
   fulfillment: { sold: boolean; buyer: string; salePrice: string; paid: boolean; packed: boolean; shipped: boolean; delivered: boolean };
 };
 
-type Project = { id: string; title: string; kind: "Artwork" | "Project" | "Commission"; status: string; progress: number; next: string; value: string; due: string; tone: string };
+type Project = { id: string; title: string; kind: "Artwork" | "Project" | "Commission"; status: string; statusEnum?: string; type?: string; templateId?: string | null; progress: number; next: string; value: string; due: string; tone: string };
+type WorkflowStage = { id: string; name: string; position: number; status: string; progress: number };
+type ProjectDetail = { id: string; title: string; status: string; progress: number; valueCents: number | null; dueDate: string | null; nextAction: string | null; notes: string | null; stages: WorkflowStage[]; template: { name: string } | null };
+type WorkflowTemplate = { id: string; name: string; projectType: string };
 
 const initialArtwork: Artwork = {
   title: "Gabriel's Horn", completion: 80, artworkStatus: "In Progress", medium: "Acrylic on canvas", dimensions: "", year: "2026", signed: false, notes: "",
@@ -47,13 +50,19 @@ export default function Home() {
   const [openStage, setOpenStage] = useState<StageKey | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [projects, setProjects] = useState<Project[]>(demoProjects);
+  const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null);
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [newProject, setNewProject] = useState({ title: "", type: "ARTWORK", templateId: "", value: "", dueDate: "", nextAction: "" });
 
   useEffect(() => {
     const saved = localStorage.getItem("wizard-os-gabriels-horn");
     if (saved) { try { setArtwork(JSON.parse(saved)); } catch {} }
     setLoaded(true);
   }, []);
-  useEffect(() => {
+  const loadProjects = () => {
     fetch("/api/projects")
       .then((response) => {
         if (!response.ok) throw new Error("Projects are unavailable");
@@ -65,6 +74,14 @@ export default function Home() {
       .catch(() => {
         // Keep the demo queue available until the local database is migrated and seeded.
       });
+  };
+  useEffect(() => {
+    loadProjects();
+    fetch("/api/templates").then((response) => response.ok ? response.json() : []).then((data: WorkflowTemplate[]) => {
+      setTemplates(data);
+      const artworkTemplate = data.find((template) => template.projectType === "ARTWORK");
+      if (artworkTemplate) setNewProject((current) => ({ ...current, templateId: artworkTemplate.id }));
+    }).catch(() => {});
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem("wizard-os-gabriels-horn", JSON.stringify(artwork)); }, [artwork, loaded]);
 
@@ -103,14 +120,58 @@ export default function Home() {
     { key: "fulfillment" as StageKey, icon: "◇", title: "Sale & Fulfillment", status: artwork.fulfillment.sold ? "Sold" : "Unsold", progress: artwork.fulfillment.sold ? 35 + [artwork.fulfillment.paid, artwork.fulfillment.packed, artwork.fulfillment.shipped, artwork.fulfillment.delivered].filter(Boolean).length * 16 : 0 },
   ];
 
-  const openProject = (p: Project) => {
+  const openProject = async (p: Project) => {
     setSelectedProject(p);
     setView(p.id === "gabriel" ? "artwork" : "project");
+    if (p.id !== "gabriel") {
+      const response = await fetch(`/api/projects/${p.id}`);
+      if (response.ok) setProjectDetail(await response.json());
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const chooseProjectType = (type: string) => {
+    const template = templates.find((item) => item.projectType === type) ?? templates[0];
+    setNewProject((current) => ({ ...current, type, templateId: template?.id ?? "" }));
+  };
+
+  const createProject = async () => {
+    setSaving(true); setFormError("");
+    const response = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newProject) });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) return setFormError(result.error ?? "Could not create project.");
+    setShowNewProject(false);
+    setNewProject({ title: "", type: "ARTWORK", templateId: templates.find((item) => item.projectType === "ARTWORK")?.id ?? "", value: "", dueDate: "", nextAction: "" });
+    loadProjects();
+  };
+
+  const saveProject = async () => {
+    if (!projectDetail) return;
+    setSaving(true); setFormError("");
+    const response = await fetch(`/api/projects/${projectDetail.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...projectDetail, value: projectDetail.valueCents == null ? "" : projectDetail.valueCents / 100, dueDate: projectDetail.dueDate?.slice(0, 10) ?? "" }) });
+    setSaving(false);
+    if (!response.ok) return setFormError("Could not save project.");
+    await loadProjects();
+  };
+
+  const archiveProject = async () => {
+    if (!projectDetail || !window.confirm(`Archive ${projectDetail.title}?`)) return;
+    await fetch(`/api/projects/${projectDetail.id}`, { method: "DELETE" });
+    setProjectDetail(null); setSelectedProject(null); setView("dashboard"); loadProjects();
+  };
+
+  const updateWorkflowStage = async (stage: WorkflowStage, status: string) => {
+    if (!projectDetail) return;
+    const response = await fetch(`/api/projects/${projectDetail.id}/stages/${stage.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, progress: status === "IN_PROGRESS" ? Math.max(stage.progress, 25) : stage.progress }) });
+    if (!response.ok) return setFormError("Could not update workflow stage.");
+    const refreshed = await fetch(`/api/projects/${projectDetail.id}`);
+    if (refreshed.ok) setProjectDetail(await refreshed.json());
+    loadProjects();
+  };
+
   const Dashboard = () => <>
-    <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><button className="primary">+ New Work Order</button></header>
+    <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><button className="primary" onClick={() => setShowNewProject(true)}>+ New Work Order</button></header>
     <section className="metrics">
       <article className="metric"><span>Month Revenue</span><strong>$4,270</strong><small>+12% vs. prior month</small></article>
       <article className="metric"><span>Recurring Income</span><strong>$420</strong><small>9.8% of revenue</small></article>
@@ -144,12 +205,16 @@ export default function Home() {
 
   const ProjectWorkspace = () => selectedProject && <>
     <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2></div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
-    <section className="panel genericHero"><div><p className="eyebrow">Current progress</p><strong className="bigProgress">{selectedProject.progress}%</strong><div className="progress"><i style={{ width: `${selectedProject.progress}%` }} /></div></div><div className="genericStats"><div><span>Value</span><strong>{selectedProject.value}</strong></div><div><span>Due</span><strong>{selectedProject.due}</strong></div><div><span>Next action</span><strong>{selectedProject.next}</strong></div></div></section>
-    <section className="workflowGrid genericWorkflow">{["Plan","Produce","Approve","Deliver"].map((s, i) => <article className="stageCard static" key={s}><div className="stageTop"><span className="stageIcon">0{i+1}</span></div><h3>{s}</h3><p>{["Scope, requirements, assets","Core work and revisions","Proofs and stakeholder review","Publish, handoff or fulfillment"][i]}</p></article>)}</section>
-    <section className="panel"><div className="panelHead"><div><p className="eyebrow">Project notes</p><h3>Workspace</h3></div></div><p className="note">This project has its own drill-down workspace. Specialized project workflows can be added here as Wizard OS grows.</p></section>
+    {!projectDetail ? <section className="panel"><p className="note">Loading project record…</p></section> : <>
+      <section className="panel genericHero"><div><p className="eyebrow">Current progress</p><strong className="bigProgress">{projectDetail.progress}%</strong><div className="progress"><i style={{ width: `${projectDetail.progress}%` }} /></div></div><div className="genericStats"><div><span>Workflow</span><strong>{projectDetail.template?.name ?? "Custom"}</strong></div><div><span>Due</span><strong>{projectDetail.dueDate ? new Date(projectDetail.dueDate).toLocaleDateString() : "No deadline"}</strong></div><div><span>Next action</span><strong>{projectDetail.nextAction ?? "Choose next action"}</strong></div></div></section>
+      <section className="workflowGrid genericWorkflow">{projectDetail.stages.map((stage, i) => <article className="stageCard static" key={stage.id}><div className="stageTop"><span className="stageIcon">{String(i + 1).padStart(2, "0")}</span><select className="stageSelect" value={stage.status} onChange={(event) => updateWorkflowStage(stage, event.target.value)}><option value="NOT_STARTED">Not started</option><option value="IN_PROGRESS">In progress</option><option value="WAITING">Waiting</option><option value="COMPLETE">Complete</option><option value="SKIPPED">Skipped</option></select></div><h3>{stage.name}</h3><p>{stage.progress}% complete</p><div className="progress"><i style={{ width: `${stage.progress}%` }} /></div></article>)}</section>
+      <section className="panel"><div className="panelHead"><div><p className="eyebrow">Persistent record</p><h3>Project Details</h3></div></div><div className="formGrid"><Field label="Title"><input value={projectDetail.title} onChange={(event) => setProjectDetail({ ...projectDetail, title: event.target.value })} /></Field><Field label="Status"><select value={projectDetail.status} onChange={(event) => setProjectDetail({ ...projectDetail, status: event.target.value })}><option value="PLANNED">Planned</option><option value="ACTIVE">Active</option><option value="WAITING">Waiting</option><option value="BLOCKED">Blocked</option><option value="COMPLETE">Complete</option></select></Field><Field label="Value ($)"><input type="number" min="0" value={projectDetail.valueCents == null ? "" : projectDetail.valueCents / 100} onChange={(event) => setProjectDetail({ ...projectDetail, valueCents: event.target.value === "" ? null : Math.round(Number(event.target.value) * 100) })} /></Field><Field label="Due date"><input type="date" value={projectDetail.dueDate?.slice(0, 10) ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, dueDate: event.target.value || null })} /></Field><Field label="Next action"><input value={projectDetail.nextAction ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, nextAction: event.target.value })} /></Field><Field label="Notes"><textarea value={projectDetail.notes ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, notes: event.target.value })} /></Field></div>{formError && <p className="formError">{formError}</p>}<div className="modalFoot"><button className="danger" onClick={archiveProject}>Archive project</button><button className="primary" disabled={saving} onClick={saveProject}>{saving ? "Saving…" : "Save changes"}</button></div></section>
+    </>}
   </>;
 
   return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" && setView("dashboard")} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Projects" && view !== "dashboard" ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
+
+    {showNewProject && <div className="modalBackdrop" onMouseDown={() => setShowNewProject(false)}><section className="editWindow" onMouseDown={(event) => event.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">New work order</p><h2>Create Project</h2></div><button className="close" onClick={() => setShowNewProject(false)}>×</button></div><div className="formGrid"><Field label="Project title"><input autoFocus value={newProject.title} onChange={(event) => setNewProject({ ...newProject, title: event.target.value })} placeholder="What are you working on?" /></Field><Field label="Project type"><select value={newProject.type} onChange={(event) => chooseProjectType(event.target.value)}><option value="ARTWORK">Original artwork</option><option value="COMMISSION">Commission</option><option value="DIGITAL_PRODUCT">Digital product</option><option value="CONTENT">Content</option><option value="INTERNAL">Internal project</option></select></Field><Field label="Workflow"><select value={newProject.templateId} onChange={(event) => setNewProject({ ...newProject, templateId: event.target.value })}>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></Field><Field label="Value ($)"><input type="number" min="0" value={newProject.value} onChange={(event) => setNewProject({ ...newProject, value: event.target.value })} /></Field><Field label="Due date"><input type="date" value={newProject.dueDate} onChange={(event) => setNewProject({ ...newProject, dueDate: event.target.value })} /></Field><Field label="Next action"><input value={newProject.nextAction} onChange={(event) => setNewProject({ ...newProject, nextAction: event.target.value })} placeholder="Defaults to the first workflow stage" /></Field></div>{formError && <p className="formError">{formError}</p>}<div className="modalFoot"><span>The selected workflow will be copied into this project.</span><button className="primary" disabled={saving || !newProject.title.trim() || !newProject.templateId} onClick={createProject}>{saving ? "Creating…" : "Create work order"}</button></div></section></div>}
 
     {openStage && <div className="modalBackdrop" onMouseDown={() => setOpenStage(null)}><section className="editWindow" onMouseDown={(e) => e.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">Editable workflow window</p><h2>{stages.find(s => s.key === openStage)?.title}</h2></div><button className="close" onClick={() => setOpenStage(null)}>×</button></div>
       {openStage === "finish" && <div className="formGrid"><Toggle label="Varnished" checked={artwork.finish.varnished} onChange={(v) => patchStage("finish", { varnished: v })} /><Field label="Varnish type"><input value={artwork.finish.varnishType} onChange={(e) => patchStage("finish", { varnishType: e.target.value })} placeholder="Gloss, satin, matte…" /></Field><Field label="Coats"><input value={artwork.finish.coats} onChange={(e) => patchStage("finish", { coats: e.target.value })} /></Field><Field label="Cure status"><select value={artwork.finish.cureStatus} onChange={(e) => patchStage("finish", { cureStatus: e.target.value })}><option>Not started</option><option>Drying</option><option>Cured</option></select></Field><Toggle label="Framed" checked={artwork.finish.framed} onChange={(v) => patchStage("finish", { framed: v })} /><Toggle label="Hanging hardware installed" checked={artwork.finish.hardware} onChange={(v) => patchStage("finish", { hardware: v })} /></div>}
@@ -162,7 +227,7 @@ export default function Home() {
     </section></div>}
 
     <style jsx global>{`
-      .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.metric{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:9px;padding:15px 16px}.metric span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}.metric strong{display:block;font-size:24px;font-weight:650}.metric small{display:block;margin-top:5px;color:#7f8b97;font-size:10px}.projectPanel,.queuePanel{margin-bottom:14px}.projectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.projectCard{text-align:left;min-width:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#0f1720;color:var(--ink);transition:.15s}.projectCard:hover{transform:translateY(-2px);border-color:#465463}.projectCardTop,.projectMeta{display:flex;align-items:center;justify-content:space-between;gap:10px}.projectCard h3{margin:16px 0 5px;font-family:Georgia,serif;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.projectCard p{margin:0 0 14px;color:var(--muted);font-size:10px}.projectCard .progress{margin-bottom:8px}.projectMeta{color:#9aa6b2;font-size:9px}.projectCard small{display:block;min-height:28px;margin-top:12px;color:#7f8b97;font-size:9px;line-height:1.45}.openHint,.panelHint{color:#697684;font-size:9px}.filters{display:flex;gap:6px}.filters button{background:#0f1720;border:1px solid var(--line);color:#9ca8b4;border-radius:6px;padding:6px 9px;font-size:10px}.tableWrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th{text-align:left;color:#7f8a96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:9px 10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #202a34;font-size:12px;color:#cbd3db}.clickRow{cursor:pointer}.clickRow:hover{background:rgba(255,255,255,.025)}.status{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:10px;border:1px solid transparent}.status.green{background:rgba(41,83,63,.32);border-color:#35654d;color:#9ac0a8}.status.burgundy{background:rgba(111,38,61,.30);border-color:#77344a;color:#d39aae}.status.navy{background:rgba(30,58,95,.34);border-color:#31587f;color:#9db6cc}.lowerGrid{display:grid;grid-template-columns:1.4fr .8fr;gap:14px}.actions{list-style:none;padding:0;margin:0}.actions li{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #202a34}.actions li>span{color:var(--gold);font-family:Georgia,serif;font-size:12px}.actions strong{font-size:12px}.actions p,.note{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5}.mix{display:grid;gap:9px}.mix div{display:flex;justify-content:space-between;font-size:12px;color:#bac4ce}.rule{text-align:center;color:var(--gold);opacity:.6;margin:16px 0 10px}.backButton{display:block;margin:0 0 11px;padding:0;border:0;background:transparent;color:var(--gold);font-size:11px}.genericHero{display:grid;grid-template-columns:.7fr 1.3fr;gap:24px;margin-bottom:12px}.bigProgress{font-size:42px}.genericStats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.genericStats div{padding:12px;border-left:1px solid var(--line)}.genericStats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}.genericStats strong{font-size:12px}.stageCard.static{cursor:default}.stageCard.static:hover{transform:none}.genericWorkflow{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1050px){.projectGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.projectGrid,.metrics,.lowerGrid,.genericHero,.genericStats{grid-template-columns:1fr}.panelHint{display:none}}
+      .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.metric{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:9px;padding:15px 16px}.metric span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}.metric strong{display:block;font-size:24px;font-weight:650}.metric small{display:block;margin-top:5px;color:#7f8b97;font-size:10px}.projectPanel,.queuePanel{margin-bottom:14px}.projectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.projectCard{text-align:left;min-width:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#0f1720;color:var(--ink);transition:.15s}.projectCard:hover{transform:translateY(-2px);border-color:#465463}.projectCardTop,.projectMeta{display:flex;align-items:center;justify-content:space-between;gap:10px}.projectCard h3{margin:16px 0 5px;font-family:Georgia,serif;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.projectCard p{margin:0 0 14px;color:var(--muted);font-size:10px}.projectCard .progress{margin-bottom:8px}.projectMeta{color:#9aa6b2;font-size:9px}.projectCard small{display:block;min-height:28px;margin-top:12px;color:#7f8b97;font-size:9px;line-height:1.45}.openHint,.panelHint{color:#697684;font-size:9px}.filters{display:flex;gap:6px}.filters button{background:#0f1720;border:1px solid var(--line);color:#9ca8b4;border-radius:6px;padding:6px 9px;font-size:10px}.tableWrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th{text-align:left;color:#7f8a96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:9px 10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #202a34;font-size:12px;color:#cbd3db}.clickRow{cursor:pointer}.clickRow:hover{background:rgba(255,255,255,.025)}.status{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:10px;border:1px solid transparent}.status.green{background:rgba(41,83,63,.32);border-color:#35654d;color:#9ac0a8}.status.burgundy{background:rgba(111,38,61,.30);border-color:#77344a;color:#d39aae}.status.navy{background:rgba(30,58,95,.34);border-color:#31587f;color:#9db6cc}.lowerGrid{display:grid;grid-template-columns:1.4fr .8fr;gap:14px}.actions{list-style:none;padding:0;margin:0}.actions li{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #202a34}.actions li>span{color:var(--gold);font-family:Georgia,serif;font-size:12px}.actions strong{font-size:12px}.actions p,.note{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5}.mix{display:grid;gap:9px}.mix div{display:flex;justify-content:space-between;font-size:12px;color:#bac4ce}.rule{text-align:center;color:var(--gold);opacity:.6;margin:16px 0 10px}.backButton{display:block;margin:0 0 11px;padding:0;border:0;background:transparent;color:var(--gold);font-size:11px}.genericHero{display:grid;grid-template-columns:.7fr 1.3fr;gap:24px;margin-bottom:12px}.bigProgress{font-size:42px}.genericStats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.genericStats div{padding:12px;border-left:1px solid var(--line)}.genericStats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}.genericStats strong{font-size:12px}.stageCard.static{cursor:default}.stageCard.static:hover{transform:none}.stageSelect{max-width:105px;background:#0d141c;color:#b9c3cd;border:1px solid #293440;border-radius:6px;padding:5px;font-size:9px}.danger{background:transparent;color:#d98d99;border:1px solid #713747;padding:9px 12px;border-radius:7px;font-size:11px}.formError{color:#e49baa;font-size:11px;margin:14px 0 0}.primary:disabled{opacity:.45;cursor:not-allowed}.genericWorkflow{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1050px){.projectGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.projectGrid,.metrics,.lowerGrid,.genericHero,.genericStats{grid-template-columns:1fr}.panelHint{display:none}}
     `}</style>
   </main>;
 }
