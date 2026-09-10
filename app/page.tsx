@@ -18,6 +18,8 @@ type Project = { id: string; title: string; kind: "Artwork" | "Project" | "Commi
 type WorkflowStage = { id: string; name: string; position: number; status: string; progress: number };
 type ProjectDetail = { id: string; title: string; status: string; progress: number; valueCents: number | null; dueDate: string | null; nextAction: string | null; notes: string | null; stages: WorkflowStage[]; template: { name: string } | null };
 type WorkflowTemplate = { id: string; name: string; projectType: string };
+type Transaction = { id: string; type: "INCOME" | "EXPENSE" | "REFUND"; amountCents: number; occurredAt: string; receivedAt: string | null; source: string; incomeClass: "ACTIVE" | "RECURRING" | "PASSIVE_LIKE" | null; isNonArt: boolean; notes: string | null; projectId: string | null };
+type IncomeMetrics = { totalCents: number; qualifyingCents: number; qualifyingShare: number; targets: Array<{ targetCents: number; progress: number; remainingCents: number }>; nextTarget: { targetCents: number; progress: number; remainingCents: number } };
 
 const initialArtwork: Artwork = {
   title: "Gabriel's Horn", completion: 80, artworkStatus: "In Progress", medium: "Acrylic on canvas", dimensions: "", year: "2026", signed: false, notes: "",
@@ -44,7 +46,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) { return <label className="toggleRow"><span>{label}</span><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /></label>; }
 
 export default function Home() {
-  const [view, setView] = useState<"dashboard" | "artwork" | "project">("dashboard");
+  const [view, setView] = useState<"dashboard" | "artwork" | "project" | "money">("dashboard");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [artwork, setArtwork] = useState<Artwork>(initialArtwork);
   const [openStage, setOpenStage] = useState<StageKey | null>(null);
@@ -56,6 +58,13 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [newProject, setNewProject] = useState({ title: "", type: "ARTWORK", templateId: "", value: "", dueDate: "", nextAction: "" });
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [incomeMetrics, setIncomeMetrics] = useState<IncomeMetrics>({ totalCents: 0, qualifyingCents: 0, qualifyingShare: 0, targets: [100000, 250000, 500000].map((targetCents) => ({ targetCents, progress: 0, remainingCents: targetCents })), nextTarget: { targetCents: 100000, progress: 0, remainingCents: 100000 } });
+  const [showTransaction, setShowTransaction] = useState(false);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const emptyTransaction = { type: "INCOME", amount: "", occurredAt: new Date().toISOString().slice(0, 10), receivedAt: new Date().toISOString().slice(0, 10), source: "", incomeClass: "ACTIVE", isNonArt: false, notes: "", projectId: "" };
+  const [transactionForm, setTransactionForm] = useState(emptyTransaction);
 
   useEffect(() => {
     const saved = localStorage.getItem("wizard-os-gabriels-horn");
@@ -84,6 +93,12 @@ export default function Home() {
     }).catch(() => {});
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem("wizard-os-gabriels-horn", JSON.stringify(artwork)); }, [artwork, loaded]);
+
+  const loadMoney = () => Promise.all([
+    fetch(`/api/transactions?month=${selectedMonth}`).then((response) => response.ok ? response.json() : []),
+    fetch(`/api/metrics/income?month=${selectedMonth}`).then((response) => response.ok ? response.json() : incomeMetrics),
+  ]).then(([ledger, metrics]) => { setTransactions(ledger); setIncomeMetrics(metrics); }).catch(() => {});
+  useEffect(() => { loadMoney(); }, [selectedMonth]);
 
   const patch = <K extends keyof Artwork>(key: K, value: Artwork[K]) => setArtwork((p) => ({ ...p, [key]: value }));
   const patchStage = <K extends StageKey>(key: K, value: Partial<Artwork[K]>) => setArtwork((p) => ({ ...p, [key]: { ...(p[key] as object), ...value } }));
@@ -170,13 +185,39 @@ export default function Home() {
     loadProjects();
   };
 
+  const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+
+  const openTransaction = (transaction?: Transaction) => {
+    setFormError("");
+    setEditingTransactionId(transaction?.id ?? null);
+    setTransactionForm(transaction ? {
+      type: transaction.type, amount: String(transaction.amountCents / 100), occurredAt: transaction.occurredAt.slice(0, 10), receivedAt: transaction.receivedAt?.slice(0, 10) ?? transaction.occurredAt.slice(0, 10), source: transaction.source, incomeClass: transaction.incomeClass ?? "ACTIVE", isNonArt: transaction.isNonArt, notes: transaction.notes ?? "", projectId: transaction.projectId ?? "",
+    } : { ...emptyTransaction, occurredAt: `${selectedMonth}-${new Date().getDate().toString().padStart(2, "0")}`, receivedAt: `${selectedMonth}-${new Date().getDate().toString().padStart(2, "0")}` });
+    setShowTransaction(true);
+  };
+
+  const saveTransaction = async () => {
+    setSaving(true); setFormError("");
+    const response = await fetch(editingTransactionId ? `/api/transactions/${editingTransactionId}` : "/api/transactions", { method: editingTransactionId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(transactionForm) });
+    const result = response.status === 204 ? {} : await response.json();
+    setSaving(false);
+    if (!response.ok) return setFormError(result.error ?? "Could not save transaction.");
+    setShowTransaction(false); await loadMoney();
+  };
+
+  const deleteTransaction = async () => {
+    if (!editingTransactionId || !window.confirm("Delete this transaction?")) return;
+    await fetch(`/api/transactions/${editingTransactionId}`, { method: "DELETE" });
+    setShowTransaction(false); await loadMoney();
+  };
+
   const Dashboard = () => <>
     <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><button className="primary" onClick={() => setShowNewProject(true)}>+ New Work Order</button></header>
     <section className="metrics">
-      <article className="metric"><span>Month Revenue</span><strong>$4,270</strong><small>+12% vs. prior month</small></article>
-      <article className="metric"><span>Recurring Income</span><strong>$420</strong><small>9.8% of revenue</small></article>
-      <article className="metric"><span>Open Work</span><strong>7</strong><small>$3,170 pipeline</small></article>
-      <article className="metric"><span>Freedom Target</span><strong>42%</strong><small>$420 / $1,000</small></article>
+      <article className="metric"><span>Month Revenue</span><strong>{money(incomeMetrics.totalCents)}</strong><small>Income actually received</small></article>
+      <article className="metric"><span>Qualifying Income</span><strong>{money(incomeMetrics.qualifyingCents)}</strong><small>{incomeMetrics.qualifyingShare}% of received income</small></article>
+      <article className="metric"><span>Open Work</span><strong>{projects.length}</strong><small>Active project records</small></article>
+      <article className="metric"><span>Next Freedom Target</span><strong>{incomeMetrics.nextTarget.progress}%</strong><small>{money(incomeMetrics.qualifyingCents)} / {money(incomeMetrics.nextTarget.targetCents)}</small></article>
     </section>
 
     <section className="panel projectPanel">
@@ -212,9 +253,23 @@ export default function Home() {
     </>}
   </>;
 
-  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" && setView("dashboard")} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Projects" && view !== "dashboard" ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
+  const MoneyWorkspace = () => <>
+    <header className="topbar"><div><p className="eyebrow">Cashflow ledger</p><h2>Money</h2></div><div className="moneyControls"><input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /><button className="primary" onClick={() => openTransaction()}>+ Transaction</button></div></header>
+    <section className="metrics">
+      <article className="metric"><span>Received Income</span><strong>{money(incomeMetrics.totalCents)}</strong><small>Income less refunds</small></article>
+      <article className="metric"><span>Qualifying Non-Art Income</span><strong>{money(incomeMetrics.qualifyingCents)}</strong><small>Recurring + passive-like only</small></article>
+      <article className="metric"><span>Qualifying Share</span><strong>{incomeMetrics.qualifyingShare}%</strong><small>Of received income</small></article>
+      <article className="metric"><span>Next Milestone</span><strong>{money(incomeMetrics.nextTarget.targetCents)}</strong><small>{money(incomeMetrics.nextTarget.remainingCents)} remaining</small></article>
+    </section>
+    <section className="panel milestonePanel"><div className="panelHead"><div><p className="eyebrow">Freedom targets</p><h3>Monthly Qualifying Income</h3></div><span className="panelHint">Only received, recurring or passive-like non-art income counts</span></div><div className="milestoneGrid">{incomeMetrics.targets.map((target) => <div className="milestone" key={target.targetCents}><div><strong>{money(target.targetCents)}</strong><span>{target.progress}%</span></div><div className="progress"><i style={{ width: `${target.progress}%` }} /></div><small>{target.remainingCents ? `${money(target.remainingCents)} remaining` : "Milestone reached"}</small></div>)}</div></section>
+    <section className="panel"><div className="panelHead"><div><p className="eyebrow">Selected month</p><h3>Income &amp; Expense Ledger</h3></div><span className="panelHint">Select a row to edit</span></div>{transactions.length === 0 ? <div className="emptyState"><strong>No transactions yet</strong><p>Add received income or an expense to begin measuring this month.</p><button className="primary" onClick={() => openTransaction()}>Add first transaction</button></div> : <div className="tableWrap"><table><thead><tr><th>Date</th><th>Type</th><th>Source</th><th>Class</th><th>Qualifies</th><th>Amount</th></tr></thead><tbody>{transactions.map((transaction) => <tr className="clickRow" key={transaction.id} onClick={() => openTransaction(transaction)}><td>{new Date(transaction.occurredAt).toLocaleDateString()}</td><td>{transaction.type.replace("_", " ")}</td><td>{transaction.source}</td><td>{transaction.incomeClass?.replace("_", " ") ?? "—"}</td><td>{transaction.isNonArt && (transaction.incomeClass === "RECURRING" || transaction.incomeClass === "PASSIVE_LIKE") ? "Yes" : "No"}</td><td className={transaction.type === "EXPENSE" || transaction.type === "REFUND" ? "negative" : "positive"}>{transaction.type === "EXPENSE" || transaction.type === "REFUND" ? "−" : "+"}{money(transaction.amountCents)}</td></tr>)}</tbody></table></div>}</section>
+  </>;
+
+  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" ? setView("dashboard") : item === "Money" ? setView("money") : undefined} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Money" && view === "money" ? "navItem active" : item === "Projects" && (view === "project" || view === "artwork") ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "money" ? <MoneyWorkspace /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
 
     {showNewProject && <div className="modalBackdrop" onMouseDown={() => setShowNewProject(false)}><section className="editWindow" onMouseDown={(event) => event.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">New work order</p><h2>Create Project</h2></div><button className="close" onClick={() => setShowNewProject(false)}>×</button></div><div className="formGrid"><Field label="Project title"><input autoFocus value={newProject.title} onChange={(event) => setNewProject({ ...newProject, title: event.target.value })} placeholder="What are you working on?" /></Field><Field label="Project type"><select value={newProject.type} onChange={(event) => chooseProjectType(event.target.value)}><option value="ARTWORK">Original artwork</option><option value="COMMISSION">Commission</option><option value="DIGITAL_PRODUCT">Digital product</option><option value="CONTENT">Content</option><option value="INTERNAL">Internal project</option></select></Field><Field label="Workflow"><select value={newProject.templateId} onChange={(event) => setNewProject({ ...newProject, templateId: event.target.value })}>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></Field><Field label="Value ($)"><input type="number" min="0" value={newProject.value} onChange={(event) => setNewProject({ ...newProject, value: event.target.value })} /></Field><Field label="Due date"><input type="date" value={newProject.dueDate} onChange={(event) => setNewProject({ ...newProject, dueDate: event.target.value })} /></Field><Field label="Next action"><input value={newProject.nextAction} onChange={(event) => setNewProject({ ...newProject, nextAction: event.target.value })} placeholder="Defaults to the first workflow stage" /></Field></div>{formError && <p className="formError">{formError}</p>}<div className="modalFoot"><span>The selected workflow will be copied into this project.</span><button className="primary" disabled={saving || !newProject.title.trim() || !newProject.templateId} onClick={createProject}>{saving ? "Creating…" : "Create work order"}</button></div></section></div>}
+
+    {showTransaction && <div className="modalBackdrop" onMouseDown={() => setShowTransaction(false)}><section className="editWindow" onMouseDown={(event) => event.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">Money ledger</p><h2>{editingTransactionId ? "Edit Transaction" : "Add Transaction"}</h2></div><button className="close" onClick={() => setShowTransaction(false)}>×</button></div><div className="formGrid"><Field label="Type"><select value={transactionForm.type} onChange={(event) => setTransactionForm({ ...transactionForm, type: event.target.value })}><option value="INCOME">Income</option><option value="EXPENSE">Expense</option><option value="REFUND">Refund</option></select></Field><Field label="Amount ($)"><input type="number" min="0.01" step="0.01" value={transactionForm.amount} onChange={(event) => setTransactionForm({ ...transactionForm, amount: event.target.value })} /></Field><Field label="Transaction date"><input type="date" value={transactionForm.occurredAt} onChange={(event) => setTransactionForm({ ...transactionForm, occurredAt: event.target.value })} /></Field>{transactionForm.type !== "EXPENSE" && <Field label="Date received"><input type="date" value={transactionForm.receivedAt} onChange={(event) => setTransactionForm({ ...transactionForm, receivedAt: event.target.value })} /></Field>}<Field label="Source"><input value={transactionForm.source} onChange={(event) => setTransactionForm({ ...transactionForm, source: event.target.value })} placeholder="Etsy, commission, client…" /></Field>{transactionForm.type !== "EXPENSE" && <Field label="Income class"><select value={transactionForm.incomeClass} onChange={(event) => setTransactionForm({ ...transactionForm, incomeClass: event.target.value })}><option value="ACTIVE">Active</option><option value="RECURRING">Recurring</option><option value="PASSIVE_LIKE">Passive-like</option></select></Field>}{transactionForm.type !== "EXPENSE" && <Toggle label="Non-art income" checked={transactionForm.isNonArt} onChange={(value) => setTransactionForm({ ...transactionForm, isNonArt: value })} />}<Field label="Related project"><select value={transactionForm.projectId} onChange={(event) => setTransactionForm({ ...transactionForm, projectId: event.target.value })}><option value="">None</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></Field><Field label="Notes"><textarea value={transactionForm.notes} onChange={(event) => setTransactionForm({ ...transactionForm, notes: event.target.value })} /></Field></div>{formError && <p className="formError">{formError}</p>}<div className="modalFoot">{editingTransactionId ? <button className="danger" onClick={deleteTransaction}>Delete</button> : <span>Qualifying income requires both non-art and recurring/passive-like.</span>}<button className="primary" disabled={saving} onClick={saveTransaction}>{saving ? "Saving…" : "Save transaction"}</button></div></section></div>}
 
     {openStage && <div className="modalBackdrop" onMouseDown={() => setOpenStage(null)}><section className="editWindow" onMouseDown={(e) => e.stopPropagation()}><div className="modalHead"><div><p className="eyebrow">Editable workflow window</p><h2>{stages.find(s => s.key === openStage)?.title}</h2></div><button className="close" onClick={() => setOpenStage(null)}>×</button></div>
       {openStage === "finish" && <div className="formGrid"><Toggle label="Varnished" checked={artwork.finish.varnished} onChange={(v) => patchStage("finish", { varnished: v })} /><Field label="Varnish type"><input value={artwork.finish.varnishType} onChange={(e) => patchStage("finish", { varnishType: e.target.value })} placeholder="Gloss, satin, matte…" /></Field><Field label="Coats"><input value={artwork.finish.coats} onChange={(e) => patchStage("finish", { coats: e.target.value })} /></Field><Field label="Cure status"><select value={artwork.finish.cureStatus} onChange={(e) => patchStage("finish", { cureStatus: e.target.value })}><option>Not started</option><option>Drying</option><option>Cured</option></select></Field><Toggle label="Framed" checked={artwork.finish.framed} onChange={(v) => patchStage("finish", { framed: v })} /><Toggle label="Hanging hardware installed" checked={artwork.finish.hardware} onChange={(v) => patchStage("finish", { hardware: v })} /></div>}
@@ -228,6 +283,7 @@ export default function Home() {
 
     <style jsx global>{`
       .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.metric{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:9px;padding:15px 16px}.metric span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}.metric strong{display:block;font-size:24px;font-weight:650}.metric small{display:block;margin-top:5px;color:#7f8b97;font-size:10px}.projectPanel,.queuePanel{margin-bottom:14px}.projectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.projectCard{text-align:left;min-width:0;padding:14px;border-radius:9px;border:1px solid var(--line);background:#0f1720;color:var(--ink);transition:.15s}.projectCard:hover{transform:translateY(-2px);border-color:#465463}.projectCardTop,.projectMeta{display:flex;align-items:center;justify-content:space-between;gap:10px}.projectCard h3{margin:16px 0 5px;font-family:Georgia,serif;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.projectCard p{margin:0 0 14px;color:var(--muted);font-size:10px}.projectCard .progress{margin-bottom:8px}.projectMeta{color:#9aa6b2;font-size:9px}.projectCard small{display:block;min-height:28px;margin-top:12px;color:#7f8b97;font-size:9px;line-height:1.45}.openHint,.panelHint{color:#697684;font-size:9px}.filters{display:flex;gap:6px}.filters button{background:#0f1720;border:1px solid var(--line);color:#9ca8b4;border-radius:6px;padding:6px 9px;font-size:10px}.tableWrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th{text-align:left;color:#7f8a96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:9px 10px;border-bottom:1px solid var(--line)}td{padding:12px 10px;border-bottom:1px solid #202a34;font-size:12px;color:#cbd3db}.clickRow{cursor:pointer}.clickRow:hover{background:rgba(255,255,255,.025)}.status{display:inline-flex;padding:5px 8px;border-radius:999px;font-size:10px;border:1px solid transparent}.status.green{background:rgba(41,83,63,.32);border-color:#35654d;color:#9ac0a8}.status.burgundy{background:rgba(111,38,61,.30);border-color:#77344a;color:#d39aae}.status.navy{background:rgba(30,58,95,.34);border-color:#31587f;color:#9db6cc}.lowerGrid{display:grid;grid-template-columns:1.4fr .8fr;gap:14px}.actions{list-style:none;padding:0;margin:0}.actions li{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #202a34}.actions li>span{color:var(--gold);font-family:Georgia,serif;font-size:12px}.actions strong{font-size:12px}.actions p,.note{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.5}.mix{display:grid;gap:9px}.mix div{display:flex;justify-content:space-between;font-size:12px;color:#bac4ce}.rule{text-align:center;color:var(--gold);opacity:.6;margin:16px 0 10px}.backButton{display:block;margin:0 0 11px;padding:0;border:0;background:transparent;color:var(--gold);font-size:11px}.genericHero{display:grid;grid-template-columns:.7fr 1.3fr;gap:24px;margin-bottom:12px}.bigProgress{font-size:42px}.genericStats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.genericStats div{padding:12px;border-left:1px solid var(--line)}.genericStats span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}.genericStats strong{font-size:12px}.stageCard.static{cursor:default}.stageCard.static:hover{transform:none}.stageSelect{max-width:105px;background:#0d141c;color:#b9c3cd;border:1px solid #293440;border-radius:6px;padding:5px;font-size:9px}.danger{background:transparent;color:#d98d99;border:1px solid #713747;padding:9px 12px;border-radius:7px;font-size:11px}.formError{color:#e49baa;font-size:11px;margin:14px 0 0}.primary:disabled{opacity:.45;cursor:not-allowed}.genericWorkflow{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1050px){.projectGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.projectGrid,.metrics,.lowerGrid,.genericHero,.genericStats{grid-template-columns:1fr}.panelHint{display:none}}
+      .moneyControls{display:flex;align-items:center;gap:9px}.moneyControls input{background:#0d141c;color:#d9e0e6;border:1px solid #293440;border-radius:7px;padding:9px}.milestonePanel{margin-bottom:14px}.milestoneGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.milestone{background:#0d141c;border:1px solid #293440;border-radius:8px;padding:13px}.milestone>div:first-child{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}.milestone span,.milestone small{color:var(--muted);font-size:10px}.milestone small{display:block;margin-top:9px}.emptyState{text-align:center;padding:35px 16px;color:var(--muted)}.emptyState strong{display:block;color:var(--ink);font-family:Georgia,serif;font-size:18px}.emptyState p{font-size:11px;margin:8px 0 16px}.positive{color:#8bb79e}.negative{color:#d98d99}@media(max-width:700px){.milestoneGrid{grid-template-columns:1fr}.moneyControls{align-items:stretch;flex-direction:column}}
     `}</style>
   </main>;
 }
