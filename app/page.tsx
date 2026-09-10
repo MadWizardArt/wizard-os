@@ -27,7 +27,7 @@ const initialArtwork: Artwork = {
   fulfillment: { sold: false, buyer: "", salePrice: "", paid: false, packed: false, shipped: false, delivered: false },
 };
 
-const projects: Project[] = [
+const demoProjects: Project[] = [
   { id: "gabriel", title: "Gabriel's Horn", kind: "Artwork", status: "In Progress", progress: 80, next: "Finish painting", value: "Original", due: "No deadline", tone: "burgundy" },
   { id: "autumn", title: "Autumn Print Release", kind: "Project", status: "Proofing", progress: 65, next: "Approve final proof", value: "$620", due: "Sep 11", tone: "green" },
   { id: "commission", title: "Private Collector Commission", kind: "Commission", status: "Awaiting Approval", progress: 55, next: "Collector follow-up", value: "$700", due: "Sep 14", tone: "navy" },
@@ -46,11 +46,25 @@ export default function Home() {
   const [artwork, setArtwork] = useState<Artwork>(initialArtwork);
   const [openStage, setOpenStage] = useState<StageKey | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [projects, setProjects] = useState<Project[]>(demoProjects);
 
   useEffect(() => {
     const saved = localStorage.getItem("wizard-os-gabriels-horn");
     if (saved) { try { setArtwork(JSON.parse(saved)); } catch {} }
     setLoaded(true);
+  }, []);
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((response) => {
+        if (!response.ok) throw new Error("Projects are unavailable");
+        return response.json();
+      })
+      .then((data: Project[]) => {
+        if (data.length) setProjects(data);
+      })
+      .catch(() => {
+        // Keep the demo queue available until the local database is migrated and seeded.
+      });
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem("wizard-os-gabriels-horn", JSON.stringify(artwork)); }, [artwork, loaded]);
 
