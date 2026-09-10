@@ -44,6 +44,14 @@ enum IncomeClass {
   PASSIVE_LIKE
 }
 
+enum VentureStatus {
+  IDEA
+  VALIDATING
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
 model Project {
   id           String        @id @default(cuid())
   title        String
@@ -120,11 +128,35 @@ model Transaction {
   isNonArt    Boolean         @default(false)
   notes       String?
   projectId   String?
+  ventureId   String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   project Project? @relation(fields: [projectId], references: [id])
+  venture Venture? @relation(fields: [ventureId], references: [id])
 
   @@index([receivedAt])
   @@index([type, incomeClass, isNonArt])
+}
+
+model Venture {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  status        VentureStatus @default(IDEA)
+  demand        Int           @default(3)
+  margin        Int           @default(3)
+  recurrence    Int           @default(3)
+  automation    Int           @default(3)
+  defensibility Int           @default(3)
+  startupCost   Int           @default(3)
+  weeklyHours   Int           @default(3)
+  nextAction    String?
+  archivedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  transactions Transaction[]
+
+  @@index([status])
 }
