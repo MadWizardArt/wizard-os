@@ -1,11 +1,16 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../app/generated/prisma/client";
 
-const databaseUrl =
-  process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+function requireDatabaseUrl() {
+  const value = process.env.DATABASE_URL;
+  if (!value) {
+    throw new Error("Missing required environment variable: DATABASE_URL");
+  }
+  return value;
+}
 
-const adapter = new PrismaBetterSqlite3({
-  url: databaseUrl,
+const adapter = new PrismaNeon({
+  connectionString: requireDatabaseUrl(),
 });
 
 const globalForPrisma = globalThis as unknown as {
