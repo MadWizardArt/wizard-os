@@ -87,11 +87,7 @@ model WorkflowTemplateStage {
   position          Int
   defaultFieldsJson String @default("{}")
 
-  template WorkflowTemplate @relation(
-    fields: [templateId],
-    references: [id],
-    onDelete: Cascade
-  )
+  template WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, position])
 }
@@ -108,11 +104,7 @@ model ProjectStage {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  project Project @relation(
-    fields: [projectId],
-    references: [id],
-    onDelete: Cascade
-  )
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, position])
 }
