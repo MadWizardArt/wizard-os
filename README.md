@@ -25,15 +25,48 @@ The goal is simple: reduce dependence on active labor by making revenue, recurri
 9. **Automations** — recurring workflows and integration status.
 10. **Analytics** — trends across income sources, ventures, customers, and time.
 
-## Initial tech direction
+## Current prototype
 
-- Next.js + TypeScript
-- Tailwind CSS
-- Prisma ORM
-- SQLite for local-first development, with a clean path to Postgres/Supabase later
-- PWA support for installable desktop/mobile use
-- Recharts for business visualizations
-- Zod for runtime validation
+The current deployable prototype is intentionally narrow: a FlightDeck-style Command Center with demo queue data, operational status chips, core metrics, next-best actions, and income mix. Big Cartel product ingestion and persistent business data come after the UI/workflow review.
+
+## Tech stack
+
+- Next.js 15 + TypeScript
+- React 19
+- Plain CSS for the current visual prototype
+- Next.js App Router
+- Web app manifest for installable/standalone behavior
+- Vercel-ready configuration
+- GitHub Actions build check
+
+Planned data layer: Prisma with SQLite for initial local development and a clean path to Postgres/Supabase later.
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Production build
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+## Deploy to Vercel
+
+1. Sign in to Vercel with GitHub.
+2. Import `MadWizardArt/wizard-os`.
+3. Leave the framework preset as **Next.js**.
+4. Deploy with the default build settings.
+5. After deployment, `/api/health` should return a JSON response with `ok: true`.
+
+Future pushes to `main` can automatically redeploy once the Vercel project is linked.
 
 ## Milestone 1
 
