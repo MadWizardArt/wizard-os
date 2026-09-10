@@ -1,4 +1,4 @@
-import { defineConfig } from "prisma/config";
+import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -7,6 +7,6 @@ export default defineConfig({
     seed: "node prisma/seed.mjs",
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
+    url: env("DIRECT_URL"),
   },
 });
