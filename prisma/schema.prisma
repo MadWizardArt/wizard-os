@@ -52,6 +52,21 @@ enum VentureStatus {
   ARCHIVED
 }
 
+enum CustomerType {
+  COLLECTOR
+  CLIENT
+  LEAD
+  PARTNER
+  OTHER
+}
+
+enum CustomerStatus {
+  LEAD
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
 model Project {
   id           String        @id @default(cuid())
   title        String
@@ -63,6 +78,7 @@ model Project {
   nextAction   String?
   notes        String?
   templateId   String?
+  customerId   String?
   archivedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -70,6 +86,7 @@ model Project {
   template     WorkflowTemplate? @relation(fields: [templateId], references: [id])
   stages       ProjectStage[]
   transactions Transaction[]
+  customer     Customer?         @relation(fields: [customerId], references: [id])
 
   @@index([status])
   @@index([dueDate])
@@ -129,14 +146,36 @@ model Transaction {
   notes       String?
   projectId   String?
   ventureId   String?
+  customerId  String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   project Project? @relation(fields: [projectId], references: [id])
   venture Venture? @relation(fields: [ventureId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
 
   @@index([receivedAt])
   @@index([type, incomeClass, isNonArt])
+}
+
+model Customer {
+  id            String         @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  type          CustomerType   @default(LEAD)
+  status        CustomerStatus @default(LEAD)
+  notes         String?
+  lastContactAt DateTime?
+  archivedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  projects     Project[]
+  transactions Transaction[]
+
+  @@index([status])
+  @@index([lastContactAt])
 }
 
 model Venture {

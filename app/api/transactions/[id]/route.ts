@@ -22,7 +22,7 @@ export async function PATCH(request: NextRequest, context: Context) {
       receivedAt: isIncomeLike ? new Date(`${body.receivedAt || body.occurredAt}T12:00:00Z`) : null,
       source: body.source.trim(), incomeClass: isIncomeLike ? body.incomeClass : null,
       isNonArt: isIncomeLike ? Boolean(body.isNonArt) : false,
-      notes: body.notes?.trim() || null, projectId: body.projectId || null,
+      notes: body.notes?.trim() || null, projectId: body.projectId || null, customerId: body.customerId || null,
     }}));
   } catch { return NextResponse.json({ error: "Transaction not found." }, { status: 404 }); }
 }

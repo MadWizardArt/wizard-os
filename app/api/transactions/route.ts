@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       isNonArt: isIncomeLike ? Boolean(body.isNonArt) : false,
       notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null,
       projectId: body.projectId || null,
+      customerId: body.customerId || null,
     },
   });
   return NextResponse.json(transaction, { status: 201 });

@@ -25,6 +25,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   if (Number.isInteger(body.progress) && body.progress >= 0 && body.progress <= 100) data.progress = body.progress;
   if (typeof body.nextAction === "string") data.nextAction = body.nextAction.trim() || null;
   if (typeof body.notes === "string") data.notes = body.notes;
+  if (typeof body.customerId === "string" || body.customerId == null) data.customerId = body.customerId || null;
   if (body.value === "" || body.value == null) data.valueCents = null;
   else if (!Number.isNaN(Number(body.value))) data.valueCents = Math.round(Number(body.value) * 100);
   if (body.dueDate === "" || body.dueDate == null) data.dueDate = null;

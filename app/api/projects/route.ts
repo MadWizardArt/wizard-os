@@ -33,6 +33,7 @@ export async function GET() {
       type: project.type,
       statusEnum: project.status,
       templateId: project.templateId,
+      customerId: project.customerId,
       kind: kindByType[project.type],
       status: project.status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
       progress: project.progress,
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       dueDate: body.dueDate ? new Date(`${body.dueDate}T12:00:00`) : null,
       nextAction: typeof body.nextAction === "string" && body.nextAction.trim() ? body.nextAction.trim() : template.stages[0]?.name ?? "Choose next action",
       templateId: template.id,
+      customerId: body.customerId || null,
       stages: {
         create: template.stages.map((stage) => ({
           name: stage.name,
