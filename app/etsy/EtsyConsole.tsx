@@ -1,8 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const initialDescription = `Professional print shop work order and production ticket system designed for small print shops, copy centers, sign shops, and creative production teams.\n\nBuilt from real print-production workflow experience, this digital system helps organize incoming jobs, specifications, production steps, quality checks, and completion.\n\nThis listing is for a digital download. No physical item will be shipped.`;
+
+type TaxonomyNode = {
+  id: number;
+  name: string;
+  level?: number;
+  parent_id?: number | null;
+  children?: TaxonomyNode[];
+};
+
+type TaxonomyOption = { id: number; label: string };
+
+function flattenTaxonomy(nodes: TaxonomyNode[], parents: string[] = []): TaxonomyOption[] {
+  return nodes.flatMap((node) => {
+    const path = [...parents, node.name];
+    const current = { id: node.id, label: path.join(" › ") };
+    return [current, ...flattenTaxonomy(node.children ?? [], path)];
+  });
+}
 
 export default function EtsyConsole() {
   const [shop, setShop] = useState<any>(null);
@@ -13,6 +31,9 @@ export default function EtsyConsole() {
   const [description, setDescription] = useState(initialDescription);
   const [price, setPrice] = useState("14.00");
   const [taxonomyId, setTaxonomyId] = useState("");
+  const [taxonomy, setTaxonomy] = useState<TaxonomyNode[]>([]);
+  const [taxonomyError, setTaxonomyError] = useState("");
+  const [categorySearch, setCategorySearch] = useState("digital printable business form");
   const [tags, setTags] = useState("print shop,work order,job ticket,production ticket,printable form,small business");
 
   useEffect(() => {
@@ -24,7 +45,25 @@ export default function EtsyConsole() {
       })
       .then((data) => setShop(data.shop))
       .catch((error) => setShopError(error.message));
+
+    fetch("/api/etsy/taxonomy", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load Etsy categories");
+        return data;
+      })
+      .then((data) => setTaxonomy(data.results ?? []))
+      .catch((error) => setTaxonomyError(error.message));
   }, []);
+
+  const taxonomyOptions = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);
+  const filteredCategories = useMemo(() => {
+    const words = categorySearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const matches = words.length
+      ? taxonomyOptions.filter((option) => words.some((word) => option.label.toLowerCase().includes(word)))
+      : taxonomyOptions;
+    return matches.slice(0, 80);
+  }, [categorySearch, taxonomyOptions]);
 
   async function createDraft(event: FormEvent) {
     event.preventDefault();
@@ -73,15 +112,25 @@ export default function EtsyConsole() {
       <form onSubmit={createDraft} style={{ padding: 24, border: "1px solid #26313d", borderRadius: 14, background: "#111923" }}>
         <p style={{ margin: 0, color: "#a99164", fontSize: 12, textTransform: "uppercase", letterSpacing: ".12em" }}>Draft Queue · Product 01</p>
         <h2 style={{ marginTop: 8 }}>Print Shop Production Ticket System</h2>
-        <p style={{ color: "#8e99a7", lineHeight: 1.5 }}>This button creates an Etsy draft only. It does not publish the listing.</p>
+        <p style={{ color: "#8e99a7", lineHeight: 1.5 }}>Warlock creates an Etsy draft only. Publishing remains a separate approval step.</p>
 
         <div style={{ display: "grid", gap: 16 }}>
           <label><span style={labelStyle}>Title</span><input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
           <label><span style={labelStyle}>Description</span><textarea style={{ ...inputStyle, minHeight: 180, resize: "vertical" }} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <label><span style={labelStyle}>Price (USD)</span><input style={inputStyle} value={price} onChange={(e) => setPrice(e.target.value)} /></label>
-            <label><span style={labelStyle}>Etsy taxonomy ID</span><input required inputMode="numeric" style={inputStyle} value={taxonomyId} onChange={(e) => setTaxonomyId(e.target.value)} placeholder="Required before draft creation" /></label>
+          <label><span style={labelStyle}>Price (USD)</span><input style={inputStyle} value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+
+          <div style={{ padding: 16, border: "1px solid #34404d", borderRadius: 11, background: "#0d141c" }}>
+            <span style={labelStyle}>Etsy category</span>
+            <input style={inputStyle} value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} placeholder="Search Etsy seller categories" />
+            {taxonomyError ? <p style={{ color: "#e08aa2" }}>Category lookup failed: {taxonomyError}</p> : taxonomyOptions.length === 0 ? <p style={{ color: "#8e99a7" }}>Loading Etsy seller taxonomy…</p> : (
+              <select required style={{ ...inputStyle, marginTop: 10 }} value={taxonomyId} onChange={(e) => setTaxonomyId(e.target.value)}>
+                <option value="">Choose the closest Etsy category…</option>
+                {filteredCategories.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            )}
+            {taxonomyId && <p style={{ color: "#8e99a7", fontSize: 12, marginBottom: 0 }}>Selected taxonomy ID: {taxonomyId}</p>}
           </div>
+
           <label><span style={labelStyle}>Tags · comma separated</span><input style={inputStyle} value={tags} onChange={(e) => setTags(e.target.value)} /></label>
         </div>
 
