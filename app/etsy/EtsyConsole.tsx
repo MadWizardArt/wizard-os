@@ -26,18 +26,18 @@ type RankedTaxonomyOption = TaxonomyOption & {
 };
 
 const semanticAliases: Record<string, string[]> = {
-  digital: ["digital", "download", "printable", "template"],
-  printable: ["printable", "template", "paper", "stationery", "form"],
-  business: ["business", "office", "professional", "organization", "stationery"],
-  form: ["form", "forms", "template", "templates", "stationery", "paper"],
-  forms: ["form", "forms", "template", "templates", "stationery", "paper"],
-  template: ["template", "templates", "printable", "form", "forms"],
-  templates: ["template", "templates", "printable", "form", "forms"],
-  order: ["order", "form", "template", "business"],
-  ticket: ["ticket", "form", "template", "business"],
-  job: ["job", "work", "business", "professional"],
-  production: ["production", "work", "business", "professional"],
-  planner: ["planner", "planning", "organizer", "organization", "template"],
+  digital: ["download", "printable", "template"],
+  printable: ["template", "paper", "stationery", "form"],
+  business: ["office", "professional", "organization", "stationery"],
+  form: ["forms", "template", "templates", "stationery"],
+  forms: ["form", "template", "templates", "stationery"],
+  template: ["templates", "printable", "form", "forms"],
+  templates: ["template", "printable", "form", "forms"],
+  order: ["form", "template", "business"],
+  ticket: ["form", "template", "business"],
+  job: ["work", "business", "professional"],
+  production: ["work", "business", "professional"],
+  planner: ["planning", "organizer", "organization", "template"],
 };
 
 const misleadingPatterns = [
@@ -45,8 +45,19 @@ const misleadingPatterns = [
   "dress forms",
   "mannequins",
   "transformers",
-  "platform & club sneakers",
-  "hat forms & stands",
+  "platform club sneakers",
+  "hat forms stands",
+];
+
+const specializedLeafIntents = [
+  { terms: ["bookkeeping"], queryTerms: ["bookkeeping", "accounting", "finance", "financial"] },
+  { terms: ["chore chart", "chore"], queryTerms: ["chore", "chores", "household"] },
+  { terms: ["contract", "agreement"], queryTerms: ["contract", "agreement", "legal"] },
+  { terms: ["invoice"], queryTerms: ["invoice", "billing"] },
+  { terms: ["resume", "cv"], queryTerms: ["resume", "cv", "career"] },
+  { terms: ["budget", "budgeting"], queryTerms: ["budget", "budgeting", "finance"] },
+  { terms: ["calendar"], queryTerms: ["calendar", "schedule"] },
+  { terms: ["wedding"], queryTerms: ["wedding", "bridal", "marriage"] },
 ];
 
 function normalize(value: string) {
@@ -76,48 +87,70 @@ function scoreTaxonomyOption(option: TaxonomyOption, query: string): RankedTaxon
 
   let score = 0;
   let matchedTerms = 0;
+  let directMatches = 0;
 
   if (normalizedQuery && normalizedLabel.includes(normalizedQuery)) score += 120;
   if (normalizedQuery && normalizedName.includes(normalizedQuery)) score += 160;
 
   for (const word of queryWords) {
-    let matched = false;
+    let directlyMatched = false;
 
     if (normalizedName === word) {
-      score += 42;
-      matched = true;
+      score += 46;
+      directlyMatched = true;
     } else if (normalizedName.includes(word)) {
-      score += 26;
-      matched = true;
+      score += 30;
+      directlyMatched = true;
     } else if (normalizedLabel.includes(word)) {
-      score += 16;
-      matched = true;
+      score += 18;
+      directlyMatched = true;
+    }
+
+    if (directlyMatched) {
+      matchedTerms += 1;
+      directMatches += 1;
+      continue;
     }
 
     const aliases = semanticAliases[word] ?? [];
     const aliasMatches = aliases.filter((alias) => normalizedLabel.includes(alias));
     if (aliasMatches.length > 0) {
-      score += Math.min(aliasMatches.length * 6, 18);
-      matched = true;
+      score += Math.min(aliasMatches.length * 2, 6);
+      matchedTerms += 1;
     }
-
-    if (matched) matchedTerms += 1;
   }
 
-  if (queryWords.length > 1 && matchedTerms === queryWords.length) score += 55;
-  else if (matchedTerms >= Math.ceil(queryWords.length * 0.6)) score += 22;
+  if (queryWords.length > 1 && directMatches === queryWords.length) score += 70;
+  else if (directMatches >= Math.ceil(queryWords.length * 0.66)) score += 35;
+  else if (queryWords.length >= 3 && directMatches <= 1) score -= 28;
 
-  if (option.isLeaf) score += 8;
-  score += Math.min(option.depth * 2, 10);
+  const querySet = new Set(queryWords);
+  const formIntent = querySet.has("form") || querySet.has("forms") || querySet.has("order") || querySet.has("ticket");
+  const templateIntent = querySet.has("template") || querySet.has("templates") || querySet.has("printable") || querySet.has("digital");
+  const businessIntent = querySet.has("business") || querySet.has("job") || querySet.has("production") || querySet.has("order") || querySet.has("ticket");
 
-  if (misleadingPatterns.some((pattern) => normalizedLabel.includes(pattern))) score -= 100;
+  if (formIntent && /\bforms?\b/.test(normalizedName)) score += 55;
+  if (templateIntent && /\btemplates?\b/.test(normalizedName)) score += 30;
+  if (formIntent && templateIntent && normalizedName === "templates") score += 38;
+  if (businessIntent && /\b(business|office|professional)\b/.test(normalizedLabel)) score += 18;
+
+  for (const intent of specializedLeafIntents) {
+    const leafHasSpecializedIntent = intent.terms.some((term) => normalizedName.includes(term));
+    const queryRequestsIt = intent.queryTerms.some((term) => normalizedQuery.includes(term));
+    if (leafHasSpecializedIntent && !queryRequestsIt) score -= 95;
+  }
+
+  if (option.isLeaf) score += 5;
+  score += Math.min(option.depth, 6);
+
+  if (misleadingPatterns.some((pattern) => normalizedLabel.includes(pattern))) score -= 120;
 
   return { ...option, score, matchedTerms };
 }
 
 function relevanceLabel(score: number) {
-  if (score >= 90) return "Strong match";
-  if (score >= 55) return "Good match";
+  if (score >= 110) return "Strong match";
+  if (score >= 70) return "Good match";
   return "Possible";
 }
 
@@ -162,7 +195,7 @@ export default function EtsyConsole() {
 
     return taxonomyOptions
       .map((option) => scoreTaxonomyOption(option, query))
-      .filter((option) => option.score > 0)
+      .filter((option) => option.score > 15)
       .sort((a, b) => b.score - a.score || b.depth - a.depth || a.label.localeCompare(b.label))
       .slice(0, 20);
   }, [categorySearch, taxonomyOptions]);
@@ -239,7 +272,7 @@ export default function EtsyConsole() {
 
             {taxonomyError ? <p style={{ color: "#e08aa2" }}>Category lookup failed: {taxonomyError}</p> : taxonomyOptions.length === 0 ? <p style={{ color: "#8e99a7" }}>Loading Etsy seller taxonomy…</p> : (
               <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
-                {rankedCategories.length === 0 ? <p style={{ color: "#8e99a7" }}>No strong category matches. Try fewer or more specific words.</p> : rankedCategories.map((option, index) => {
+                {rankedCategories.length === 0 ? <p style={{ color: "#8e99a7" }}>No convincing category matches. Try a simpler product description.</p> : rankedCategories.map((option, index) => {
                   const selected = String(option.id) === taxonomyId;
                   return (
                     <button
