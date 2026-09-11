@@ -120,3 +120,15 @@ nav { display: grid; gap: 4px; }
   .readiness strong { font-size: 18px; }
   .editWindow { padding: 16px; }
 }
+
+/* Warlock entry point: sidebar on desktop, dashboard header on smaller screens. */
+.sidebarBottom { margin-top: auto; padding-top: 24px; }
+.warlockLink { display: block; text-align: center; text-decoration: none; margin-bottom: 16px; }
+.dashboardActions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.warlockMobile { display: none; text-decoration: none; }
+.warlockLink:hover, .warlockMobile:hover { filter: brightness(1.12); }
+.warlockLink:focus-visible, .warlockMobile:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+@media (max-width: 900px) {
+  .sidebarBottom { display: none; }
+  .warlockMobile { display: inline-block; }
+}
