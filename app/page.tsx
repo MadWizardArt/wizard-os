@@ -1,5 +1,7 @@
 "use client";
 
+import StageEditor, {type EditableStage} from "./components/StageEditor";
+
 import { useEffect, useMemo, useState } from "react";
 
 type StageKey = "finish" | "photography" | "archive" | "pricing" | "publishing" | "marketing" | "fulfillment";
@@ -15,7 +17,7 @@ type Artwork = {
 };
 
 type Project = { id: string; title: string; kind: "Artwork" | "Project" | "Commission"; status: string; statusEnum?: string; type?: string; templateId?: string | null; customerId?: string | null; progress: number; next: string; value: string; due: string; tone: string };
-type WorkflowStage = { id: string; name: string; position: number; status: string; progress: number };
+type WorkflowStage = EditableStage & { id: string; name: string; position: number; status: string; progress: number };
 type ProjectDetail = { id: string; title: string; status: string; progress: number; valueCents: number | null; dueDate: string | null; nextAction: string | null; notes: string | null; customerId: string | null; stages: WorkflowStage[]; template: { name: string } | null };
 type WorkflowTemplate = { id: string; name: string; projectType: string; stages: Array<{ id: string; name: string; position: number }> };
 type Transaction = { id: string; type: "INCOME" | "EXPENSE" | "REFUND"; amountCents: number; occurredAt: string; receivedAt: string | null; source: string; incomeClass: "ACTIVE" | "RECURRING" | "PASSIVE_LIKE" | null; isNonArt: boolean; notes: string | null; projectId: string | null; customerId: string | null };
@@ -55,6 +57,8 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [projects, setProjects] = useState<Project[]>(demoProjects);
   const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null);
+  const [editingStage, setEditingStage] = useState<WorkflowStage | null>(null);
+  const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
   const [showNewProject, setShowNewProject] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -81,17 +85,17 @@ export default function Home() {
 
   useEffect(() => {
     const saved = localStorage.getItem("wizard-os-gabriels-horn");
-    if (saved) { try { setArtwork(JSON.parse(saved)); } catch {} }
+    if (saved) { try { setArtwork(JSON.parse(saved)); setLegacyAvailable(true); } catch {} }
     setLoaded(true);
   }, []);
   const loadProjects = () => {
-    fetch("/api/projects")
+    return fetch("/api/projects")
       .then((response) => {
         if (!response.ok) throw new Error("Projects are unavailable");
         return response.json();
       })
       .then((data: Project[]) => {
-        if (data.length) setProjects(data);
+        setProjects(data);
       })
       .catch(() => {
         // Keep the demo queue available until the local database is migrated and seeded.
@@ -108,7 +112,7 @@ export default function Home() {
       }
     }).catch(() => {});
   }, []);
-  useEffect(() => { if (loaded) localStorage.setItem("wizard-os-gabriels-horn", JSON.stringify(artwork)); }, [artwork, loaded]);
+
 
   const loadMoney = () => Promise.all([
     fetch(`/api/transactions?month=${selectedMonth}`).then((response) => response.ok ? response.json() : []),
@@ -157,12 +161,35 @@ export default function Home() {
 
   const openProject = async (p: Project) => {
     setSelectedProject(p);
-    setView(p.id === "gabriel" ? "artwork" : "project");
-    if (p.id !== "gabriel") {
+    setView("project");
+    setProjectDetail(null);
+    {
       const response = await fetch(`/api/projects/${p.id}`);
       if (response.ok) setProjectDetail(await response.json());
+      else setFormError("Could not load project. Please reopen it.");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const refreshProject = async () => {
+    if (!selectedProject) return;
+    const r = await fetch(`/api/projects/${selectedProject.id}`);
+    if (!r.ok) throw new Error('Could not refresh project.');
+    const detail = await r.json(); setProjectDetail(detail);
+    setSelectedProject(current=>current ? {...current, title: detail.title, status: detail.status, progress: detail.progress} : current);
+    await loadProjects();
+  };
+  const importLegacy = async () => {
+    setSaving(true); setFormError('');
+    try {
+      const data = localStorage.getItem('wizard-os-gabriels-horn');
+      if (!data) throw new Error('No earlier details found.');
+      const r = await fetch('/api/projects/gabriel/import-legacy', {method:'POST', headers:{'Content-Type':'application/json'}, body:data});
+      if (!r.ok) throw new Error((await r.json()).error || 'Import failed.');
+      const result = await r.json();
+      setLegacyAvailable(false); await refreshProject();
+      setFormError(result.imported ? `Imported ${result.imported} untouched stages. Your browser copy is retained.` : 'No stages imported: existing database edits were preserved. Your browser copy is retained.');
+    } catch(e) {setFormError(e instanceof Error ? e.message : 'Import failed.');} finally {setSaving(false);}
   };
 
   const chooseProjectType = (type: string) => {
@@ -299,8 +326,8 @@ export default function Home() {
       <div className="panelHead"><div><p className="eyebrow">Studio + business</p><h3>Works in Progress</h3></div><span className="panelHint">Select any item to enter its workspace</span></div>
       <div className="projectGrid">{projects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
         <div className="projectCardTop"><span className={`status ${p.tone}`}>{p.kind}</span><span className="openHint">Open ↗</span></div>
-        <h3>{p.title}</h3><p>{p.status}</p><div className="progress"><i style={{ width: `${p.id === "gabriel" ? artwork.completion : p.progress}%` }} /></div>
-        <div className="projectMeta"><span>{p.id === "gabriel" ? artwork.completion : p.progress}%</span><span>{p.due}</span></div><small>Next: {p.id === "gabriel" ? nextAction : p.next}</small>
+        <h3>{p.title}</h3><p>{p.status}</p><div className="progress"><i style={{ width: `${p.progress}%` }} /></div>
+        <div className="projectMeta"><span>{p.progress}%</span><span>{p.due}</span></div><small>Next: {p.next}</small>
       </button>)}</div>
     </section>
 
@@ -308,7 +335,7 @@ export default function Home() {
       <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>{projects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}</tbody></table></div>
     </section>
 
-    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions"><li><span>01</span><div><strong>{nextAction}</strong><p>Move Gabriel&apos;s Horn toward sale readiness.</p></div></li><li><span>02</span><div><strong>Close pending commission approval</strong><p>Follow up with collector today.</p></div></li><li><span>03</span><div><strong>Finish print release proof</strong><p>Unlock listing and launch content.</p></div></li></ol></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
+    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions">{projects.filter(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')).slice(0,5).map((p,i)=><li key={p.id}><span>{String(i+1).padStart(2,'0')}</span><div><button className="backButton" onClick={()=>openProject(p)}>{p.next}</button><p>{p.title} · {p.status} · {p.due}</p></div></li>)}</ol>{!projects.some(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')) && <p className="note">No unfinished work.</p>}</article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
   </>;
 
   const ArtworkWorkspace = () => <>
@@ -323,7 +350,8 @@ export default function Home() {
     <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2></div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
     {!projectDetail ? <section className="panel"><p className="note">Loading project record…</p></section> : <>
       <section className="panel genericHero"><div><p className="eyebrow">Current progress</p><strong className="bigProgress">{projectDetail.progress}%</strong><div className="progress"><i style={{ width: `${projectDetail.progress}%` }} /></div></div><div className="genericStats"><div><span>Workflow</span><strong>{projectDetail.template?.name ?? "Custom"}</strong></div><div><span>Due</span><strong>{projectDetail.dueDate ? new Date(projectDetail.dueDate).toLocaleDateString() : "No deadline"}</strong></div><div><span>Next action</span><strong>{projectDetail.nextAction ?? "Choose next action"}</strong></div></div></section>
-      <section className="workflowGrid genericWorkflow">{projectDetail.stages.map((stage, i) => <article className="stageCard static" key={stage.id}><div className="stageTop"><span className="stageIcon">{String(i + 1).padStart(2, "0")}</span><select className="stageSelect" value={stage.status} onChange={(event) => updateWorkflowStage(stage, event.target.value)}><option value="NOT_STARTED">Not started</option><option value="IN_PROGRESS">In progress</option><option value="WAITING">Waiting</option><option value="COMPLETE">Complete</option><option value="SKIPPED">Skipped</option></select></div><h3>{stage.name}</h3><p>{stage.progress}% complete</p><div className="progress"><i style={{ width: `${stage.progress}%` }} /></div></article>)}</section>
+      <section className="workflowGrid genericWorkflow">{projectDetail.stages.map((stage, i) => <button className="stageCard" key={stage.id} onClick={()=>setEditingStage(stage)}><div className="stageTop"><span className="stageIcon">{String(i+1).padStart(2,'0')}</span><span className="editHint">Edit ↗</span></div><h3>{stage.name}</h3><p>{stage.status.replaceAll('_',' ')} · {stage.progress}%</p><div className="progress"><i style={{width: `${stage.progress}%`}}/></div></button>)}</section>
+      {projectDetail.id === 'gabriel' && legacyAvailable && <section className="panel"><p>Earlier Gabriel’s Horn edits were found in this browser. Import fills untouched stages only; your browser copy is retained.</p><button className="primary" disabled={saving} onClick={importLegacy}>Import earlier artwork details</button></section>}
       <section className="panel"><div className="panelHead"><div><p className="eyebrow">Persistent record</p><h3>Project Details</h3></div></div><div className="formGrid"><Field label="Title"><input value={projectDetail.title} onChange={(event) => setProjectDetail({ ...projectDetail, title: event.target.value })} /></Field><Field label="Status"><select value={projectDetail.status} onChange={(event) => setProjectDetail({ ...projectDetail, status: event.target.value })}><option value="PLANNED">Planned</option><option value="ACTIVE">Active</option><option value="WAITING">Waiting</option><option value="BLOCKED">Blocked</option><option value="COMPLETE">Complete</option></select></Field><Field label="Related contact"><select value={projectDetail.customerId ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, customerId: event.target.value || null })}><option value="">None</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></Field><Field label="Value ($)"><input type="number" min="0" value={projectDetail.valueCents == null ? "" : projectDetail.valueCents / 100} onChange={(event) => setProjectDetail({ ...projectDetail, valueCents: event.target.value === "" ? null : Math.round(Number(event.target.value) * 100) })} /></Field><Field label="Due date"><input type="date" value={projectDetail.dueDate?.slice(0, 10) ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, dueDate: event.target.value || null })} /></Field><Field label="Next action"><input value={projectDetail.nextAction ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, nextAction: event.target.value })} /></Field><Field label="Notes"><textarea value={projectDetail.notes ?? ""} onChange={(event) => setProjectDetail({ ...projectDetail, notes: event.target.value })} /></Field></div>{formError && <p className="formError">{formError}</p>}<div className="modalFoot"><button className="danger" onClick={archiveProject}>Archive project</button><button className="primary" disabled={saving} onClick={saveProject}>{saving ? "Saving…" : "Save changes"}</button></div></section>
     </>}
   </>;
@@ -354,6 +382,7 @@ export default function Home() {
 
   return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" ? setView("dashboard") : item === "Money" ? setView("money") : item === "Ventures" ? setView("ventures") : item === "Clients" ? setView("customers") : undefined} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Money" && view === "money" ? "navItem active" : item === "Ventures" && view === "ventures" ? "navItem active" : item === "Clients" && view === "customers" ? "navItem active" : item === "Projects" && (view === "project" || view === "artwork") ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "money" ? <MoneyWorkspace /> : view === "ventures" ? <VenturesWorkspace /> : view === "customers" ? <CustomersWorkspace /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
 
+    {editingStage && selectedProject && <StageEditor stage={editingStage} projectId={selectedProject.id} close={()=>setEditingStage(null)} saved={refreshProject}/>}
     {showNewProject && <div className="modalBackdrop" onMouseDown={() => setShowNewProject(false)}><section className="editWindow workOrderWindow" onMouseDown={(event) => event.stopPropagation()}>
       <div className="modalHead"><div><p className="eyebrow">FlightDeck-style intake</p><h2>Create Work Order</h2></div><button className="close" onClick={() => setShowNewProject(false)}>×</button></div>
       <div className="workOrderLayout"><div className="formGrid workOrderFields">
