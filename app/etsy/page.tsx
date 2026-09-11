@@ -1,4 +1,5 @@
 import EtsyConsole from "./EtsyConsole";
+import DraftFinisher from "./DraftFinisher";
 
 type EtsyPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -16,7 +17,7 @@ export default async function EtsyPage({ searchParams }: EtsyPageProps) {
           <p style={{ margin: 0, color: "#a99164", letterSpacing: ".14em", textTransform: "uppercase", fontSize: 12 }}>Warlock</p>
           <h1 style={{ marginTop: 10, marginBottom: 12, fontSize: 36 }}>Etsy Seller Operations</h1>
           <p style={{ color: "#8e99a7", lineHeight: 1.6 }}>
-            Verify the connected shop, prepare Spellmark listings, and create Etsy drafts for review. Publishing remains a separate approval step.
+            Verify the connected shop, prepare Spellmark listings, create Etsy drafts, and finish them for final human review. Publishing remains a separate approval step.
           </p>
 
           {status === "connected" && (
@@ -37,6 +38,7 @@ export default async function EtsyPage({ searchParams }: EtsyPageProps) {
         </div>
 
         <EtsyConsole />
+        <DraftFinisher />
       </section>
     </main>
   );
