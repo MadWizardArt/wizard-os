@@ -16,7 +16,7 @@ export default async function EtsyPage({ searchParams }: EtsyPageProps) {
           <p style={{ margin: 0, color: "#a99164", letterSpacing: ".14em", textTransform: "uppercase", fontSize: 12 }}>Warlock</p>
           <h1 style={{ marginTop: 10, marginBottom: 12, fontSize: 36 }}>Etsy Seller Operations</h1>
           <p style={{ color: "#8e99a7", lineHeight: 1.6 }}>
-            Verify the connected shop, prepare Mad Wizard Designs listings, and create Etsy drafts for review. Publishing remains a separate approval step.
+            Verify the connected shop, prepare Spellmark listings, and create Etsy drafts for review. Publishing remains a separate approval step.
           </p>
 
           {status === "connected" && (
