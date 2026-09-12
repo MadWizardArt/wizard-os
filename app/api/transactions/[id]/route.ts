@@ -15,6 +15,8 @@ export async function PATCH(request: NextRequest, context: Context) {
   const isIncomeLike = body.type === TransactionType.INCOME || body.type === TransactionType.REFUND;
   if (isIncomeLike && !Object.values(IncomeClass).includes(body.incomeClass)) return NextResponse.json({ error: "Classify the income." }, { status: 400 });
   try {
+    const existing=await prisma.transaction.findUnique({where:{id}});
+    if(existing && existing.salesTaxCents+existing.shippingCents>Math.round(amount*100)) return NextResponse.json({error:"Amount cannot be below the recorded tax and shipping portions."},{status:400});
     return NextResponse.json(await prisma.transaction.update({ where: { id }, data: {
       type: body.type,
       amountCents: Math.round(amount * 100),

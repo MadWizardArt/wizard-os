@@ -1,4 +1,4 @@
-import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 
 function requireDatabaseUrl() {
@@ -9,8 +9,9 @@ function requireDatabaseUrl() {
   return value;
 }
 
-const adapter = new PrismaNeon({
+const adapter = new PrismaPg({
   connectionString: requireDatabaseUrl(),
+  max: Number(process.env.PG_POOL_MAX ?? 5),
 });
 
 const globalForPrisma = globalThis as unknown as {

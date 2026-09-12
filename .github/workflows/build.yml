@@ -39,7 +39,21 @@ jobs:
         run: npm install
 
       - name: Verify workflow rules
-        run: node --experimental-strip-types --test tests/workflow.test.mjs
+        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs
 
       - name: Build Wizard OS
         run: npm run build
+
+      - name: Install browser for persistence verification
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify campaign API and browser persistence
+        run: |
+          npm run start -- --hostname 127.0.0.1 > /tmp/wizard-server.log 2>&1 &
+          trap 'kill $!' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:3000/api/campaigns > /dev/null && break
+            sleep 1
+          done
+          node tests/campaign-integration.mjs
+          node tests/campaign-browser.mjs

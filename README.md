@@ -83,3 +83,18 @@ Build a usable local MVP that can:
 ## Financial objective
 
 The first operating target is **$1,000/month in recurring or low-maintenance non-art income**, followed by $2,500/month and $5,000/month. Wizard OS exists to measure progress toward those thresholds and surface the highest-value next actions.
+
+### Campaigns and Calendar
+
+`/campaigns`, `/calendar`, and `/inventory` use PostgreSQL through the same Prisma client and ledger as work orders and Money. The migration runs during the deployment build. No campaign records, paintings, or financial examples are seeded by migrations.
+
+The one-time **Set up 2026 campaigns** action checks all projects (including archived ones) for `2026 Painting Sales — September + Black Friday — $14000 Goal`. It reuses the earliest matching work order and its notes without changing existing stages. Repeat requests preserve existing campaign edits. The setup creates two proposed campaigns, a 30-unit winter batch and six weekly painting tasks (October 9 through November 13), with a production start of October 5. Additional detailed plan content remains manual.
+
+- Campaign tasks are the calendar's source records. Dates are ISO calendar dates, and optional clock times are Eastern wall times, independent of the browser timezone. All-day tasks become overdue after their Eastern date ends. Sale windows include both endpoints.
+- Inventory extends an existing ARTWORK project via a unique `projectId`. Campaign links store only the sale price. Regular prices and global availability live on Painting. New manual paintings receive artwork workflow stages. Batch quantities do not create fictional paintings.
+- Record Sale writes an actual received transaction to Money, with a unique request key protecting retries. Link Existing Receipt attaches that existing row, never copies it. Refunds are separate received ledger records. A refund does not automatically restock a painting.
+- The editable annual goal defaults to $14,000 due December 31, 2026, counting 2026 gross artwork receipts less refunds, tax and shipping. Artwork receipts are explicitly identified or linked to an ARTWORK project; unclassified art-like entries can be deliberately linked after review. No unpaid amounts, inventory valuations or campaign targets count. Monthly non-art qualifying-income goals are unchanged.
+- Facebook drafts have planning dates and Draft/Posted status. Copy text never publishes anything.
+- HTTP errors are shown instead of optimistic save confirmations or demonstration data. Reload/focus fetches saved records again. PostgreSQL is required; browser localStorage is not used for this feature.
+
+Validation: `node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs`. CI also applies migrations to a fresh PostgreSQL service, builds the app, and runs campaign API and Chromium reload tests. Integration tests must only run against a disposable test database; they intentionally create test transactions and artwork and leave them for the browser test to inspect.

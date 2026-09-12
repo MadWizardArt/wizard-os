@@ -27,6 +27,9 @@ export async function PATCH(request: NextRequest, context: Context) {
         ...(body.fields !== undefined ? {fieldsJson: JSON.stringify(body.fields)} : {}),
         completedAt: body.status === 'COMPLETE' ? stage.completedAt ?? new Date() : null,
       }});
+      if (project.type === 'ARTWORK' && (body.fields?.sold === true || body.fields?.availability === 'Sold')) {
+        await tx.painting.upsert({where:{projectId:id},update:{availability:'Sold'},create:{projectId:id,availability:'Sold',regularPriceCents:project.valueCents}});
+      }
       const stages = await tx.projectStage.findMany({where: {projectId: id}, orderBy: {position: 'asc'}});
       const summary = summarize(stages);
       await tx.project.update({where: {id}, data: {...summary, status: summary.status as 'ACTIVE' | 'PLANNED' | 'COMPLETE' | 'WAITING'}});

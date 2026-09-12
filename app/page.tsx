@@ -1,5 +1,6 @@
 "use client";
 
+import {CampaignDashboard} from "./components/Campaigns";
 import StageEditor, {type EditableStage} from "./components/StageEditor";
 
 import { useEffect, useMemo, useState } from "react";
@@ -43,7 +44,7 @@ const demoProjects: Project[] = [
   { id: "wizard", title: "Wizard OS — Business Engine", kind: "Project", status: "In Development", progress: 35, next: "Test project workflows", value: "Internal", due: "Sep 18", tone: "navy" },
 ];
 
-const nav = ["The Crucible", "Queue", "Money", "Ventures", "Clients", "Inventory", "Projects", "Content", "Automations"];
+const nav = ["The Crucible", "Campaigns", "Calendar", "Queue", "Money", "Ventures", "Clients", "Inventory", "Projects", "Content", "Automations"];
 const marketingStates = ["Not Planned", "Planned", "Created", "Scheduled", "Published"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
@@ -88,6 +89,15 @@ export default function Home() {
     if (saved) { try { setArtwork(JSON.parse(saved)); setLegacyAvailable(true); } catch {} }
     setLoaded(true);
   }, []);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("view") === "money") {setView("money"); if(query.get("month"))setSelectedMonth(query.get("month")!);}
+  }, []);
+  useEffect(() => {
+    const id=new URLSearchParams(window.location.search).get("project");
+    const found=projects.find(p=>p.id===id);
+    if(found) {openProject(found);}
+  }, [projects]);
   const loadProjects = () => {
     return fetch("/api/projects")
       .then((response) => {
@@ -315,6 +325,7 @@ export default function Home() {
 
   const Dashboard = () => <>
     <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><div className="dashboardActions"><a className="primary warlockMobile" href="/etsy">Warlock</a><button className="primary" onClick={() => setShowNewProject(true)}>+ New Work Order</button></div></header>
+    <CampaignDashboard />
     <section className="metrics">
       <article className="metric"><span>Month Revenue</span><strong>{money(incomeMetrics.totalCents)}</strong><small>Income actually received</small></article>
       <article className="metric"><span>Qualifying Income</span><strong>{money(incomeMetrics.qualifyingCents)}</strong><small>{incomeMetrics.qualifyingShare}% of received income</small></article>
@@ -380,7 +391,7 @@ export default function Home() {
     {customers.length === 0 ? <section className="panel emptyState"><strong>No contacts yet</strong><p>Add a collector, client, or lead. Only their name is required.</p><button className="primary" onClick={() => openCustomer()}>Add first contact</button></section> : <section className="customerGrid">{customers.map((customer) => <button className="customerCard" key={customer.id} onClick={() => openCustomer(customer)}><div className="customerTop"><span className="customerInitial">{customer.name.slice(0, 1).toUpperCase()}</span><span className={`status ${customer.status === "ACTIVE" ? "green" : "navy"}`}>{customer.status}</span></div><h3>{customer.name}</h3><p>{customer.type.replace("_", " ")} · {customer.email || customer.phone || "No contact details"}</p><div className="customerStats"><span><b>{customer._count.projects}</b> projects</span><span><b>{customer._count.transactions}</b> payments</span><span><b>{money(customer.receivedCents)}</b> received</span></div><small>Last contact: {customer.lastContactAt ? new Date(customer.lastContactAt).toLocaleDateString() : "Not recorded"}</small></button>)}</section>}
   </>;
 
-  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => item === "The Crucible" ? setView("dashboard") : item === "Money" ? setView("money") : item === "Ventures" ? setView("ventures") : item === "Clients" ? setView("customers") : undefined} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Money" && view === "money" ? "navItem active" : item === "Ventures" && view === "ventures" ? "navItem active" : item === "Clients" && view === "customers" ? "navItem active" : item === "Projects" && (view === "project" || view === "artwork") ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarBottom"><a className="primary warlockLink" href="/etsy">Warlock</a><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "money" ? <MoneyWorkspace /> : view === "ventures" ? <VenturesWorkspace /> : view === "customers" ? <CustomersWorkspace /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
+  return <main className="shell"><aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => ["Campaigns", "Calendar", "Inventory"].includes(item) ? window.location.assign("/" + item.toLowerCase()) : item === "The Crucible" ? setView("dashboard") : item === "Money" ? setView("money") : item === "Ventures" ? setView("ventures") : item === "Clients" ? setView("customers") : undefined} className={item === "The Crucible" && view === "dashboard" ? "navItem active" : item === "Money" && view === "money" ? "navItem active" : item === "Ventures" && view === "ventures" ? "navItem active" : item === "Clients" && view === "customers" ? "navItem active" : item === "Projects" && (view === "project" || view === "artwork") ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarBottom"><a className="primary warlockLink" href="/etsy">Warlock</a><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></div></aside><section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "money" ? <MoneyWorkspace /> : view === "ventures" ? <VenturesWorkspace /> : view === "customers" ? <CustomersWorkspace /> : view === "artwork" ? <ArtworkWorkspace /> : <ProjectWorkspace />}</section>
 
     {editingStage && selectedProject && <StageEditor stage={editingStage} projectId={selectedProject.id} close={()=>setEditingStage(null)} saved={refreshProject}/>}
     {showNewProject && <div className="modalBackdrop" onMouseDown={() => setShowNewProject(false)}><section className="editWindow workOrderWindow" onMouseDown={(event) => event.stopPropagation()}>

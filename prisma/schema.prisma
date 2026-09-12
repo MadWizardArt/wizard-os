@@ -83,6 +83,8 @@ model Project {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  artwork      Painting?
+  campaigns    Campaign[]
   template     WorkflowTemplate? @relation(fields: [templateId], references: [id])
   stages       ProjectStage[]
   transactions Transaction[]
@@ -150,6 +152,13 @@ model Transaction {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  campaignId String?
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+  isArtworkReceipt Boolean @default(false)
+  salesTaxCents Int @default(0)
+  shippingCents Int @default(0)
+  receiptKey String? @unique
+
   project Project? @relation(fields: [projectId], references: [id])
   venture Venture? @relation(fields: [ventureId], references: [id])
   customer Customer? @relation(fields: [customerId], references: [id])
@@ -198,4 +207,90 @@ model Venture {
   transactions Transaction[]
 
   @@index([status])
+}
+
+model Campaign {
+  id String @id @default(cuid())
+  title String
+  status String @default("Draft")
+  startDate String
+  endDate String
+  targetCents Int @default(0)
+  notes String @default("")
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id])
+  tasks CampaignTask[]
+  artwork CampaignPainting[]
+  content CampaignContent[]
+  batches ProductionBatch[]
+  transactions Transaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CampaignTask {
+  id String @id @default(cuid())
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title String
+  dueDate String
+  dueTime String?
+  category String @default("Preparation")
+  completed Boolean @default(false)
+}
+
+model Painting {
+  projectId String @id
+  project Project @relation(fields: [projectId], references: [id])
+  thumbnail String @default("")
+  dimensions String @default("")
+  medium String @default("")
+  framing String @default("")
+  availability String @default("Available")
+  regularPriceCents Int?
+  campaigns CampaignPainting[]
+  batchId String?
+  batch ProductionBatch? @relation(fields: [batchId], references: [id])
+}
+
+model CampaignPainting {
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  projectId String
+  painting Painting @relation(fields: [projectId], references: [projectId])
+  salePriceCents Int?
+  @@id([campaignId, projectId])
+}
+
+model CampaignContent {
+  id String @id @default(cuid())
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title String
+  text String @default("")
+  postingDate String
+  status String @default("Draft")
+}
+
+model ProductionBatch {
+  id String @id @default(cuid())
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title String
+  plannedQuantity Int
+  unitPriceCents Int
+  weeklyQuantity Int
+  startDate String
+  completionDate String
+  paintings Painting[]
+}
+
+model SalesGoal {
+  id String @id
+  targetCents Int
+  startDate String
+  dueDate String
+  basis String @default("Gross artwork receipts")
+  excludeSalesTax Boolean @default(true)
+  excludeShipping Boolean @default(true)
 }
