@@ -4,7 +4,18 @@ import { usePathname } from "next/navigation";
 
 export default function MuseumNavDock() {
   const pathname = usePathname();
-  const onQuests = pathname.startsWith("/museum/quests");
+  const onManage = pathname.startsWith("/museum/briefs/manage");
+
+  const linkStyle = (active: boolean) => ({
+    padding: "8px 11px",
+    borderRadius: 999,
+    color: active ? "#ead8a8" : "#7f8993",
+    background: active ? "rgba(125,98,49,.22)" : "transparent",
+    textDecoration: "none",
+    font: "700 9px/1 system-ui, sans-serif",
+    letterSpacing: ".08em",
+    textTransform: "uppercase" as const,
+  });
 
   return (
     <nav
@@ -24,36 +35,8 @@ export default function MuseumNavDock() {
         backdropFilter: "blur(12px)",
       }}
     >
-      <a
-        href="/museum"
-        style={{
-          padding: "8px 11px",
-          borderRadius: 999,
-          color: !onQuests ? "#ead8a8" : "#7f8993",
-          background: !onQuests ? "rgba(125,98,49,.22)" : "transparent",
-          textDecoration: "none",
-          font: "700 9px/1 system-ui, sans-serif",
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Character Select
-      </a>
-      <a
-        href="/museum/quests"
-        style={{
-          padding: "8px 11px",
-          borderRadius: 999,
-          color: onQuests ? "#ead8a8" : "#7f8993",
-          background: onQuests ? "rgba(125,98,49,.22)" : "transparent",
-          textDecoration: "none",
-          font: "700 9px/1 system-ui, sans-serif",
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-        }}
-      >
-        Quest Board
-      </a>
+      <a href="/museum" style={linkStyle(!onManage)}>Museum 2.0</a>
+      <a href="/museum/briefs/manage" style={linkStyle(onManage)}>Manage Briefs</a>
     </nav>
   );
 }
