@@ -1,5 +1,6 @@
 "use client";
 
+import {inProduction} from "../lib/artwork-lifecycle";
 import {CampaignDashboard} from "./components/Campaigns";
 import StageEditor, {type EditableStage} from "./components/StageEditor";
 
@@ -17,7 +18,7 @@ type Artwork = {
   fulfillment: { sold: boolean; buyer: string; salePrice: string; paid: boolean; packed: boolean; shipped: boolean; delivered: boolean };
 };
 
-type Project = { id: string; title: string; kind: "Artwork" | "Project" | "Commission"; status: string; statusEnum?: string; type?: string; templateId?: string | null; customerId?: string | null; progress: number; next: string; value: string; due: string; tone: string };
+type Project = { artworkAvailability?: string | null; id: string; title: string; kind: "Artwork" | "Project" | "Commission"; status: string; statusEnum?: string; type?: string; templateId?: string | null; customerId?: string | null; progress: number; next: string; value: string; due: string; tone: string };
 type WorkflowStage = EditableStage & { id: string; name: string; position: number; status: string; progress: number };
 type ProjectDetail = { id: string; title: string; status: string; progress: number; valueCents: number | null; dueDate: string | null; nextAction: string | null; notes: string | null; customerId: string | null; stages: WorkflowStage[]; template: { name: string } | null };
 type WorkflowTemplate = { id: string; name: string; projectType: string; stages: Array<{ id: string; name: string; position: number }> };
@@ -323,19 +324,20 @@ export default function Home() {
     await fetch(`/api/customers/${editingCustomerId}`, { method: "DELETE" }); setShowCustomer(false); loadCustomers();
   };
 
+  const productionProjects = projects.filter(inProduction);
   const Dashboard = () => <>
     <header className="topbar"><div><p className="eyebrow">Wednesday · September 9</p><h2>The Crucible</h2></div><div className="dashboardActions"><a className="primary warlockMobile" href="/etsy">Warlock</a><button className="primary" onClick={() => setShowNewProject(true)}>+ New Work Order</button></div></header>
     <CampaignDashboard />
     <section className="metrics">
       <article className="metric"><span>Month Revenue</span><strong>{money(incomeMetrics.totalCents)}</strong><small>Income actually received</small></article>
       <article className="metric"><span>Qualifying Income</span><strong>{money(incomeMetrics.qualifyingCents)}</strong><small>{incomeMetrics.qualifyingShare}% of received income</small></article>
-      <article className="metric"><span>Open Work</span><strong>{projects.length}</strong><small>Active project records</small></article>
+      <article className="metric"><span>Open Work</span><strong>{productionProjects.length}</strong><small>Active project records</small></article>
       <article className="metric"><span>Next Freedom Target</span><strong>{incomeMetrics.nextTarget.progress}%</strong><small>{money(incomeMetrics.qualifyingCents)} / {money(incomeMetrics.nextTarget.targetCents)}</small></article>
     </section>
 
     <section className="panel projectPanel">
       <div className="panelHead"><div><p className="eyebrow">Studio + business</p><h3>Works in Progress</h3></div><span className="panelHint">Select any item to enter its workspace</span></div>
-      <div className="projectGrid">{projects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
+      <div className="projectGrid">{productionProjects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
         <div className="projectCardTop"><span className={`status ${p.tone}`}>{p.kind}</span><span className="openHint">Open ↗</span></div>
         <h3>{p.title}</h3><p>{p.status}</p><div className="progress"><i style={{ width: `${p.progress}%` }} /></div>
         <div className="projectMeta"><span>{p.progress}%</span><span>{p.due}</span></div><small>Next: {p.next}</small>
@@ -343,10 +345,10 @@ export default function Home() {
     </section>
 
     <section className="panel queuePanel"><div className="panelHead"><div><p className="eyebrow">FlightDeck-style queue</p><h3>Active Work</h3></div><div className="filters"><button>All</button><button>Due Soon</button><button>Waiting</button></div></div>
-      <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>{projects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}</tbody></table></div>
+      <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>{productionProjects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}</tbody></table></div>
     </section>
 
-    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions">{projects.filter(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')).slice(0,5).map((p,i)=><li key={p.id}><span>{String(i+1).padStart(2,'0')}</span><div><button className="backButton" onClick={()=>openProject(p)}>{p.next}</button><p>{p.title} · {p.status} · {p.due}</p></div></li>)}</ol>{!projects.some(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')) && <p className="note">No unfinished work.</p>}</article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
+    <section className="lowerGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">Priority</p><h3>Next Best Actions</h3></div></div><ol className="actions">{productionProjects.filter(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')).slice(0,5).map((p,i)=><li key={p.id}><span>{String(i+1).padStart(2,'0')}</span><div><button className="backButton" onClick={()=>openProject(p)}>{p.next}</button><p>{p.title} · {p.status} · {p.due}</p></div></li>)}</ol>{!productionProjects.some(p=>!['COMPLETE','ARCHIVED'].includes(p.statusEnum ?? '')) && <p className="note">No unfinished work.</p>}</article><article className="panel"><div className="panelHead"><div><p className="eyebrow">Income mix</p><h3>Revenue Sources</h3></div></div><div className="mix"><div><span>Services</span><strong>54%</strong></div><div><span>Art</span><strong>36%</strong></div><div><span>Recurring</span><strong>10%</strong></div></div><div className="rule">✦</div><p className="note">Goal: grow recurring income without increasing required weekly hours.</p></article></section>
   </>;
 
   const ArtworkWorkspace = () => <>
@@ -358,7 +360,7 @@ export default function Home() {
   </>;
 
   const ProjectWorkspace = () => selectedProject && <>
-    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2></div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
+    <header className="topbar"><div><button className="backButton" onClick={() => setView("dashboard")}>← The Crucible</button><p className="eyebrow">{selectedProject.kind} workspace</p><h2>{selectedProject.title}</h2>{selectedProject.type === "ARTWORK" && <><a className="primary" href={`/inventory?project=${selectedProject.id}`}>Artwork lifecycle →</a>{inProduction(selectedProject) && <button className="primary" onClick={async()=>{const r=await fetch("/api/artwork",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"complete",projectId:selectedProject.id})});if(r.ok)window.location.assign(`/inventory?project=${selectedProject.id}`);else setFormError((await r.json()).error);}}>Complete Painting</button>}</>}</div><span className={`status ${selectedProject.tone}`}>{selectedProject.status}</span></header>
     {!projectDetail ? <section className="panel"><p className="note">Loading project record…</p></section> : <>
       <section className="panel genericHero"><div><p className="eyebrow">Current progress</p><strong className="bigProgress">{projectDetail.progress}%</strong><div className="progress"><i style={{ width: `${projectDetail.progress}%` }} /></div></div><div className="genericStats"><div><span>Workflow</span><strong>{projectDetail.template?.name ?? "Custom"}</strong></div><div><span>Due</span><strong>{projectDetail.dueDate ? new Date(projectDetail.dueDate).toLocaleDateString() : "No deadline"}</strong></div><div><span>Next action</span><strong>{projectDetail.nextAction ?? "Choose next action"}</strong></div></div></section>
       <section className="workflowGrid genericWorkflow">{projectDetail.stages.map((stage, i) => <button className="stageCard" key={stage.id} onClick={()=>setEditingStage(stage)}><div className="stageTop"><span className="stageIcon">{String(i+1).padStart(2,'0')}</span><span className="editHint">Edit ↗</span></div><h3>{stage.name}</h3><p>{stage.status.replaceAll('_',' ')} · {stage.progress}%</p><div className="progress"><i style={{width: `${stage.progress}%`}}/></div></button>)}</section>

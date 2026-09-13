@@ -23,6 +23,7 @@ const toneByType = {
 export async function GET() {
   const projects = await prisma.project.findMany({
     where: { archivedAt: null },
+    include: {artwork: true},
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
 
@@ -31,6 +32,7 @@ export async function GET() {
       id: project.id,
       title: project.title,
       type: project.type,
+      artworkAvailability: project.artwork?.availability ?? null,
       statusEnum: project.status,
       templateId: project.templateId,
       customerId: project.customerId,

@@ -149,6 +149,41 @@ try {
     ),
     false,
   );
+  await page.setViewportSize({width:1440,height:1000});
+  await page.goto('http://127.0.0.1:3000/inventory');
+  await page.getByRole('tab',{name:/Available Inventory/}).waitFor();
+  await page.getByRole('button',{name:'Add Painting',exact:true}).click();
+  await page.getByLabel('Artwork title',{exact:true}).fill('Direct completed browser painting');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByRole('dialog').waitFor({state:'hidden'});
+  await page.reload();
+  await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
+  await page.goto('http://127.0.0.1:3000/');
+  await page.locator('.projectGrid').getByText('2026 Painting Sales — September + Black Friday — $14000 Goal',{exact:true}).waitFor();
+  assert.equal(await page.locator('.projectGrid').getByText('Direct completed browser painting',{exact:true}).count(),0);
+  await page.goto('http://127.0.0.1:3000/inventory');
+  const card=page.locator('article').filter({has:page.getByRole('heading',{name:'Direct completed browser painting',exact:true})});
+  await card.getByRole('button',{name:'Record Sale',exact:true}).click();
+  await page.getByLabel('Actual artwork selling price AFTER discounts ($)',{exact:true}).fill('250');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByRole('dialog').waitFor({state:'hidden'});
+  assert.equal(await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).count(),0);
+  await page.reload();
+  await page.getByRole('tab',{name:/Sold Archive/}).click();
+  await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
+  assert.ok((await card.textContent()).includes('Unpaid'));
+  assert.ok((await card.textContent()).includes('Awaiting shipment'));
+  assert.ok((await card.textContent()).includes('Provisional profit'));
+  await page.screenshot({path:'/tmp/wizard-sold-archive.png',fullPage:true});
+  await card.getByRole('button',{name:'Correct status',exact:true}).click();
+  await page.getByRole('dialog').getByRole('combobox').first().selectOption('Available');
+  await page.getByLabel('Reason (saved in history)',{exact:true}).fill('Browser test return');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByRole('dialog').waitFor({state:'hidden'});
+  await page.reload();
+  await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
+  assert.ok((await card.textContent()).includes('Returned sale'));
+  console.log('PASS: browser direct completed entry, WIP exclusion, unpaid sold archive, provisional profit, fulfillment and return persist after reload');
   assert.deepEqual(errors, []);
   console.log(
     "PASS: real browser reload, Eastern dates in Tokyo browser, shared month/agenda task edits, inventory links, six-day sale window, Facebook draft persistence, mobile width",

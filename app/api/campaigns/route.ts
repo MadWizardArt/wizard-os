@@ -1,3 +1,4 @@
+import { saleSummary } from "../../../lib/artwork-lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import {
@@ -72,7 +73,16 @@ export async function GET() {
       priorWorkOrders,
     ] = await Promise.all([
       prisma.campaign.findMany({ include, orderBy: { startDate: "asc" } }),
-      prisma.painting.findMany({ include: { project: true } }),
+      prisma.painting.findMany({
+        include: {
+          project: true,
+          sales: {
+            include: { transactions: true },
+            orderBy: { createdAt: "desc" },
+          },
+          history: { orderBy: { createdAt: "desc" } },
+        },
+      }),
       prisma.project.findMany({
         where: { type: "ARTWORK", archivedAt: null },
         include: { stages: true, artwork: true },
@@ -97,15 +107,28 @@ export async function GET() {
             .filter((t) => t.campaignId === c.id)
             .reduce((s, t) => s + receiptValue(t, goal), 0),
         })),
-        paintings,
+        paintings: paintings.map((p) => ({
+          ...p,
+          sales: p.sales.map((s) => ({ ...s, summary: saleSummary(s, p) })),
+        })),
         projects,
         transactions,
         goal: { ...goal, receivedCents: goalReceived(transactions, goal) },
         priorWorkOrders,
         initialized:
           !!savedGoal &&
-          campaigns.some((c) => c.id === "studio-september-2026" || (c.title === "End-of-September Studio Sale" && c.startDate === "2026-09-25")) &&
-          campaigns.some((c) => c.id === "winter-black-friday-2026" || (c.title === "Black Friday Winter Art Sale" && c.startDate === "2026-11-27")),
+          campaigns.some(
+            (c) =>
+              c.id === "studio-september-2026" ||
+              (c.title === "End-of-September Studio Sale" &&
+                c.startDate === "2026-09-25"),
+          ) &&
+          campaigns.some(
+            (c) =>
+              c.id === "winter-black-friday-2026" ||
+              (c.title === "Black Friday Winter Art Sale" &&
+                c.startDate === "2026-11-27"),
+          ),
       },
       { headers: { "Cache-Control": "no-store" } },
     );
@@ -174,7 +197,13 @@ export async function POST(request: NextRequest) {
           }
           const winter = await tx.campaign.findFirstOrThrow({
             where: {
-              OR: [{id: definitions[1].id}, {title: definitions[1].title, startDate: definitions[1].startDate}],
+              OR: [
+                { id: definitions[1].id },
+                {
+                  title: definitions[1].title,
+                  startDate: definitions[1].startDate,
+                },
+              ],
             },
           });
           await tx.productionBatch.upsert({
@@ -298,6 +327,15 @@ export async function POST(request: NextRequest) {
         result = await prisma.$transaction(async (tx) => {
           let projectId = b.projectId;
           if (projectId) {
+            const current = await tx.painting.findUnique({
+              where: { projectId },
+            });
+            if (current && current.availability !== data.availability)
+              throw Error(
+                "Use Correct status to change an existing painting's lifecycle.",
+              );
+          }
+          if (projectId) {
             const p = await tx.project.findUniqueOrThrow({
               where: { id: projectId },
             });
@@ -352,6 +390,7 @@ export async function POST(request: NextRequest) {
           });
           if (p.type !== "ARTWORK")
             throw new Error("Choose an artwork project.");
+          if(p.artwork?.availability === "Not ready" || (!p.artwork && p.status !== "COMPLETE")) throw Error("Complete the painting before adding it to a sale campaign.");
           if (!p.artwork) {
             const fields = p.stages.map((s) => {
               try {
@@ -495,9 +534,19 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
+            const sale = b.artworkSaleId
+              ? await tx.artworkSale.findFirstOrThrow({
+                  where: { id: b.artworkSaleId, projectId: b.projectId },
+                })
+              : b.projectId
+                ? await tx.artworkSale.findFirst({
+                    where: { projectId: b.projectId, status: "Active" },
+                  })
+                : null;
             const t = await tx.transaction.create({
               data: {
                 receiptKey,
+                artworkSaleId: sale?.id ?? null,
                 type,
                 amountCents,
                 salesTaxCents,
@@ -508,7 +557,7 @@ export async function POST(request: NextRequest) {
                 incomeClass: "ACTIVE",
                 isNonArt: false,
                 isArtworkReceipt: true,
-                campaignId: b.campaignId || null,
+                campaignId: sale?.campaignId || b.campaignId || null,
                 projectId: b.projectId || null,
                 notes: typeof b.notes === "string" ? b.notes : null,
               },

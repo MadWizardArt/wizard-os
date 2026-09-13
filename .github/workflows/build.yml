@@ -39,7 +39,7 @@ jobs:
         run: npm install
 
       - name: Verify workflow rules
-        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs
+        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs
 
       - name: Build Wizard OS
         run: npm run build
@@ -56,4 +56,5 @@ jobs:
             sleep 1
           done
           node tests/campaign-integration.mjs
+          node tests/artwork-integration.mjs
           node tests/campaign-browser.mjs

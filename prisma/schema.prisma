@@ -158,6 +158,8 @@ model Transaction {
   salesTaxCents Int @default(0)
   shippingCents Int @default(0)
   receiptKey String? @unique
+  artworkSaleId String?
+  artworkSale ArtworkSale? @relation(fields: [artworkSaleId], references: [id])
 
   project Project? @relation(fields: [projectId], references: [id])
   venture Venture? @relation(fields: [ventureId], references: [id])
@@ -210,6 +212,7 @@ model Venture {
 }
 
 model Campaign {
+  sales ArtworkSale[]
   id String @id @default(cuid())
   title String
   status String @default("Draft")
@@ -240,6 +243,10 @@ model CampaignTask {
 }
 
 model Painting {
+  materialsCostCents Int?
+  framingCostCents Int?
+  sales ArtworkSale[]
+  history ArtworkHistory[]
   projectId String @id
   project Project @relation(fields: [projectId], references: [id])
   thumbnail String @default("")
@@ -293,4 +300,35 @@ model SalesGoal {
   basis String @default("Gross artwork receipts")
   excludeSalesTax Boolean @default(true)
   excludeShipping Boolean @default(true)
+}
+
+model ArtworkSale {
+  campaignId String?
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+  id String @id @default(cuid())
+  projectId String
+  painting Painting @relation(fields: [projectId], references: [projectId])
+  saleDate String
+  salePriceCents Int
+  discountCents Int @default(0)
+  salesTaxCents Int @default(0)
+  shippingIncomeCents Int @default(0)
+  sellingFeesCents Int?
+  shippingExpenseCents Int?
+  fulfillment String @default("Awaiting shipment")
+  status String @default("Active")
+  notes String @default("")
+  requestKey String @unique
+  transactions Transaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model ArtworkHistory {
+  id String @id @default(cuid())
+  projectId String
+  painting Painting @relation(fields: [projectId], references: [projectId])
+  fromStatus String?
+  toStatus String
+  note String
+  createdAt DateTime @default(now())
 }

@@ -98,3 +98,13 @@ The one-time **Set up 2026 campaigns** action checks all projects (including arc
 - HTTP errors are shown instead of optimistic save confirmations or demonstration data. Reload/focus fetches saved records again. PostgreSQL is required; browser localStorage is not used for this feature.
 
 Validation: `node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs`. CI also applies migrations to a fresh PostgreSQL service, builds the app, and runs campaign API and Chromium reload tests. Integration tests must only run against a disposable test database; they intentionally create test transactions and artwork and leave them for the browser test to inspect.
+
+### Connected artwork lifecycle
+
+Painting availability is the single lifecycle source: Not ready → Works in Progress; Available/Reserved → Available Inventory; Sold → Sold Archive. The dashboard excludes finished paintings from production cards, queue and next actions while work orders remain available for history. Imported Available records require no copying or deletion. New paintings entered in Inventory default to Available; New Work Order can still begin production. Complete Painting records an availability transition without fabricating historic stage completion dates.
+
+Inventory has lifecycle tabs and search, direct completion, campaign linking, costs, sale recording and status corrections. ArtworkSale stores actual agreed sale terms separately from Transaction receipts. Unpaid sales move to Sold but contribute nothing to received-revenue goals. Payments and refunds reference the existing ledger; existing receipts may be linked instead of recreated. Fulfillment is separate from payment and artwork availability.
+
+Profit uses the actual discounted artwork price plus shipping income, less refunds (excluding tax), materials, framing, selling fees and shipping expense. The discount field documents the discount already reflected in the selling price; it is not deducted again. Null costs remain unknown, and profit is provisional until all four cost categories are recorded. Profit from unpaid sale terms is distinct from cash received. Returned/voided sales use net payments retained instead of canceled unpaid sale value. No archive-wide profit total is presented because production costs belong to the artwork, including when it is resold.
+
+Status corrections preserve artwork IDs, production stages, images, campaign links, past sales and receipts. Returning/voiding a sale does not invent a refund: record the actual refund separately. Corrections are recorded in artwork history, and a subsequent resale gets a new sale event on the same painting. The migration adds no sales, payments or assumed costs to live records.

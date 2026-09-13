@@ -8,6 +8,16 @@ export type Task = {
   completed: boolean;
 };
 export type Painting = {
+  materialsCostCents?: number | null;
+  framingCostCents?: number | null;
+  sales?: ArtworkSale[];
+  history?: {
+    id: string;
+    fromStatus: string | null;
+    toStatus: string;
+    note: string;
+    createdAt: string;
+  }[];
   projectId: string;
   project: { id: string; title: string };
   thumbnail: string;
@@ -73,6 +83,7 @@ export type SalesData = {
   projects: { id: string; title: string; valueCents: number | null }[];
   transactions: {
     id: string;
+    artworkSaleId?: string | null;
     type: string;
     amountCents: number;
     salesTaxCents: number;
@@ -87,4 +98,34 @@ export type SalesData = {
   goal: Goal;
   initialized: boolean;
   priorWorkOrders: { id: string; title: string; notes: string | null }[];
+};
+
+export type ArtworkSale = {
+  id: string;
+  projectId: string;
+  saleDate: string;
+  salePriceCents: number;
+  discountCents: number;
+  salesTaxCents: number;
+  shippingIncomeCents: number;
+  sellingFeesCents: number | null;
+  shippingExpenseCents: number | null;
+  fulfillment: string;
+  status: string;
+  notes: string;
+  transactions: {
+    id: string;
+    type: string;
+    amountCents: number;
+    receivedAt: string | null;
+    campaignId: string | null;
+  }[];
+  summary: {
+    receivedCents: number;
+    balanceCents: number;
+    paymentStatus: string;
+    knownCostsCents: number;
+    costsComplete: boolean;
+    profitCents: number;
+  };
 };

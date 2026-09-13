@@ -1,4 +1,5 @@
 "use client";
+import ArtworkLifecycle from "./ArtworkLifecycle";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   campaignStatuses,
@@ -137,7 +138,7 @@ export function CampaignDashboard() {
         <a className="primary" href="/inventory?new=painting">
           Add Painting
         </a>
-        <a className="primary" href="/campaigns?new=receipt">
+        <a className="primary" href="/inventory">
           Record Sale
         </a>
       </div>
@@ -145,14 +146,14 @@ export function CampaignDashboard() {
   );
 }
 
-type Field = {
+export type Field = {
   name: string;
   label: string;
   type?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
 };
-type Editor = {
+export type Editor = {
   title: string;
   action: string;
   values: Record<string, unknown>;
@@ -191,11 +192,23 @@ export default function Campaigns({
     setBusy(true);
     setSaveError("");
     try {
-      const r = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const r = await fetch(
+        [
+          "complete",
+          "status",
+          "costs",
+          "sale",
+          "editSale",
+          "linkPayment",
+        ].includes(String(payload.action))
+          ? "/api/artwork"
+          : "/api/campaigns",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       await refresh();
@@ -287,7 +300,7 @@ export default function Campaigns({
             dimensions: "",
             medium: "",
             framing: "",
-            availability: "Not ready",
+            availability: "Available",
             regularPriceCents: "",
             batchId: "",
           },
@@ -297,12 +310,14 @@ export default function Campaigns({
         textField("dimensions", "Dimensions (include units)"),
         textField("medium", "Medium"),
         textField("framing", "Framing"),
-        selectField("availability", "Availability", [
-          "Available",
-          "Reserved",
-          "Sold",
-          "Not ready",
-        ]),
+        ...(!p
+          ? [
+              selectField("availability", "Availability", [
+                "Available",
+                "Not ready",
+              ]),
+            ]
+          : []),
         textField("regularPriceCents", "Regular price ($)", "number"),
         {
           name: "batchId",
@@ -330,7 +345,7 @@ export default function Campaigns({
         shippingCents: 0,
         receivedDate: easternDate(),
         source: "Artwork sale",
-        markSold: true,
+        markSold: false,
         notes: "",
         receiptKey: crypto.randomUUID(),
       },
@@ -362,7 +377,7 @@ export default function Campaigns({
         textField("shippingCents", "Shipping portion ($)", "number", true),
         textField("receivedDate", "Payment / refund date", "date", true),
         textField("source", "Payment source or reference", "text", true),
-        textField("markSold", "Mark painting sold (payment only)", "checkbox"),
+
         textField("notes", "Notes", "textarea"),
       ],
     });
@@ -560,7 +575,12 @@ export default function Campaigns({
         </a>
       </aside>
       <section className="workspace sales">
-        <nav className="salesMobileNav" aria-label="Sales navigation"><a href="/">Crucible</a><a href="/campaigns">Campaigns</a><a href="/calendar">Calendar</a><a href="/inventory">Inventory</a></nav>
+        <nav className="salesMobileNav" aria-label="Sales navigation">
+          <a href="/">Crucible</a>
+          <a href="/campaigns">Campaigns</a>
+          <a href="/calendar">Calendar</a>
+          <a href="/inventory">Inventory</a>
+        </nav>
         <header className="topbar">
           <div>
             <p className="eyebrow">Painting sales · America/New_York</p>
@@ -665,7 +685,9 @@ export default function Campaigns({
                     Refunds reduce progress. Monthly qualifying-income goals are
                     unchanged.
                   </p>
-                  <button onClick={receiptForm}>Record Sale</button>
+                  <a className="primary" href="/inventory">
+                    Record Sale
+                  </a>
                 </section>
                 <div className="salesGrid">
                   {data.campaigns.map((c) => {
@@ -946,7 +968,7 @@ export default function Campaigns({
                     </p>
                     <div className="salesBar">
                       <button onClick={receiptForm}>
-                        Record Sale / Refund
+                        Record payment / refund
                       </button>
                       <button
                         onClick={() =>
@@ -1002,68 +1024,13 @@ export default function Campaigns({
               </>
             )}
             {mode === "inventory" && (
-              <>
-                <p>
-                  Each painting uses its artwork work order. Availability is
-                  shared by all campaigns.
-                </p>
-                <div className="salesGrid">
-                  {data.paintings.map((p) => (
-                    <article className="panel" key={p.projectId}>
-                      <Thumb painting={p} />
-                      <h3>{p.project.title}</h3>
-                      <p>
-                        {p.dimensions || "Dimensions not entered"} ·{" "}
-                        {p.medium || "Medium not entered"}
-                      </p>
-                      <p>
-                        {p.framing || "Framing not entered"} · {p.availability}
-                      </p>
-                      <p>{money(p.regularPriceCents)} regular price</p>
-                      <button onClick={() => paintingForm(p)}>
-                        Edit painting
-                      </button>{" "}
-                      <a href={`/?project=${p.projectId}`}>Work order →</a>
-                    </article>
-                  ))}
-                </div>
-                {data.projects
-                  .filter(
-                    (p) => !data.paintings.some((a) => a.projectId === p.id),
-                  )
-                  .map((p) => (
-                    <section className="panel" key={p.id}>
-                      <h3>{p.title}</h3>
-                      <p>
-                        Existing artwork work order · inventory details not yet
-                        entered
-                      </p>
-                      <button
-                        onClick={() =>
-                          paintingForm({
-                            projectId: p.id,
-                            project: p,
-                            thumbnail: "",
-                            dimensions: "",
-                            medium: "",
-                            framing: "",
-                            availability: "Not ready",
-                            regularPriceCents: p.valueCents,
-                            batchId: null,
-                          })
-                        }
-                      >
-                        Add inventory details
-                      </button>
-                    </section>
-                  ))}
-                {!data.projects.length && (
-                  <p>
-                    No paintings yet. Add your first painting when your
-                    inventory is ready.
-                  </p>
-                )}
-              </>
+              <ArtworkLifecycle
+                data={data}
+                open={open}
+                mutate={mutate}
+                editPainting={paintingForm}
+                busy={busy}
+              />
             )}
             {mode === "calendar" && (
               <>
@@ -1229,6 +1196,7 @@ export default function Campaigns({
                     <span>{f.label}</span>
                     {f.options ? (
                       <select
+                        aria-label={f.label}
                         required={f.required}
                         value={String(editor.values[f.name] ?? "")}
                         onChange={(e) =>
