@@ -75,7 +75,7 @@ async function sharedProjects(): Promise<ChamberProjectContext[]> {
 
   return records
     .filter((project) => !project.notes?.startsWith(MUSEUM_QUEST_PREFIX) && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX))
-    .filter((project) => ![ProjectStatus.COMPLETE, ProjectStatus.ARCHIVED].includes(project.status))
+    .filter((project) => project.status !== ProjectStatus.COMPLETE && project.status !== ProjectStatus.ARCHIVED)
     .slice(0, 12)
     .map(({ id, title, type, status, progress, nextAction }) => ({ id, title, type, status, progress, nextAction }));
 }
