@@ -9,9 +9,13 @@ const SOURCE = "Aurelia";
 
 type HandoffPayload = {
   source?: string;
+  internalName?: string;
+  status?: string;
+  collection?: string;
   title?: string;
   description?: string;
   price?: number;
+  launchPrice?: number;
   tags?: string[];
   categorySearch?: string;
 };
@@ -42,9 +46,13 @@ export async function GET() {
       if (!payload || payload.source !== SOURCE) return null;
       return {
         id: project.id,
+        internalName: payload.internalName || project.title,
+        status: payload.status || "handoff_ready",
+        collection: payload.collection || "",
         title: payload.title || project.title,
         description: payload.description || "",
         price: Number.isFinite(payload.price) ? payload.price : null,
+        launchPrice: Number.isFinite(payload.launchPrice) ? payload.launchPrice : null,
         tags: Array.isArray(payload.tags) ? payload.tags : [],
         categorySearch: payload.categorySearch || "",
         createdAt: project.createdAt,
@@ -65,7 +73,11 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as HandoffPayload;
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
+  const internalName = typeof body.internalName === "string" && body.internalName.trim() ? body.internalName.trim() : title;
+  const status = typeof body.status === "string" && body.status.trim() ? body.status.trim() : "handoff_ready";
+  const collection = typeof body.collection === "string" ? body.collection.trim() : "";
   const price = Number(body.price);
+  const launchPrice = Number(body.launchPrice);
   const tags = Array.isArray(body.tags) ? body.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 13) : [];
   const categorySearch = typeof body.categorySearch === "string" ? body.categorySearch.trim() : "";
 
@@ -73,22 +85,32 @@ export async function POST(request: NextRequest) {
 
   const payload: HandoffPayload = {
     source: SOURCE,
+    internalName,
+    status,
+    collection,
     title,
     description,
     price: Number.isFinite(price) ? price : undefined,
+    launchPrice: Number.isFinite(launchPrice) ? launchPrice : undefined,
     tags,
     categorySearch,
   };
 
+  const isGated = status === "gated_waiting_for_evidence";
   const project = await prisma.project.create({
     data: {
-      title,
+      title: internalName || title,
       type: ProjectType.DIGITAL_PRODUCT,
-      status: ProjectStatus.PLANNED,
-      nextAction: "Review in Warlock",
+      status: isGated ? ProjectStatus.WAITING : ProjectStatus.PLANNED,
+      nextAction: isGated ? "Await performance evidence before advancing" : "Review in Warlock",
       notes: JSON.stringify(payload),
     },
   });
 
-  return NextResponse.json({ ok: true, id: project.id }, { status: 201 });
+  return NextResponse.json({
+    ok: true,
+    id: project.id,
+    status,
+    gated: isGated,
+  }, { status: 201 });
 }
