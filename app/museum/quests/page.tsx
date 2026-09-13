@@ -1,0 +1,307 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { MUSE_DIRECTORY, MUSE_BY_ID } from "../../../lib/museum-directory";
+import type { MuseId } from "../../../lib/museum";
+import styles from "./quests.module.css";
+
+type Assignment = {
+  id: string;
+  museId: MuseId;
+  role: "LEAD" | "SUPPORT" | "REVIEWER";
+  note: string;
+};
+
+type LinkedProject = {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  progress: number;
+  nextAction: string | null;
+};
+
+type Quest = {
+  id: string;
+  title: string;
+  brief: string;
+  status: "DRAFT" | "ACTIVE" | "WAITING" | "REVIEW" | "COMPLETE" | "ARCHIVED";
+  projectId: string | null;
+  project: LinkedProject | null;
+  assignments: Assignment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ProjectOption = {
+  id: string;
+  title: string;
+  type?: string;
+  kind?: string;
+  status?: string;
+  statusEnum?: string;
+};
+
+type QuestForm = {
+  title: string;
+  brief: string;
+  projectId: string;
+  leadMuse: MuseId;
+  supportMuse: "" | MuseId;
+  reviewerMuse: "" | MuseId;
+};
+
+const EMPTY_FORM: QuestForm = {
+  title: "",
+  brief: "",
+  projectId: "",
+  leadMuse: "novy",
+  supportMuse: "",
+  reviewerMuse: "",
+};
+
+const ACTIVE_STATUSES = new Set(["DRAFT", "ACTIVE", "WAITING", "REVIEW"]);
+
+function labelStatus(status: Quest["status"]) {
+  return status.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function nextFormFromLocalStorage(): QuestForm {
+  const form = { ...EMPTY_FORM };
+  const selected = localStorage.getItem("wizard-os-museum-selected-muse") as MuseId | null;
+  if (selected && MUSE_BY_ID[selected]) form.leadMuse = selected;
+
+  try {
+    const party = JSON.parse(localStorage.getItem("wizard-os-museum-party") ?? "[]") as MuseId[];
+    const clean = party.filter((id) => MUSE_BY_ID[id]);
+    if (clean[0]) form.leadMuse = clean[0];
+    if (clean[1]) form.supportMuse = clean[1];
+    if (clean[2]) form.reviewerMuse = clean[2];
+  } catch {}
+
+  return form;
+}
+
+export default function MuseumQuestBoard() {
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [filterMuse, setFilterMuse] = useState<"all" | MuseId>("all");
+  const [form, setForm] = useState<QuestForm>(EMPTY_FORM);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [questResponse, projectResponse] = await Promise.all([fetch("/api/museum/quests"), fetch("/api/projects")]);
+      if (!questResponse.ok) throw new Error("Quest Board is unavailable.");
+      const [questData, projectData] = await Promise.all([
+        questResponse.json() as Promise<Quest[]>,
+        projectResponse.ok ? (projectResponse.json() as Promise<ProjectOption[]>) : Promise.resolve([]),
+      ]);
+      setQuests(questData);
+      setProjects(projectData);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Quest Board is unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const filteredQuests = useMemo(
+    () => filterMuse === "all" ? quests : quests.filter((quest) => quest.assignments.some((assignment) => assignment.museId === filterMuse)),
+    [filterMuse, quests],
+  );
+
+  const activeCount = quests.filter((quest) => ACTIVE_STATUSES.has(quest.status)).length;
+  const reviewCount = quests.filter((quest) => quest.status === "REVIEW").length;
+  const completedCount = quests.filter((quest) => quest.status === "COMPLETE").length;
+
+  const openCreate = () => {
+    setError("");
+    setForm(nextFormFromLocalStorage());
+    setShowCreate(true);
+  };
+
+  const createQuest = async () => {
+    setError("");
+    if (!form.title.trim()) return setError("Give the quest a title.");
+    const selected = [form.leadMuse, form.supportMuse, form.reviewerMuse].filter(Boolean);
+    if (new Set(selected).size !== selected.length) return setError("Each Muse can hold only one role on a quest.");
+
+    const assignments = [
+      { museId: form.leadMuse, role: "LEAD" },
+      ...(form.supportMuse ? [{ museId: form.supportMuse, role: "SUPPORT" }] : []),
+      ...(form.reviewerMuse ? [{ museId: form.reviewerMuse, role: "REVIEWER" }] : []),
+    ];
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/museum/quests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          brief: form.brief,
+          projectId: form.projectId || null,
+          assignments,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Could not create quest.");
+      setQuests((current) => [result as Quest, ...current]);
+      setShowCreate(false);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not create quest.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setQuestStatus = async (quest: Quest, status: Quest["status"]) => {
+    setError("");
+    const previous = quests;
+    setQuests((current) => current.map((item) => item.id === quest.id ? { ...item, status } : item));
+    try {
+      const response = await fetch(`/api/museum/quests/${quest.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const updated = await response.json();
+      if (!response.ok) throw new Error(updated.error ?? "Could not update quest.");
+      setQuests((current) => current.map((item) => item.id === quest.id ? updated as Quest : item));
+    } catch (statusError) {
+      setQuests(previous);
+      setError(statusError instanceof Error ? statusError.message : "Could not update quest.");
+    }
+  };
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.atmosphere} />
+      <section className={styles.shell}>
+        <header className={styles.header}>
+          <div>
+            <p className={styles.kicker}>THE MUSEUM · SHARED AGENCY</p>
+            <h1>Quest Board</h1>
+            <p>Persistent work shared by the Nine Muses. One quest, one world state, clearly assigned responsibility.</p>
+          </div>
+          <button className={styles.primary} onClick={openCreate}>+ New Quest</button>
+        </header>
+
+        <section className={styles.metrics}>
+          <article><span>Active Quests</span><strong>{activeCount}</strong><small>Draft, active, waiting or review</small></article>
+          <article><span>Awaiting Review</span><strong>{reviewCount}</strong><small>Ready for another Muse or the Artist</small></article>
+          <article><span>Completed</span><strong>{completedCount}</strong><small>Persistent Museum history</small></article>
+          <article><span>Shared Projects</span><strong>{new Set(quests.map((quest) => quest.projectId).filter(Boolean)).size}</strong><small>Linked to Wizard OS work</small></article>
+        </section>
+
+        <section className={styles.filterBar}>
+          <button className={filterMuse === "all" ? styles.filterActive : ""} onClick={() => setFilterMuse("all")}>All</button>
+          {MUSE_DIRECTORY.map((muse) => (
+            <button key={muse.id} className={filterMuse === muse.id ? styles.filterActive : ""} onClick={() => setFilterMuse(muse.id)}>{muse.symbol} {muse.name}</button>
+          ))}
+        </section>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        {loading ? (
+          <section className={styles.empty}><strong>Reading the Quest Board…</strong></section>
+        ) : filteredQuests.length === 0 ? (
+          <section className={styles.empty}>
+            <strong>{filterMuse === "all" ? "No quests yet" : `No quests assigned to ${MUSE_BY_ID[filterMuse].name}`}</strong>
+            <p>Create a quest to give the Council persistent work.</p>
+            {filterMuse === "all" && <button className={styles.primary} onClick={openCreate}>Create first quest</button>}
+          </section>
+        ) : (
+          <section className={styles.questGrid}>
+            {filteredQuests.map((quest) => {
+              const lead = quest.assignments.find((assignment) => assignment.role === "LEAD");
+              const others = quest.assignments.filter((assignment) => assignment.role !== "LEAD");
+              return (
+                <article className={styles.questCard} key={quest.id}>
+                  <div className={styles.questTop}>
+                    <span className={`${styles.status} ${styles[`status${quest.status}`]}`}>{labelStatus(quest.status)}</span>
+                    <span className={styles.updated}>Updated {new Date(quest.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                  <h2>{quest.title}</h2>
+                  <p className={styles.brief}>{quest.brief || "No brief recorded yet."}</p>
+
+                  {quest.project && (
+                    <a className={styles.projectLink} href={`/?project=${quest.project.id}`}>
+                      <span>Linked Project</span>
+                      <strong>{quest.project.title}</strong>
+                      <small>{quest.project.progress}% · {quest.project.status.toLowerCase().replaceAll("_", " ")}</small>
+                    </a>
+                  )}
+
+                  <div className={styles.roster}>
+                    {lead && (
+                      <div className={styles.lead}>
+                        <span>{MUSE_BY_ID[lead.museId]?.symbol ?? "✦"}</span>
+                        <div><small>Lead</small><strong>{MUSE_BY_ID[lead.museId]?.name ?? lead.museId}</strong></div>
+                      </div>
+                    )}
+                    {others.map((assignment) => (
+                      <div key={assignment.id}>
+                        <span>{MUSE_BY_ID[assignment.museId]?.symbol ?? "·"}</span>
+                        <div><small>{assignment.role === "REVIEWER" ? "Reviewer" : "Support"}</small><strong>{MUSE_BY_ID[assignment.museId]?.name ?? assignment.museId}</strong></div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className={styles.actions}>
+                    {quest.status !== "ACTIVE" && quest.status !== "COMPLETE" && <button onClick={() => void setQuestStatus(quest, "ACTIVE")}>Resume</button>}
+                    {quest.status === "ACTIVE" && <button onClick={() => void setQuestStatus(quest, "WAITING")}>Wait</button>}
+                    {quest.status !== "REVIEW" && quest.status !== "COMPLETE" && <button onClick={() => void setQuestStatus(quest, "REVIEW")}>Send to Review</button>}
+                    {quest.status === "REVIEW" && <button className={styles.complete} onClick={() => void setQuestStatus(quest, "COMPLETE")}>Complete</button>}
+                    {quest.status === "COMPLETE" && <button onClick={() => void setQuestStatus(quest, "ACTIVE")}>Reopen</button>}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+
+        <section className={styles.nextLayer}>
+          <span>v0.2</span>
+          <div><strong>Persistent ownership is now the foundation.</strong><p>The next Museum layer will record Muse-to-Muse consults, handoffs and Council responses against these quest IDs.</p></div>
+        </section>
+      </section>
+
+      {showCreate && (
+        <div className={styles.modalBackdrop} onMouseDown={() => setShowCreate(false)}>
+          <section className={styles.modal} onMouseDown={(event) => event.stopPropagation()}>
+            <header className={styles.modalHeader}>
+              <div><p className={styles.kicker}>ASSIGN SHARED WORK</p><h2>New Quest</h2></div>
+              <button onClick={() => setShowCreate(false)}>×</button>
+            </header>
+
+            <label className={styles.field}><span>Quest title</span><input autoFocus maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Winter Collection Launch" /></label>
+            <label className={styles.field}><span>Brief</span><textarea maxLength={2500} value={form.brief} onChange={(event) => setForm({ ...form, brief: event.target.value })} placeholder="What should the Muses accomplish, decide, or produce?" /></label>
+            <label className={styles.field}><span>Linked Wizard OS project</span><select value={form.projectId} onChange={(event) => setForm({ ...form, projectId: event.target.value })}><option value="">No linked project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+
+            <div className={styles.assignmentGrid}>
+              <label className={styles.field}><span>Lead Muse</span><select value={form.leadMuse} onChange={(event) => setForm({ ...form, leadMuse: event.target.value as MuseId })}>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name} · {muse.role}</option>)}</select></label>
+              <label className={styles.field}><span>Support Muse</span><select value={form.supportMuse} onChange={(event) => setForm({ ...form, supportMuse: event.target.value as "" | MuseId })}><option value="">None</option>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name}</option>)}</select></label>
+              <label className={styles.field}><span>Reviewer Muse</span><select value={form.reviewerMuse} onChange={(event) => setForm({ ...form, reviewerMuse: event.target.value as "" | MuseId })}><option value="">None</option>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name}</option>)}</select></label>
+            </div>
+
+            {error && <div className={styles.error}>{error}</div>}
+            <footer className={styles.modalFooter}>
+              <span>One Lead is required. Support and Reviewer are optional.</span>
+              <button className={styles.primary} disabled={saving || !form.title.trim()} onClick={() => void createQuest()}>{saving ? "Creating…" : "Create Quest"}</button>
+            </footer>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+}
