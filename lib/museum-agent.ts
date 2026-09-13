@@ -1,6 +1,7 @@
 import { MUSE_BY_ID } from "./museum-directory";
 import type { MuseId } from "./museum";
 import type { MuseActionEvent, MuseResponse, StoredMuseumQuest } from "./museum-quest-storage";
+import { getAiGatewayAuthToken } from "./vercel-oidc";
 
 export type MuseumLinkedProjectContext = {
   id: string;
@@ -130,7 +131,7 @@ async function generateOne(
 ): Promise<MuseResponse> {
   const muse = MUSE_BY_ID[museId];
   const model = process.env.MUSEUM_AI_MODEL?.trim() || DEFAULT_MODEL;
-  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const token = getAiGatewayAuthToken();
   const createdAt = new Date().toISOString();
 
   if (!token) return errorResponse(museId, model, createdAt, "AI Gateway authentication is not available for this deployment.");
