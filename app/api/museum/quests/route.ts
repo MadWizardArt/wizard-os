@@ -1,82 +1,120 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
-import { isMuseId } from "../../../../lib/museum";
-import { MuseAssignmentRole, MuseumQuestStatus } from "../../../generated/prisma/client";
+import {
+  decodeMuseumQuest,
+  encodeMuseumQuest,
+  MUSEUM_QUEST_PREFIX,
+  parseQuestAssignments,
+  projectStatusForQuest,
+  type StoredMuseumQuest,
+} from "../../../../lib/museum-quest-storage";
+import { ProjectType } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
 
-type AssignmentInput = { museId: string; role: MuseAssignmentRole; note?: string };
+type ProjectRecord = {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  progress: number;
+  nextAction: string | null;
+};
 
-function parseAssignments(value: unknown): AssignmentInput[] | null {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 3) return null;
-
-  const parsed: AssignmentInput[] = [];
-  const seen = new Set<string>();
-  for (const item of value) {
-    if (!item || typeof item !== "object") return null;
-    const record = item as Record<string, unknown>;
-    if (!isMuseId(record.museId) || seen.has(record.museId)) return null;
-    if (typeof record.role !== "string" || !Object.values(MuseAssignmentRole).includes(record.role as MuseAssignmentRole)) return null;
-    seen.add(record.museId);
-    parsed.push({
-      museId: record.museId,
-      role: record.role as MuseAssignmentRole,
-      note: typeof record.note === "string" ? record.note.trim().slice(0, 500) : "",
-    });
-  }
-
-  return parsed.filter((assignment) => assignment.role === MuseAssignmentRole.LEAD).length === 1 ? parsed : null;
+function serializeQuest(
+  record: { id: string; createdAt: Date; updatedAt: Date },
+  quest: StoredMuseumQuest,
+  project: ProjectRecord | null,
+) {
+  return {
+    id: record.id,
+    title: quest.title,
+    brief: quest.brief,
+    status: quest.status,
+    projectId: quest.linkedProjectId,
+    project,
+    assignments: quest.assignments.map((assignment, index) => ({
+      id: `${record.id}:${index}`,
+      museId: assignment.museId,
+      role: assignment.role,
+      note: assignment.note,
+      createdAt: record.createdAt,
+    })),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
 }
 
 export async function GET() {
-  const quests = await prisma.museumQuest.findMany({
-    where: { status: { not: MuseumQuestStatus.ARCHIVED } },
-    include: {
-      assignments: { orderBy: { createdAt: "asc" } },
-      project: { select: { id: true, title: true, type: true, status: true, progress: true, nextAction: true } },
+  const records = await prisma.project.findMany({
+    where: {
+      type: ProjectType.INTERNAL,
+      archivedAt: null,
+      notes: { startsWith: MUSEUM_QUEST_PREFIX },
     },
-    orderBy: [{ updatedAt: "desc" }],
+    select: { id: true, notes: true, createdAt: true, updatedAt: true },
+    orderBy: { updatedAt: "desc" },
   });
 
-  return NextResponse.json(quests);
+  const parsed = records.flatMap((record) => {
+    const quest = decodeMuseumQuest(record.notes);
+    return quest ? [{ record, quest }] : [];
+  });
+  const linkedIds = [...new Set(parsed.map((item) => item.quest.linkedProjectId).filter((id): id is string => Boolean(id)))];
+  const linkedProjects = linkedIds.length
+    ? await prisma.project.findMany({
+        where: { id: { in: linkedIds }, archivedAt: null },
+        select: { id: true, title: true, type: true, status: true, progress: true, nextAction: true },
+      })
+    : [];
+  const projectById = new Map(linkedProjects.map((project) => [project.id, project]));
+
+  return NextResponse.json(
+    parsed.map(({ record, quest }) => serializeQuest(record, quest, quest.linkedProjectId ? projectById.get(quest.linkedProjectId) ?? null : null)),
+  );
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const brief = typeof body.brief === "string" ? body.brief.trim() : "";
-  const projectId = typeof body.projectId === "string" && body.projectId.trim() ? body.projectId.trim() : null;
-  const assignments = parseAssignments(body.assignments);
+  const linkedProjectId = typeof body.projectId === "string" && body.projectId.trim() ? body.projectId.trim() : null;
+  const assignments = parseQuestAssignments(body.assignments);
 
   if (!title) return NextResponse.json({ error: "Quest title is required." }, { status: 400 });
   if (title.length > 120) return NextResponse.json({ error: "Quest title must be 120 characters or fewer." }, { status: 400 });
   if (brief.length > 2500) return NextResponse.json({ error: "Quest brief must be 2,500 characters or fewer." }, { status: 400 });
   if (!assignments) return NextResponse.json({ error: "Choose exactly one lead Muse and up to two additional Muses." }, { status: 400 });
 
-  if (projectId) {
-    const project = await prisma.project.findFirst({ where: { id: projectId, archivedAt: null }, select: { id: true } });
-    if (!project) return NextResponse.json({ error: "The linked Wizard OS project could not be found." }, { status: 400 });
+  let linkedProject: ProjectRecord | null = null;
+  if (linkedProjectId) {
+    linkedProject = await prisma.project.findFirst({
+      where: { id: linkedProjectId, archivedAt: null },
+      select: { id: true, title: true, type: true, status: true, progress: true, nextAction: true },
+    });
+    if (!linkedProject) return NextResponse.json({ error: "The linked Wizard OS project could not be found." }, { status: 400 });
   }
 
-  const quest = await prisma.museumQuest.create({
+  const quest: StoredMuseumQuest = {
+    version: 1,
+    title,
+    brief,
+    status: "ACTIVE",
+    linkedProjectId,
+    assignments,
+  };
+
+  const record = await prisma.project.create({
     data: {
-      title,
-      brief,
-      status: MuseumQuestStatus.ACTIVE,
-      projectId,
-      assignments: {
-        create: assignments.map((assignment) => ({
-          museId: assignment.museId,
-          role: assignment.role,
-          note: assignment.note ?? "",
-        })),
-      },
+      title: `Museum Quest · ${title}`,
+      type: ProjectType.INTERNAL,
+      status: projectStatusForQuest(quest.status),
+      progress: 0,
+      nextAction: "Review in The Museum",
+      notes: encodeMuseumQuest(quest),
     },
-    include: {
-      assignments: { orderBy: { createdAt: "asc" } },
-      project: { select: { id: true, title: true, type: true, status: true, progress: true, nextAction: true } },
-    },
+    select: { id: true, createdAt: true, updatedAt: true },
   });
 
-  return NextResponse.json(quest, { status: 201 });
+  return NextResponse.json(serializeQuest(record, quest, linkedProject), { status: 201 });
 }
