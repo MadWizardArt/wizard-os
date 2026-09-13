@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
   }
 
   const quest: StoredMuseumQuest = {
-    version: 3,
+    version: 4,
     title,
     brief,
     status: "ACTIVE",

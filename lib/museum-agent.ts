@@ -85,7 +85,41 @@ function buildUserPrompt(
     `INSTRUCTION / REASON: ${event.message || "No additional note supplied."}`,
     `YOU ARE RESPONDING AS: ${MUSE_BY_ID[responderId]?.name ?? responderId}`,
     ACTION_DIRECTIVES[event.type],
+    project
+      ? "If there is one concrete, safe next action that should replace the linked project's nextAction after Artist approval, put it in recommendedNextAction. Keep it under 180 characters and phrase it as an executable action. Otherwise return an empty string."
+      : "There is no linked Wizard OS project, so recommendedNextAction should usually be an empty string unless a concise quest-level direction would still be useful for Artist approval.",
   ].join("\n\n");
+}
+
+type GeneratedPayload = {
+  response: string;
+  recommendedNextAction: string;
+};
+
+function parseGeneratedContent(content: string): GeneratedPayload {
+  try {
+    const parsed = JSON.parse(content) as Partial<GeneratedPayload>;
+    return {
+      response: typeof parsed.response === "string" ? parsed.response.trim() : content.trim(),
+      recommendedNextAction: typeof parsed.recommendedNextAction === "string" ? parsed.recommendedNextAction.trim().slice(0, 500) : "",
+    };
+  } catch {
+    return { response: content.trim(), recommendedNextAction: "" };
+  }
+}
+
+function errorResponse(museId: MuseId, model: string, createdAt: string, error: string): MuseResponse {
+  return {
+    museId,
+    status: "ERROR",
+    text: "",
+    model,
+    createdAt,
+    error: error.slice(0, 500),
+    recommendedNextAction: "",
+    approvalStatus: "NONE",
+    approvalDecidedAt: "",
+  };
 }
 
 async function generateOne(
@@ -99,16 +133,7 @@ async function generateOne(
   const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
   const createdAt = new Date().toISOString();
 
-  if (!token) {
-    return {
-      museId,
-      status: "ERROR",
-      text: "",
-      model,
-      createdAt,
-      error: "AI Gateway authentication is not available for this deployment.",
-    };
-  }
+  if (!token) return errorResponse(museId, model, createdAt, "AI Gateway authentication is not available for this deployment.");
 
   const system = [
     `You are ${muse.name}, the ${muse.role} inside The Museum, a nine-operator council within Wizard OS.`,
@@ -117,6 +142,8 @@ async function generateOne(
     "Use only the context provided. Never claim you inspected files, analytics, websites, accounts, or tools unless that evidence appears in the prompt.",
     "Clearly distinguish verified context from assumptions. If important information is missing, say what is missing without stalling the response.",
     "Be concise but substantive. Prefer a decision, recommendation, critique, or concrete next action over generic encouragement.",
+    "You may propose work, but you do not have authority to execute it. Never say that you changed, published, sent, deleted, purchased, or updated anything.",
+    "Return a JSON object with response and recommendedNextAction. recommendedNextAction must be empty unless it is safe, concrete, and suitable to write directly into a Wizard OS project's nextAction after explicit Artist approval.",
   ].join(" ");
 
   try {
@@ -134,6 +161,20 @@ async function generateOne(
           { role: "system", content: system },
           { role: "user", content: buildUserPrompt(museId, quest, event, project) },
         ],
+        response_format: {
+          type: "json",
+          name: "museum_muse_response",
+          description: "A specialist Muse response plus an optional approval-gated next action.",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              response: { type: "string" },
+              recommendedNextAction: { type: "string" },
+            },
+            required: ["response", "recommendedNextAction"],
+          },
+        },
       }),
     });
 
@@ -143,39 +184,27 @@ async function generateOne(
       error?: { message?: string };
     };
 
-    if (!response.ok) {
-      return {
-        museId,
-        status: "ERROR",
-        text: "",
-        model,
-        createdAt,
-        error: payload.error?.message || `AI Gateway returned ${response.status}.`,
-      };
-    }
+    if (!response.ok) return errorResponse(museId, model, createdAt, payload.error?.message || `AI Gateway returned ${response.status}.`);
 
-    const text = payload.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!text) {
-      return { museId, status: "ERROR", text: "", model: payload.model ?? model, createdAt, error: "The Muse returned an empty response." };
-    }
+    const content = payload.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!content) return errorResponse(museId, payload.model ?? model, createdAt, "The Muse returned an empty response.");
+
+    const generated = parseGeneratedContent(content);
+    if (!generated.response) return errorResponse(museId, payload.model ?? model, createdAt, "The Muse returned an empty response.");
 
     return {
       museId,
       status: "COMPLETE",
-      text: text.slice(0, 3000),
+      text: generated.response.slice(0, 3000),
       model: payload.model ?? model,
       createdAt,
       error: "",
+      recommendedNextAction: generated.recommendedNextAction,
+      approvalStatus: generated.recommendedNextAction ? "PENDING" : "NONE",
+      approvalDecidedAt: "",
     };
   } catch (error) {
-    return {
-      museId,
-      status: "ERROR",
-      text: "",
-      model,
-      createdAt,
-      error: error instanceof Error ? error.message.slice(0, 500) : "Muse response generation failed.",
-    };
+    return errorResponse(museId, model, createdAt, error instanceof Error ? error.message : "Muse response generation failed.");
   }
 }
 
