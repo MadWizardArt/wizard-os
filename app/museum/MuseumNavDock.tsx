@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 export default function MuseumNavDock() {
   const pathname = usePathname();
-  const onManage = pathname.startsWith("/museum/briefs/manage");
+  const onManage = pathname.startsWith("/museum/briefs");
 
   const linkStyle = (active: boolean) => ({
     padding: "8px 11px",
@@ -35,8 +35,8 @@ export default function MuseumNavDock() {
         backdropFilter: "blur(12px)",
       }}
     >
-      <a href="/museum" style={linkStyle(!onManage)}>Museum 2.0</a>
-      <a href="/museum/briefs/manage" style={linkStyle(onManage)}>Manage Briefs</a>
+      <a href="/museum" style={linkStyle(!onManage)}>The Museum</a>
+      <a href="/museum/briefs" style={linkStyle(onManage)}>Manage Briefs</a>
     </nav>
   );
 }
