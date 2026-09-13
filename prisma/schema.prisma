@@ -67,6 +67,21 @@ enum CustomerStatus {
   ARCHIVED
 }
 
+enum MuseumQuestStatus {
+  DRAFT
+  ACTIVE
+  WAITING
+  REVIEW
+  COMPLETE
+  ARCHIVED
+}
+
+enum MuseAssignmentRole {
+  LEAD
+  SUPPORT
+  REVIEWER
+}
+
 model Project {
   id           String        @id @default(cuid())
   title        String
@@ -89,6 +104,7 @@ model Project {
   stages       ProjectStage[]
   transactions Transaction[]
   customer     Customer?         @relation(fields: [customerId], references: [id])
+  museumQuests MuseumQuest[]
 
   @@index([status])
   @@index([dueDate])
@@ -323,6 +339,7 @@ model ArtworkSale {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 model ArtworkHistory {
   id String @id @default(cuid())
   projectId String
@@ -331,4 +348,32 @@ model ArtworkHistory {
   toStatus String
   note String
   createdAt DateTime @default(now())
+}
+
+model MuseumQuest {
+  id          String            @id @default(cuid())
+  title       String
+  brief       String            @default("")
+  status      MuseumQuestStatus @default(ACTIVE)
+  projectId   String?
+  project     Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assignments MuseAssignment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([status])
+  @@index([projectId])
+}
+
+model MuseAssignment {
+  id        String             @id @default(cuid())
+  questId   String
+  museId    String
+  role      MuseAssignmentRole
+  note      String             @default("")
+  quest     MuseumQuest        @relation(fields: [questId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+
+  @@unique([questId, museId])
+  @@index([museId])
 }
