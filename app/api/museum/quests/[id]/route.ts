@@ -41,6 +41,7 @@ function serializeQuest(
       note: assignment.note,
       createdAt: record.createdAt,
     })),
+    events: quest.events,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -70,7 +71,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   const current = decodeMuseumQuest(existing.notes);
   if (!current) return NextResponse.json({ error: "Quest record is unreadable." }, { status: 409 });
-  const next: StoredMuseumQuest = { ...current };
+  const next: StoredMuseumQuest = { ...current, assignments: [...current.assignments], events: [...current.events] };
 
   if (body.title !== undefined) {
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -109,7 +110,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       title: `Museum Quest · ${next.title}`,
       status: projectStatusForQuest(next.status),
       progress: next.status === "COMPLETE" ? 100 : next.status === "REVIEW" ? 90 : 0,
-      nextAction: next.status === "REVIEW" ? "Review Museum quest" : next.status === "COMPLETE" ? "Quest complete" : "Review in The Museum",
+      nextAction: next.status === "REVIEW" ? "Review Museum quest" : next.status === "WAITING" ? "Await Museum decision" : next.status === "COMPLETE" ? "Quest complete" : "Review in The Museum",
       notes: encodeMuseumQuest(next),
       archivedAt: next.status === "ARCHIVED" ? new Date() : null,
     },
