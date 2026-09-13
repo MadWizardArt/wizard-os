@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { MUSEUM_CHAMBER_PREFIX } from "../../../lib/museum-chamber-storage";
 import { MUSEUM_QUEST_PREFIX } from "../../../lib/museum-quest-storage";
 import { ProjectStatus, ProjectType } from "../../generated/prisma/client";
 
@@ -23,34 +24,30 @@ const toneByType = {
 
 export async function GET() {
   const projects = await prisma.project.findMany({
-    where: {
-      archivedAt: null,
-      OR: [
-        { notes: null },
-        { NOT: { notes: { startsWith: MUSEUM_QUEST_PREFIX } } },
-      ],
-    },
-    include: {artwork: true},
+    where: { archivedAt: null },
+    include: { artwork: true },
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
 
   return NextResponse.json(
-    projects.map((project) => ({
-      id: project.id,
-      title: project.title,
-      type: project.type,
-      artworkAvailability: project.artwork?.availability ?? null,
-      statusEnum: project.status,
-      templateId: project.templateId,
-      customerId: project.customerId,
-      kind: kindByType[project.type],
-      status: project.status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-      progress: project.progress,
-      next: project.nextAction ?? "Choose next action",
-      value: project.valueCents == null ? (project.type === "ARTWORK" ? "Original" : "Internal") : `$${(project.valueCents / 100).toLocaleString()}`,
-      due: project.dueDate ? project.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "No deadline",
-      tone: toneByType[project.type],
-    })),
+    projects
+      .filter((project) => !project.notes?.startsWith(MUSEUM_QUEST_PREFIX) && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX))
+      .map((project) => ({
+        id: project.id,
+        title: project.title,
+        type: project.type,
+        artworkAvailability: project.artwork?.availability ?? null,
+        statusEnum: project.status,
+        templateId: project.templateId,
+        customerId: project.customerId,
+        kind: kindByType[project.type],
+        status: project.status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        progress: project.progress,
+        next: project.nextAction ?? "Choose next action",
+        value: project.valueCents == null ? (project.type === "ARTWORK" ? "Original" : "Internal") : `$${(project.valueCents / 100).toLocaleString()}`,
+        due: project.dueDate ? project.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "No deadline",
+        tone: toneByType[project.type],
+      })),
   );
 }
 
@@ -89,9 +86,7 @@ export async function POST(request: NextRequest) {
       nextAction: typeof body.nextAction === "string" && body.nextAction.trim() ? body.nextAction.trim() : projectStages[0]?.name ?? "Choose next action",
       templateId: template.id,
       customerId: body.customerId || null,
-      stages: {
-        create: projectStages,
-      },
+      stages: { create: projectStages },
     },
   });
 
