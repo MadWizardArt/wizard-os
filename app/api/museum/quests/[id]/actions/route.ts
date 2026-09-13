@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateMuseResponses } from "../../../../../../lib/museum-agent";
 import { prisma } from "../../../../../../lib/prisma";
 import { isMuseId } from "../../../../../../lib/museum";
 import {
   applyMuseAction,
+  attachMuseResponses,
   decodeMuseumQuest,
   encodeMuseumQuest,
   isMuseActionType,
@@ -12,6 +14,7 @@ import {
 import { ProjectType } from "../../../../../generated/prisma/client";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type LinkedProject = {
   id: string;
@@ -63,7 +66,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const applied = applyMuseAction(current, { type: body.type, actorMuseId: body.actorMuseId, targetMuseId, message });
   if ("error" in applied) return NextResponse.json({ error: applied.error }, { status: 400 });
 
-  const next = applied.quest;
+  const project = await linkedProject(applied.quest.linkedProjectId);
+  const responses = await generateMuseResponses(applied.quest, applied.event, project);
+  const next = attachMuseResponses(applied.quest, applied.event.id, responses);
+
   const updated = await prisma.project.update({
     where: { id },
     data: {
@@ -75,7 +81,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     select: { id: true, createdAt: true, updatedAt: true },
   });
 
-  const project = await linkedProject(next.linkedProjectId);
   return NextResponse.json({
     id: updated.id,
     title: next.title,

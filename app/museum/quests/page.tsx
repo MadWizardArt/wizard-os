@@ -14,6 +14,15 @@ type Assignment = {
 
 type MuseActionType = "CONSULT" | "DELEGATE" | "HANDOFF" | "REVIEW" | "CHALLENGE" | "ESCALATE" | "CONVENE";
 
+type MuseResponse = {
+  museId: MuseId;
+  status: "COMPLETE" | "ERROR";
+  text: string;
+  model: string;
+  createdAt: string;
+  error: string;
+};
+
 type QuestEvent = {
   id: string;
   type: MuseActionType;
@@ -21,6 +30,7 @@ type QuestEvent = {
   targetMuseId: MuseId | null;
   message: string;
   createdAt: string;
+  responses: MuseResponse[];
 };
 
 type LinkedProject = {
@@ -95,6 +105,13 @@ function labelStatus(status: Quest["status"]) {
   return status.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizeQuest(quest: Quest): Quest {
+  return {
+    ...quest,
+    events: (quest.events ?? []).map((event) => ({ ...event, responses: event.responses ?? [] })),
+  };
+}
+
 function nextFormFromLocalStorage(): QuestForm {
   const form = { ...EMPTY_FORM };
   const selected = localStorage.getItem("wizard-os-museum-selected-muse") as MuseId | null;
@@ -147,7 +164,7 @@ export default function MuseumQuestBoard() {
         questResponse.json() as Promise<Quest[]>,
         projectResponse.ok ? (projectResponse.json() as Promise<ProjectOption[]>) : Promise.resolve([]),
       ]);
-      setQuests(questData.map((quest) => ({ ...quest, events: quest.events ?? [] })));
+      setQuests(questData.map(normalizeQuest));
       setProjects(projectData);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Quest Board is unavailable.");
@@ -197,7 +214,7 @@ export default function MuseumQuestBoard() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not create quest.");
-      setQuests((current) => [{ ...(result as Quest), events: (result as Quest).events ?? [] }, ...current]);
+      setQuests((current) => [normalizeQuest(result as Quest), ...current]);
       setShowCreate(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not create quest.");
@@ -218,7 +235,7 @@ export default function MuseumQuestBoard() {
       });
       const updated = await response.json();
       if (!response.ok) throw new Error(updated.error ?? "Could not update quest.");
-      setQuests((current) => current.map((item) => item.id === quest.id ? { ...(updated as Quest), events: (updated as Quest).events ?? [] } : item));
+      setQuests((current) => current.map((item) => item.id === quest.id ? normalizeQuest(updated as Quest) : item));
     } catch (statusError) {
       setQuests(previous);
       setError(statusError instanceof Error ? statusError.message : "Could not update quest.");
@@ -254,11 +271,11 @@ export default function MuseumQuestBoard() {
         }),
       });
       const updated = await response.json();
-      if (!response.ok) throw new Error(updated.error ?? "Could not record Council action.");
-      setQuests((current) => current.map((quest) => quest.id === actionQuest.id ? { ...(updated as Quest), events: (updated as Quest).events ?? [] } : quest));
+      if (!response.ok) throw new Error(updated.error ?? "Could not complete Council action.");
+      setQuests((current) => current.map((quest) => quest.id === actionQuest.id ? normalizeQuest(updated as Quest) : quest));
       setActionQuest(null);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "Could not record Council action.");
+      setError(actionError instanceof Error ? actionError.message : "Could not complete Council action.");
     } finally {
       setSavingAction(false);
     }
@@ -272,7 +289,7 @@ export default function MuseumQuestBoard() {
           <div>
             <p className={styles.kicker}>THE MUSEUM · SHARED AGENCY</p>
             <h1>Quest Board</h1>
-            <p>Persistent work shared by the Nine Muses. Ownership, Council actions and handoffs remain attached to one shared quest.</p>
+            <p>Persistent work shared by the Nine Muses. Ownership, Council actions, responses and handoffs remain attached to one shared quest.</p>
           </div>
           <button className={styles.primary} onClick={openCreate}>+ New Quest</button>
         </header>
@@ -345,10 +362,29 @@ export default function MuseumQuestBoard() {
                     {recentEvents.length === 0 ? <p>No Muse-to-Muse actions recorded yet.</p> : recentEvents.map((event) => (
                       <div className={styles.event} key={event.id}>
                         <span className={styles.eventSigil}>{MUSE_BY_ID[event.actorMuseId]?.symbol ?? "✦"}</span>
-                        <div>
+                        <div className={styles.eventBody}>
                           <strong>{actionSentence(event)}</strong>
                           {event.message && <p>{event.message}</p>}
                           <small>{new Date(event.createdAt).toLocaleString()}</small>
+                          {event.responses.length > 0 && (
+                            <div className={styles.responseStack}>
+                              {event.responses.map((museResponse, index) => (
+                                <article className={`${styles.museResponse} ${museResponse.status === "ERROR" ? styles.responseError : ""}`} key={`${event.id}:${museResponse.museId}:${index}`}>
+                                  <header>
+                                    <span>{MUSE_BY_ID[museResponse.museId]?.symbol ?? "✦"}</span>
+                                    <strong>{MUSE_BY_ID[museResponse.museId]?.name ?? museResponse.museId}</strong>
+                                    <small>{MUSE_BY_ID[museResponse.museId]?.role ?? "Muse"}</small>
+                                  </header>
+                                  {museResponse.status === "COMPLETE" ? (
+                                    <p className={styles.museResponseText}>{museResponse.text}</p>
+                                  ) : (
+                                    <p className={styles.responseErrorText}>{museResponse.error || "Muse response generation failed."}</p>
+                                  )}
+                                  <footer>{museResponse.model || "AI Gateway"}</footer>
+                                </article>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -369,8 +405,8 @@ export default function MuseumQuestBoard() {
         )}
 
         <section className={styles.nextLayer}>
-          <span>v0.3</span>
-          <div><strong>The Council now has a persistent language for working together.</strong><p>Next: attach actual Muse responses and generated work products to Consult, Delegate, Review and Convene events.</p></div>
+          <span>v0.4</span>
+          <div><strong>Council actions can now return actual specialist responses.</strong><p>Consult, Delegate, Handoff, Review and Challenge call the target Muse; Escalate creates an Artist-facing memo; Convene asks every assigned Muse for a separate domain position.</p></div>
         </section>
       </section>
 
@@ -402,34 +438,39 @@ export default function MuseumQuestBoard() {
       )}
 
       {actionQuest && (
-        <div className={styles.modalBackdrop} onMouseDown={() => setActionQuest(null)}>
+        <div className={styles.modalBackdrop} onMouseDown={() => !savingAction && setActionQuest(null)}>
           <section className={`${styles.modal} ${styles.actionModal}`} onMouseDown={(event) => event.stopPropagation()}>
             <header className={styles.modalHeader}>
               <div><p className={styles.kicker}>MUSE-TO-MUSE COMMAND</p><h2>Council Action</h2><span className={styles.modalQuest}>{actionQuest.title}</span></div>
-              <button onClick={() => setActionQuest(null)}>×</button>
+              <button disabled={savingAction} onClick={() => setActionQuest(null)}>×</button>
             </header>
 
             <div className={styles.actionTypeGrid}>
               {ACTIONS.map((action) => (
-                <button key={action.type} className={actionForm.type === action.type ? styles.actionTypeActive : ""} onClick={() => setActionForm((current) => ({ ...current, type: action.type, targetMuseId: action.target ? current.targetMuseId : "" }))}>
+                <button disabled={savingAction} key={action.type} className={actionForm.type === action.type ? styles.actionTypeActive : ""} onClick={() => setActionForm((current) => ({ ...current, type: action.type, targetMuseId: action.target ? current.targetMuseId : "" }))}>
                   <strong>{action.label}</strong><span>{action.description}</span>
                 </button>
               ))}
             </div>
 
             <div className={styles.assignmentGrid}>
-              <label className={styles.field}><span>Acting Muse</span><select value={actionForm.actorMuseId} onChange={(event) => setActionForm({ ...actionForm, actorMuseId: event.target.value as MuseId })}>{actionQuest.assignments.map((assignment) => <option key={assignment.museId} value={assignment.museId}>{MUSE_BY_ID[assignment.museId].name} · {assignment.role.toLowerCase()}</option>)}</select></label>
-              {actionDefinition.target && <label className={styles.field}><span>Target Muse</span><select value={actionForm.targetMuseId} onChange={(event) => setActionForm({ ...actionForm, targetMuseId: event.target.value as MuseId })}><option value="">Choose Muse</option>{MUSE_DIRECTORY.filter((muse) => muse.id !== actionForm.actorMuseId).map((muse) => <option key={muse.id} value={muse.id}>{muse.name} · {muse.role}</option>)}</select></label>}
+              <label className={styles.field}><span>Acting Muse</span><select disabled={savingAction} value={actionForm.actorMuseId} onChange={(event) => setActionForm({ ...actionForm, actorMuseId: event.target.value as MuseId })}>{actionQuest.assignments.map((assignment) => <option key={assignment.museId} value={assignment.museId}>{MUSE_BY_ID[assignment.museId].name} · {assignment.role.toLowerCase()}</option>)}</select></label>
+              {actionDefinition.target && <label className={styles.field}><span>Target Muse</span><select disabled={savingAction} value={actionForm.targetMuseId} onChange={(event) => setActionForm({ ...actionForm, targetMuseId: event.target.value as MuseId })}><option value="">Choose Muse</option>{MUSE_DIRECTORY.filter((muse) => muse.id !== actionForm.actorMuseId).map((muse) => <option key={muse.id} value={muse.id}>{muse.name} · {muse.role}</option>)}</select></label>}
             </div>
 
             {(actionForm.type === "DELEGATE" || actionForm.type === "HANDOFF") && actorAssignment?.role !== "LEAD" && <div className={styles.commandNotice}>Only the Lead Muse can {actionForm.type === "DELEGATE" ? "delegate" : "hand off ownership"}. Choose the current Lead as the acting Muse.</div>}
 
-            <label className={styles.field}><span>Instruction / reason</span><textarea maxLength={1200} value={actionForm.message} onChange={(event) => setActionForm({ ...actionForm, message: event.target.value })} placeholder={actionForm.type === "ESCALATE" ? "What decision needs the Artist?" : actionForm.type === "CONVENE" ? "What should the Council resolve together?" : "What should the receiving Muse examine, produce, or challenge?"} /></label>
+            <label className={styles.field}><span>Instruction / reason</span><textarea disabled={savingAction} maxLength={1200} value={actionForm.message} onChange={(event) => setActionForm({ ...actionForm, message: event.target.value })} placeholder={actionForm.type === "ESCALATE" ? "What decision needs the Artist?" : actionForm.type === "CONVENE" ? "What should the Council resolve together?" : "What should the receiving Muse examine, produce, or challenge?"} /></label>
+
+            <div className={styles.generationNotice}>
+              <span>✦</span>
+              <p>{actionForm.type === "CONVENE" ? "Each assigned Muse will respond separately from her own portfolio." : actionForm.type === "ESCALATE" ? "The acting Muse will prepare an escalation memo for you." : "The receiving Muse will respond now using this quest's shared context."}</p>
+            </div>
 
             {error && <div className={styles.error}>{error}</div>}
             <footer className={styles.modalFooter}>
-              <span>{actionDefinition.description}</span>
-              <button className={styles.primary} disabled={savingAction || ((actionForm.type === "DELEGATE" || actionForm.type === "HANDOFF") && actorAssignment?.role !== "LEAD")} onClick={() => void submitAction()}>{savingAction ? "Recording…" : `Record ${actionDefinition.label}`}</button>
+              <span>{savingAction ? "The Museum is generating and preserving the Council response…" : actionDefinition.description}</span>
+              <button className={styles.primary} disabled={savingAction || ((actionForm.type === "DELEGATE" || actionForm.type === "HANDOFF") && actorAssignment?.role !== "LEAD")} onClick={() => void submitAction()}>{savingAction ? "Muse Responding…" : `${actionDefinition.label} + Respond`}</button>
             </footer>
           </section>
         </div>
