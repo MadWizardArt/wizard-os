@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { MUSEUM_QUEST_PREFIX } from "../../../lib/museum-quest-storage";
 import { ProjectStatus, ProjectType } from "../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -22,7 +23,13 @@ const toneByType = {
 
 export async function GET() {
   const projects = await prisma.project.findMany({
-    where: { archivedAt: null },
+    where: {
+      archivedAt: null,
+      OR: [
+        { notes: null },
+        { NOT: { notes: { startsWith: MUSEUM_QUEST_PREFIX } } },
+      ],
+    },
     include: {artwork: true},
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
