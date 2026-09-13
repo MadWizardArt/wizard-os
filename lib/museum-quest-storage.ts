@@ -8,6 +8,7 @@ export type QuestStatus = "DRAFT" | "ACTIVE" | "WAITING" | "REVIEW" | "COMPLETE"
 export type AssignmentRole = "LEAD" | "SUPPORT" | "REVIEWER";
 export type MuseActionType = "CONSULT" | "DELEGATE" | "HANDOFF" | "REVIEW" | "CHALLENGE" | "ESCALATE" | "CONVENE";
 export type MuseResponseStatus = "COMPLETE" | "ERROR";
+export type MuseApprovalStatus = "NONE" | "PENDING" | "APPROVED" | "APPLIED" | "REJECTED";
 
 export type QuestAssignment = {
   museId: MuseId;
@@ -22,6 +23,9 @@ export type MuseResponse = {
   model: string;
   createdAt: string;
   error: string;
+  recommendedNextAction: string;
+  approvalStatus: MuseApprovalStatus;
+  approvalDecidedAt: string;
 };
 
 export type MuseActionEvent = {
@@ -35,7 +39,7 @@ export type MuseActionEvent = {
 };
 
 export type StoredMuseumQuest = {
-  version: 3;
+  version: 4;
   title: string;
   brief: string;
   status: QuestStatus;
@@ -48,6 +52,7 @@ const QUEST_STATUSES = new Set<QuestStatus>(["DRAFT", "ACTIVE", "WAITING", "REVI
 const ASSIGNMENT_ROLES = new Set<AssignmentRole>(["LEAD", "SUPPORT", "REVIEWER"]);
 const ACTION_TYPES = new Set<MuseActionType>(["CONSULT", "DELEGATE", "HANDOFF", "REVIEW", "CHALLENGE", "ESCALATE", "CONVENE"]);
 const TARGET_REQUIRED = new Set<MuseActionType>(["CONSULT", "DELEGATE", "HANDOFF", "REVIEW", "CHALLENGE"]);
+const APPROVAL_STATUSES = new Set<MuseApprovalStatus>(["NONE", "PENDING", "APPROVED", "APPLIED", "REJECTED"]);
 
 export function parseQuestAssignments(value: unknown): QuestAssignment[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 3) return null;
@@ -77,6 +82,10 @@ function parseMuseResponses(value: unknown): MuseResponse[] {
     const record = item as Record<string, unknown>;
     if (!isMuseId(record.museId)) return [];
     const status: MuseResponseStatus = record.status === "ERROR" ? "ERROR" : "COMPLETE";
+    const recommendedNextAction = typeof record.recommendedNextAction === "string" ? record.recommendedNextAction.trim().slice(0, 500) : "";
+    const parsedApproval = typeof record.approvalStatus === "string" && APPROVAL_STATUSES.has(record.approvalStatus as MuseApprovalStatus)
+      ? record.approvalStatus as MuseApprovalStatus
+      : recommendedNextAction ? "PENDING" : "NONE";
     return [{
       museId: record.museId,
       status,
@@ -84,6 +93,9 @@ function parseMuseResponses(value: unknown): MuseResponse[] {
       model: typeof record.model === "string" ? record.model.slice(0, 120) : "",
       createdAt: typeof record.createdAt === "string" && record.createdAt ? record.createdAt : new Date(0).toISOString(),
       error: typeof record.error === "string" ? record.error.slice(0, 500) : "",
+      recommendedNextAction,
+      approvalStatus: parsedApproval,
+      approvalDecidedAt: typeof record.approvalDecidedAt === "string" ? record.approvalDecidedAt : "",
     }];
   }).slice(0, 3);
 }
@@ -111,7 +123,7 @@ function parseActionEvents(value: unknown): MuseActionEvent[] {
 }
 
 export function encodeMuseumQuest(quest: StoredMuseumQuest) {
-  return `${MUSEUM_QUEST_PREFIX}${JSON.stringify({ ...quest, version: 3, events: quest.events.slice(-60) })}`;
+  return `${MUSEUM_QUEST_PREFIX}${JSON.stringify({ ...quest, version: 4, events: quest.events.slice(-60) })}`;
 }
 
 export function decodeMuseumQuest(notes: string | null): StoredMuseumQuest | null {
@@ -119,10 +131,10 @@ export function decodeMuseumQuest(notes: string | null): StoredMuseumQuest | nul
   try {
     const parsed = JSON.parse(notes.slice(MUSEUM_QUEST_PREFIX.length)) as Record<string, unknown>;
     const assignments = parseQuestAssignments(parsed.assignments);
-    if (![1, 2, 3].includes(Number(parsed.version)) || typeof parsed.title !== "string" || !parsed.title.trim() || !assignments) return null;
+    if (![1, 2, 3, 4].includes(Number(parsed.version)) || typeof parsed.title !== "string" || !parsed.title.trim() || !assignments) return null;
     const status = typeof parsed.status === "string" && QUEST_STATUSES.has(parsed.status as QuestStatus) ? parsed.status as QuestStatus : "ACTIVE";
     return {
-      version: 3,
+      version: 4,
       title: parsed.title.trim().slice(0, 120),
       brief: typeof parsed.brief === "string" ? parsed.brief.slice(0, 2500) : "",
       status,
@@ -163,9 +175,36 @@ export function attachMuseResponses(
 ): StoredMuseumQuest {
   return {
     ...quest,
-    version: 3,
+    version: 4,
     events: quest.events.map((event) => event.id === eventId ? { ...event, responses: responses.slice(0, 3) } : event),
   };
+}
+
+export function setMuseResponseApproval(
+  quest: StoredMuseumQuest,
+  eventId: string,
+  museId: MuseId,
+  approvalStatus: Exclude<MuseApprovalStatus, "NONE" | "PENDING">,
+): { quest: StoredMuseumQuest; response: MuseResponse } | { error: string } {
+  let changed: MuseResponse | null = null;
+  const events = quest.events.map((event) => {
+    if (event.id !== eventId) return event;
+    const responses = event.responses.map((response) => {
+      if (response.museId !== museId) return response;
+      if (!response.recommendedNextAction) return response;
+      const next = {
+        ...response,
+        approvalStatus,
+        approvalDecidedAt: new Date().toISOString(),
+      };
+      changed = next;
+      return next;
+    });
+    return { ...event, responses };
+  });
+
+  if (!changed) return { error: "The proposed next action could not be found." };
+  return { quest: { ...quest, version: 4, events }, response: changed };
 }
 
 export function applyMuseAction(
@@ -216,7 +255,7 @@ export function applyMuseAction(
   return {
     quest: {
       ...quest,
-      version: 3,
+      version: 4,
       status,
       assignments,
       events: [...quest.events, event].slice(-60),
