@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { MUSEUM_BRIEF_PREFIX } from "../../../lib/museum-brief-storage";
 import { MUSEUM_CHAMBER_PREFIX } from "../../../lib/museum-chamber-storage";
 import { MUSEUM_QUEST_PREFIX } from "../../../lib/museum-quest-storage";
 import { ProjectStatus, ProjectType } from "../../generated/prisma/client";
@@ -31,7 +32,11 @@ export async function GET() {
 
   return NextResponse.json(
     projects
-      .filter((project) => !project.notes?.startsWith(MUSEUM_QUEST_PREFIX) && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX))
+      .filter((project) =>
+        !project.notes?.startsWith(MUSEUM_QUEST_PREFIX)
+        && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX)
+        && !project.notes?.startsWith(MUSEUM_BRIEF_PREFIX)
+      )
       .map((project) => ({
         id: project.id,
         title: project.title,
