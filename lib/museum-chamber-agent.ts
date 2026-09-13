@@ -1,6 +1,7 @@
 import { MUSE_BY_ID } from "./museum-directory";
 import type { MuseId } from "./museum";
 import type { ChamberMessage } from "./museum-chamber-storage";
+import { getAiGatewayAuthToken } from "./vercel-oidc";
 
 export type ChamberProjectContext = {
   id: string;
@@ -60,7 +61,7 @@ export async function generateChamberReply(input: {
 }) {
   const muse = MUSE_BY_ID[input.museId];
   const model = process.env.MUSEUM_AI_MODEL?.trim() || DEFAULT_MODEL;
-  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const token = getAiGatewayAuthToken();
 
   if (!token) {
     return { content: "", model, error: "AI Gateway authentication is not available for this deployment." };
