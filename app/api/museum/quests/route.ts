@@ -40,6 +40,7 @@ function serializeQuest(
       note: assignment.note,
       createdAt: record.createdAt,
     })),
+    events: quest.events,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -96,12 +97,13 @@ export async function POST(request: NextRequest) {
   }
 
   const quest: StoredMuseumQuest = {
-    version: 1,
+    version: 2,
     title,
     brief,
     status: "ACTIVE",
     linkedProjectId,
     assignments,
+    events: [],
   };
 
   const record = await prisma.project.create({
