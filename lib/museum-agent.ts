@@ -11,7 +11,7 @@ export type MuseumLinkedProjectContext = {
   nextAction: string | null;
 } | null;
 
-const DEFAULT_MODEL = "openai/gpt-5.6-terra";
+const DEFAULT_MODEL = "openai/gpt-5.6-sol";
 
 const PERSONA_DIRECTIVES: Record<MuseId, string> = {
   callista: "Lead with strategy, prioritization, tradeoffs, sequencing, portfolio coherence, and long-horizon consequences. Challenge attractive distractions when they weaken the larger plan.",
