@@ -7,11 +7,21 @@ export const MUSEUM_QUEST_PREFIX = "MUSEUM_QUEST_V1:";
 export type QuestStatus = "DRAFT" | "ACTIVE" | "WAITING" | "REVIEW" | "COMPLETE" | "ARCHIVED";
 export type AssignmentRole = "LEAD" | "SUPPORT" | "REVIEWER";
 export type MuseActionType = "CONSULT" | "DELEGATE" | "HANDOFF" | "REVIEW" | "CHALLENGE" | "ESCALATE" | "CONVENE";
+export type MuseResponseStatus = "COMPLETE" | "ERROR";
 
 export type QuestAssignment = {
   museId: MuseId;
   role: AssignmentRole;
   note: string;
+};
+
+export type MuseResponse = {
+  museId: MuseId;
+  status: MuseResponseStatus;
+  text: string;
+  model: string;
+  createdAt: string;
+  error: string;
 };
 
 export type MuseActionEvent = {
@@ -21,10 +31,11 @@ export type MuseActionEvent = {
   targetMuseId: MuseId | null;
   message: string;
   createdAt: string;
+  responses: MuseResponse[];
 };
 
 export type StoredMuseumQuest = {
-  version: 2;
+  version: 3;
   title: string;
   brief: string;
   status: QuestStatus;
@@ -59,6 +70,24 @@ export function parseQuestAssignments(value: unknown): QuestAssignment[] | null 
   return assignments.filter((assignment) => assignment.role === "LEAD").length === 1 ? assignments : null;
 }
 
+function parseMuseResponses(value: unknown): MuseResponse[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (!isMuseId(record.museId)) return [];
+    const status: MuseResponseStatus = record.status === "ERROR" ? "ERROR" : "COMPLETE";
+    return [{
+      museId: record.museId,
+      status,
+      text: typeof record.text === "string" ? record.text.slice(0, 3000) : "",
+      model: typeof record.model === "string" ? record.model.slice(0, 120) : "",
+      createdAt: typeof record.createdAt === "string" && record.createdAt ? record.createdAt : new Date(0).toISOString(),
+      error: typeof record.error === "string" ? record.error.slice(0, 500) : "",
+    }];
+  }).slice(0, 3);
+}
+
 function parseActionEvents(value: unknown): MuseActionEvent[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -76,12 +105,13 @@ function parseActionEvents(value: unknown): MuseActionEvent[] {
       targetMuseId,
       message: typeof record.message === "string" ? record.message.slice(0, 1200) : "",
       createdAt: typeof record.createdAt === "string" && record.createdAt ? record.createdAt : new Date(0).toISOString(),
+      responses: parseMuseResponses(record.responses),
     }];
-  }).slice(-100);
+  }).slice(-60);
 }
 
 export function encodeMuseumQuest(quest: StoredMuseumQuest) {
-  return `${MUSEUM_QUEST_PREFIX}${JSON.stringify({ ...quest, version: 2, events: quest.events.slice(-100) })}`;
+  return `${MUSEUM_QUEST_PREFIX}${JSON.stringify({ ...quest, version: 3, events: quest.events.slice(-60) })}`;
 }
 
 export function decodeMuseumQuest(notes: string | null): StoredMuseumQuest | null {
@@ -89,10 +119,10 @@ export function decodeMuseumQuest(notes: string | null): StoredMuseumQuest | nul
   try {
     const parsed = JSON.parse(notes.slice(MUSEUM_QUEST_PREFIX.length)) as Record<string, unknown>;
     const assignments = parseQuestAssignments(parsed.assignments);
-    if ((parsed.version !== 1 && parsed.version !== 2) || typeof parsed.title !== "string" || !parsed.title.trim() || !assignments) return null;
+    if (![1, 2, 3].includes(Number(parsed.version)) || typeof parsed.title !== "string" || !parsed.title.trim() || !assignments) return null;
     const status = typeof parsed.status === "string" && QUEST_STATUSES.has(parsed.status as QuestStatus) ? parsed.status as QuestStatus : "ACTIVE";
     return {
-      version: 2,
+      version: 3,
       title: parsed.title.trim().slice(0, 120),
       brief: typeof parsed.brief === "string" ? parsed.brief.slice(0, 2500) : "",
       status,
@@ -124,6 +154,18 @@ export function isQuestStatus(value: unknown): value is QuestStatus {
 
 export function isMuseActionType(value: unknown): value is MuseActionType {
   return typeof value === "string" && ACTION_TYPES.has(value as MuseActionType);
+}
+
+export function attachMuseResponses(
+  quest: StoredMuseumQuest,
+  eventId: string,
+  responses: MuseResponse[],
+): StoredMuseumQuest {
+  return {
+    ...quest,
+    version: 3,
+    events: quest.events.map((event) => event.id === eventId ? { ...event, responses: responses.slice(0, 3) } : event),
+  };
 }
 
 export function applyMuseAction(
@@ -168,15 +210,16 @@ export function applyMuseAction(
     targetMuseId: input.targetMuseId,
     message: input.message.slice(0, 1200),
     createdAt: new Date().toISOString(),
+    responses: [],
   };
 
   return {
     quest: {
       ...quest,
-      version: 2,
+      version: 3,
       status,
       assignments,
-      events: [...quest.events, event].slice(-100),
+      events: [...quest.events, event].slice(-60),
     },
     event,
   };
