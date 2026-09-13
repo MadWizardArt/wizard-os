@@ -29,9 +29,9 @@
 .shell {
   position: relative;
   z-index: 1;
-  width: min(1480px, calc(100vw - 36px));
+  width: min(1420px, calc(100vw - 36px));
   margin: 0 auto;
-  padding: 30px 0 46px;
+  padding: 30px 0 48px;
 }
 
 .topbar {
@@ -58,7 +58,7 @@
 }
 
 .titleBlock > p:last-child {
-  max-width: 690px;
+  max-width: 700px;
   margin: 12px auto 0;
   color: var(--muted);
   font: 400 12px/1.65 system-ui, sans-serif;
@@ -123,14 +123,16 @@
 
 .notice {
   position: relative;
+  display: block;
+  width: min(980px, 100%);
   margin: 0 auto 18px;
-  max-width: 980px;
   padding: 12px 42px 12px 14px;
   border: 1px solid rgba(204,172,103,.24);
   border-radius: 8px;
   background: rgba(77,60,31,.18);
   color: #c9b98f;
   font: 500 10px/1.5 system-ui, sans-serif;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -146,7 +148,7 @@
   align-items: end;
   justify-content: space-between;
   gap: 24px;
-  margin: 18px 0 18px;
+  margin: 18px 0;
 }
 
 .roomHeading h2 {
@@ -156,12 +158,7 @@
 }
 
 .summaryStrip {
-  display: flex;
-  gap: 8px;
-}
-
-.summaryStrip > div {
-  min-width: 105px;
+  min-width: 120px;
   padding: 10px 12px;
   border: 1px solid rgba(255,255,255,.055);
   border-radius: 7px;
@@ -170,7 +167,7 @@
 
 .summaryStrip strong {
   display: block;
-  font: 500 18px/1 Georgia, serif;
+  font: 500 20px/1 Georgia, serif;
 }
 
 .summaryStrip span {
@@ -263,8 +260,8 @@
 .cardFocus > small {
   display: block;
   color: #68727d;
-  font: 700 7px/1.25 system-ui, sans-serif;
-  letter-spacing: .08em;
+  font: 700 7px/1.35 system-ui, sans-serif;
+  letter-spacing: .06em;
   text-transform: uppercase;
 }
 
@@ -374,15 +371,15 @@
   font: 600 8px/1 system-ui, sans-serif;
 }
 
-.chamberGrid,
-.archiveGrid {
+.chamberGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
 
-.panel {
+.panel,
+.councilPanel {
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -391,23 +388,9 @@
 }
 
 .panel h3,
-.createRail h3 {
+.councilComposer h3 {
   margin: 6px 0 10px;
   font: 500 21px/1.15 Georgia, serif;
-}
-
-.panelHeader,
-.railHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.panelHeader > strong,
-.railHeader > span {
-  color: #cdb474;
-  font: 500 20px/1 Georgia, serif;
 }
 
 .panelCopy {
@@ -415,53 +398,91 @@
   font: 400 10px/1.6 system-ui, sans-serif;
 }
 
-.briefMiniList,
-.closedList {
+.field {
   display: grid;
-  gap: 7px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 12px;
 }
 
-.briefMiniList button,
-.closedList button {
-  display: grid;
-  gap: 4px;
-  padding: 11px 12px;
-  border: 1px solid rgba(255,255,255,.055);
-  border-radius: 7px;
-  background: rgba(255,255,255,.016);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-}
-
-.briefMiniList button span,
-.closedList button span {
-  color: #9b8552;
-  font: 700 7px/1 system-ui, sans-serif;
+.field > span {
+  color: #7a8590;
+  font: 700 8px/1.2 system-ui, sans-serif;
   letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
-.briefMiniList button strong,
-.closedList button strong { font: 600 10px/1.35 system-ui, sans-serif; }
-.briefMiniList button small,
-.closedList button small { color: #68737e; font: 400 8px/1.4 system-ui, sans-serif; }
-
-.largeInput,
-.receiptInput,
-.panel textarea,
-.createRail textarea,
-.briefEditor textarea {
+.field input,
+.field select,
+.largeInput {
   width: 100%;
-  min-height: 100px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 7px;
+  background: rgba(255,255,255,.025);
+  color: #e4ded2;
+  font: 400 11px/1.45 system-ui, sans-serif;
+  outline: none;
+}
+
+.field input,
+.field select { min-height: 40px; padding: 9px 10px; }
+
+.largeInput {
+  min-height: 120px;
+  padding: 11px;
   resize: vertical;
 }
+
+.actionRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.primaryButton,
+.textButton {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  font: 700 9px/1 system-ui, sans-serif;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.primaryButton {
+  border: 1px solid rgba(204,172,103,.44);
+  background: linear-gradient(180deg, rgba(103,82,42,.45), rgba(54,42,22,.45));
+  color: #ead8a8;
+}
+
+.textButton {
+  border: 1px solid rgba(255,255,255,.08);
+  background: transparent;
+  color: #7f8993;
+}
+
+.primaryButton:disabled,
+.textButton:disabled { opacity: .45; cursor: not-allowed; }
 
 .costNote {
   display: block;
   margin-top: 9px;
   color: #66836f;
   font: 600 8px/1.4 system-ui, sans-serif;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.panelHeader > strong {
+  color: #cdb474;
+  font: 500 20px/1 Georgia, serif;
 }
 
 .projectGrid {
@@ -474,7 +495,7 @@
 .projectGrid article {
   display: grid;
   gap: 5px;
-  min-height: 95px;
+  min-height: 86px;
   padding: 12px;
   border: 1px solid rgba(255,255,255,.05);
   border-radius: 7px;
@@ -487,213 +508,80 @@
   text-transform: uppercase;
   letter-spacing: .08em;
 }
+
 .projectGrid article strong { font: 600 9px/1.35 system-ui, sans-serif; }
-.projectGrid article small { color: #68727d; font: 400 8px/1.45 system-ui, sans-serif; }
+.projectGrid article small { color: #68737e; font: 400 8px/1.4 system-ui, sans-serif; }
 
-.councilLayout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 300px;
-  gap: 12px;
-  align-items: start;
+.empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 22px;
+  color: #727d87;
+  text-align: center;
+  font: 400 10px/1.5 system-ui, sans-serif;
 }
 
-.briefRail,
-.createRail,
-.councilCenter {
-  min-height: 580px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--panel);
+.councilPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, .8fr);
+  gap: 22px;
 }
 
-.briefRail,
-.createRail { padding: 16px; }
-.councilCenter { padding: 18px; }
-
-.briefRail > button {
-  width: 100%;
+.councilRoster {
   display: grid;
-  gap: 5px;
-  margin-top: 7px;
-  padding: 11px;
-  border: 1px solid rgba(255,255,255,.05);
-  border-radius: 7px;
-  background: rgba(255,255,255,.014);
-  color: var(--ink);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.councilRoster button {
+  display: grid;
+  gap: 6px;
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 8px;
+  background: rgba(255,255,255,.018);
+  color: #b7bec5;
   text-align: left;
   cursor: pointer;
 }
 
-.briefRail > button.briefSelected {
-  border-color: rgba(204,172,103,.42);
-  background: rgba(100,77,37,.18);
+.councilRoster button > span {
+  color: #bca263;
+  font: 400 22px/1 Georgia, serif;
 }
 
-.briefRail > button span { color: #9b8552; font: 700 7px/1 system-ui, sans-serif; text-transform: uppercase; }
-.briefRail > button strong { font: 600 10px/1.35 system-ui, sans-serif; }
-.briefRail > button small { color: #69737d; font: 500 8px/1.2 system-ui, sans-serif; }
+.councilRoster button strong { font: 600 11px/1.2 system-ui, sans-serif; }
+.councilRoster button small { color: #69737d; font: 400 8px/1.35 system-ui, sans-serif; }
 
-.briefEditor { display: grid; gap: 13px; }
-
-.formGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
+.councilRoster button.councilSelected {
+  border-color: rgba(204,172,103,.48);
+  background: rgba(100,78,40,.18);
+  box-shadow: inset 0 0 0 1px rgba(204,172,103,.08);
 }
 
-.formGrid label,
-.fullLabel,
-.createRail label {
-  display: grid;
-  gap: 5px;
+.councilComposer {
+  padding-left: 20px;
+  border-left: 1px solid rgba(255,255,255,.06);
 }
 
-.formGrid label > span,
-.fullLabel > span,
-.createRail label > span,
-.supportChooser > span {
-  color: #6e7883;
-  font: 700 7px/1 system-ui, sans-serif;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-}
-
-.page input,
-.page textarea,
-.page select {
-  box-sizing: border-box;
-  width: 100%;
-  border: 1px solid rgba(255,255,255,.075);
-  border-radius: 6px;
-  outline: none;
-  background: rgba(5,8,12,.52);
-  color: #cbd0d5;
-  padding: 9px 10px;
-  font: 500 9px/1.45 system-ui, sans-serif;
-}
-
-.page input:focus,
-.page textarea:focus,
-.page select:focus { border-color: rgba(204,172,103,.4); }
-
-.formGrid textarea { min-height: 72px; }
-.fullLabel textarea { min-height: 86px; }
-
-.supportChooser {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-items: center;
-}
-
-.supportChooser > span { flex-basis: 100%; margin-bottom: 2px; }
-
-.supportChooser button {
-  padding: 6px 8px;
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 999px;
-  background: rgba(255,255,255,.018);
-  color: #74808b;
-  font: 600 8px/1 system-ui, sans-serif;
-  cursor: pointer;
-}
-
-.supportChooser button.supportActive {
-  border-color: rgba(204,172,103,.38);
-  color: #dec78f;
-  background: rgba(94,72,34,.2);
-}
-
-.primaryButton,
-.secondaryButton,
-.smallButton {
-  min-height: 38px;
-  border: 1px solid rgba(204,172,103,.42);
-  border-radius: 7px;
-  background: linear-gradient(180deg, rgba(103,82,42,.43), rgba(54,42,22,.43));
-  color: #ead8a8;
-  padding: 0 13px;
-  font: 700 9px/1 system-ui, sans-serif;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.primaryButton { width: 100%; margin-top: 13px; }
-.secondaryButton { width: 100%; background: rgba(255,255,255,.02); border-color: rgba(255,255,255,.09); color: #aab2ba; }
-.smallButton { min-height: 30px; background: rgba(255,255,255,.02); }
-.primaryButton:disabled,
-.secondaryButton:disabled { opacity: .45; cursor: not-allowed; }
-
-.emptyCouncil {
-  min-height: 520px;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: #65707b;
-}
-
-.emptyCouncil span { font: 400 34px/1 Georgia, serif; color: #8b784e; }
-.emptyCouncil h3 { margin: 12px 0 4px; color: #9ca5ae; }
-.emptyCouncil p { margin: 0; font: 400 9px/1.5 system-ui, sans-serif; }
-
-.createRail {
-  display: grid;
-  gap: 9px;
-  align-content: start;
-}
-
-.createRail > textarea { min-height: 82px; }
-.receiptInput { min-height: 145px !important; font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important; }
-
-.railRule { height: 1px; margin: 7px 0; background: rgba(255,255,255,.06); }
-
-.archiveGrid { align-items: start; }
-
-.historyList {
-  display: grid;
-  gap: 0;
-  max-height: 600px;
-  overflow: auto;
-  margin-top: 12px;
-}
-
-.historyList > div {
-  padding: 11px 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-}
-
-.historyList > div > span {
-  color: #957f50;
-  font: 700 7px/1 system-ui, sans-serif;
-  letter-spacing: .08em;
-}
-.historyList strong { display: block; margin-top: 4px; font: 600 9px/1.35 system-ui, sans-serif; }
-.historyList p { margin: 5px 0; color: #818b95; font: 400 9px/1.5 system-ui, sans-serif; }
-.historyList small { color: #5f6973; font: 500 7px/1 system-ui, sans-serif; }
-
-.empty {
-  margin: 0;
-  padding: 20px 8px;
-  color: #66717c;
-  font: 400 9px/1.5 system-ui, sans-serif;
-}
+.councilComposer .textButton { margin-top: 8px; }
 
 .footerNote {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 12px;
   margin-top: 22px;
-  color: #59636d;
-  font: 400 8px/1.4 system-ui, sans-serif;
+  color: #5f6973;
+  font: 400 9px/1.4 system-ui, sans-serif;
 }
 
 .footerNote span {
-  color: #89764d;
+  color: #88764f;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .1em;
 }
+
 .footerNote p { margin: 0; }
 
 .museCard[data-palette="callista"] { --cardTop:#28231e; --cardGlow:rgba(155,98,70,.32); }
@@ -716,35 +604,31 @@
 .page[data-palette="thalia"] { --activeTop:#302019; --activeGlow:rgba(197,98,55,.3); }
 .page[data-palette="melina"] { --activeTop:#24242a; --activeGlow:rgba(122,126,147,.32); }
 
-@media (max-width: 1180px) {
-  .councilLayout { grid-template-columns: 210px minmax(0,1fr); }
-  .createRail { grid-column: 1 / -1; min-height: 0; }
-  .projectGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-
-@media (max-width: 900px) {
+@media (max-width: 1050px) {
   .topbar { grid-template-columns: 1fr; }
   .backLink, .gatewayStatus { justify-self: center; }
   .titleBlock { grid-row: 1; }
-  .hallGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .roomHeading { align-items: flex-start; flex-direction: column; }
-  .chamberHero { grid-template-columns: 1fr; }
-  .chamberPortrait { min-height: 220px; }
-  .chamberGrid, .archiveGrid { grid-template-columns: 1fr; }
-  .councilLayout { grid-template-columns: 1fr; }
-  .briefRail, .createRail, .councilCenter { min-height: 0; }
-  .briefRail { max-height: 300px; overflow: auto; }
+  .hallGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .projectGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .councilPanel { grid-template-columns: 1fr; }
+  .councilComposer { padding-left: 0; padding-top: 20px; border-left: 0; border-top: 1px solid rgba(255,255,255,.06); }
 }
 
-@media (max-width: 620px) {
-  .shell { width: min(calc(100vw - 20px), 1480px); padding-top: 18px; }
-  .museumNav { overflow-x: auto; justify-content: flex-start; padding-bottom: 3px; }
-  .museumNav button { white-space: nowrap; }
+@media (max-width: 760px) {
+  .shell { width: min(100% - 20px, 1420px); padding-top: 18px; }
+  .museumNav { flex-wrap: wrap; }
+  .roomHeading { align-items: flex-start; flex-direction: column; }
   .hallGrid { grid-template-columns: 1fr; }
-  .summaryStrip { width: 100%; overflow-x: auto; }
-  .summaryStrip > div { min-width: 100px; }
+  .chamberHero { grid-template-columns: 1fr; gap: 22px; }
+  .chamberPortrait { min-height: 220px; }
+  .chamberGrid { grid-template-columns: 1fr; }
+  .councilRoster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .architectureNote { grid-template-columns: 1fr; }
-  .formGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
   .projectGrid { grid-template-columns: 1fr; }
+  .councilRoster { grid-template-columns: 1fr; }
+  .actionRow { align-items: stretch; flex-direction: column; }
   .footerNote { align-items: flex-start; flex-direction: column; }
 }
