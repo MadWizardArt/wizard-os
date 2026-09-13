@@ -131,7 +131,7 @@ async function generateOne(
 ): Promise<MuseResponse> {
   const muse = MUSE_BY_ID[museId];
   const model = process.env.MUSEUM_AI_MODEL?.trim() || DEFAULT_MODEL;
-  const token = getAiGatewayAuthToken();
+  const token = await getAiGatewayAuthToken();
   const createdAt = new Date().toISOString();
 
   if (!token) return errorResponse(museId, model, createdAt, "AI Gateway authentication is not available for this deployment.");
