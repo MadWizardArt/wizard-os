@@ -10,7 +10,6 @@ const destinations = [
   ["Money", "/?view=money"], ["Ventures", "/?view=ventures"],
   ["Clients", "/?view=customers"], ["Warlock", "/etsy"],
   ["The Museum", "/museum"],
-  ["Manage Briefs", "/museum/briefs/manage"],
 ];
 
 export default function MobileNavigation() {
