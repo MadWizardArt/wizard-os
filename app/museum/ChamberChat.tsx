@@ -40,12 +40,15 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
   const [contextProjectId, setContextProjectId] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [creatingQuest, setCreatingQuest] = useState(false);
+  const [createdQuestId, setCreatedQuestId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError("");
+    setCreatedQuestId(null);
     Promise.all([
       fetch(`/api/museum/chambers/${muse.id}`).then(async (response) => {
         const payload = await response.json();
@@ -76,6 +79,7 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
     const content = message.trim();
     if (!content || sending) return;
     setSending(true);
+    setCreatedQuestId(null);
     setError("");
 
     const optimistic: ChamberMessage = {
@@ -112,8 +116,9 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
   };
 
   const clearConversation = async () => {
-    if (sending || !state?.messages.length) return;
+    if (sending || creatingQuest || !state?.messages.length) return;
     setError("");
+    setCreatedQuestId(null);
     try {
       const response = await fetch(`/api/museum/chambers/${muse.id}`, { method: "DELETE" });
       const payload = await response.json();
@@ -121,6 +126,45 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
       setState(payload as ChamberState);
     } catch (clearError) {
       setError(clearError instanceof Error ? clearError.message : "Could not clear this chamber.");
+    }
+  };
+
+  const createQuestFromConversation = async () => {
+    if (creatingQuest || !state?.messages.length) return;
+    if (createdQuestId) {
+      window.location.href = "/museum/quests";
+      return;
+    }
+
+    const recent = state.messages.filter((item) => item.content).slice(-8);
+    const lastUser = [...recent].reverse().find((item) => item.role === "USER");
+    const subject = lastUser?.content.replace(/\s+/g, " ").trim() || "Chamber follow-up";
+    const title = `${muse.name} · ${subject.slice(0, 88 - muse.name.length)}`.slice(0, 120);
+    const brief = [
+      `Created from ${muse.name}'s Chamber conversation.`,
+      ...recent.map((item) => `${item.role === "USER" ? "Artist" : muse.name}: ${item.content}`),
+    ].join("\n\n").slice(0, 2500);
+
+    setCreatingQuest(true);
+    setError("");
+    try {
+      const response = await fetch("/api/museum/quests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          brief,
+          projectId: contextProjectId || null,
+          assignments: [{ museId: muse.id, role: "LEAD", note: "Created from Chamber Chat" }],
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Could not create a quest from this conversation.");
+      setCreatedQuestId(payload.id as string);
+    } catch (questError) {
+      setError(questError instanceof Error ? questError.message : "Could not create a quest from this conversation.");
+    } finally {
+      setCreatingQuest(false);
     }
   };
 
@@ -133,8 +177,11 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
           <span>Persistent conversation · shared Wizard OS context · approval-gated actions</span>
         </div>
         <div className={styles.headerActions}>
+          <button disabled={sending || creatingQuest || !state?.messages.length} onClick={() => void createQuestFromConversation()}>
+            {creatingQuest ? "Creating Quest…" : createdQuestId ? "View Quest ✓" : "Create Quest"}
+          </button>
           <a href="/museum/quests">Quest Board</a>
-          <button disabled={sending || !state?.messages.length} onClick={() => void clearConversation()}>Clear</button>
+          <button disabled={sending || creatingQuest || !state?.messages.length} onClick={() => void clearConversation()}>Clear</button>
         </div>
       </header>
 
@@ -184,6 +231,7 @@ export default function ChamberChat({ muse }: { muse: { id: MuseId; name: string
         <div ref={bottomRef} />
       </div>
 
+      {createdQuestId && <div className={styles.error}>Quest created. It is now persistent work led by {muse.name}; use “View Quest ✓” or Quest Board to continue it.</div>}
       {error && <div className={styles.error}>{error}</div>}
 
       <form className={styles.composer} onSubmit={(event) => void send(event)}>
