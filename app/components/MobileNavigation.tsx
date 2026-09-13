@@ -9,7 +9,7 @@ const destinations = [
   ["Projects", "/#projects"], ["Queue", "/#queue"],
   ["Money", "/?view=money"], ["Ventures", "/?view=ventures"],
   ["Clients", "/?view=customers"], ["Warlock", "/etsy"],
-  ["The Museum", "/museum"], ["Muse Quests", "/museum/quests"],
+  ["The Museum", "/museum"],
   ["Manage Briefs", "/museum/briefs/manage"],
 ];
 

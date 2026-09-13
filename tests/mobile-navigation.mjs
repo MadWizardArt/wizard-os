@@ -8,7 +8,7 @@ try {
  await page.getByRole('button',{name:'☰ Menu',exact:true}).click();
  const menu=page.getByRole('dialog',{name:'Explore Wizard OS'});
  await menu.waitFor({state:'visible'});
- assert.equal(await menu.getByRole('link').count(),13);
+ assert.equal(await menu.getByRole('link').count(),12);
  await menu.getByRole('link',{name:'Money',exact:true}).click();
  await page.waitForURL('**/?view=money');
  await page.getByRole('heading',{name:/Money/}).first().waitFor();
