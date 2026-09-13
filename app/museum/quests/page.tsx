@@ -13,6 +13,7 @@ type Assignment = {
 };
 
 type MuseActionType = "CONSULT" | "DELEGATE" | "HANDOFF" | "REVIEW" | "CHALLENGE" | "ESCALATE" | "CONVENE";
+type MuseApprovalStatus = "NONE" | "PENDING" | "APPROVED" | "APPLIED" | "REJECTED";
 
 type MuseResponse = {
   museId: MuseId;
@@ -21,6 +22,9 @@ type MuseResponse = {
   model: string;
   createdAt: string;
   error: string;
+  recommendedNextAction: string;
+  approvalStatus: MuseApprovalStatus;
+  approvalDecidedAt: string;
 };
 
 type QuestEvent = {
@@ -108,7 +112,15 @@ function labelStatus(status: Quest["status"]) {
 function normalizeQuest(quest: Quest): Quest {
   return {
     ...quest,
-    events: (quest.events ?? []).map((event) => ({ ...event, responses: event.responses ?? [] })),
+    events: (quest.events ?? []).map((event) => ({
+      ...event,
+      responses: (event.responses ?? []).map((response) => ({
+        ...response,
+        recommendedNextAction: response.recommendedNextAction ?? "",
+        approvalStatus: response.approvalStatus ?? (response.recommendedNextAction ? "PENDING" : "NONE"),
+        approvalDecidedAt: response.approvalDecidedAt ?? "",
+      })),
+    })),
   };
 }
 
@@ -142,6 +154,16 @@ function actionSentence(event: QuestEvent) {
   }
 }
 
+function approvalLabel(status: MuseApprovalStatus) {
+  switch (status) {
+    case "APPLIED": return "Applied to linked project";
+    case "APPROVED": return "Approved as quest direction";
+    case "REJECTED": return "Rejected by Artist";
+    case "PENDING": return "Awaiting Artist approval";
+    default: return "";
+  }
+}
+
 export default function MuseumQuestBoard() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -150,6 +172,7 @@ export default function MuseumQuestBoard() {
   const [actionQuest, setActionQuest] = useState<Quest | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingAction, setSavingAction] = useState(false);
+  const [approvingResponse, setApprovingResponse] = useState("");
   const [error, setError] = useState("");
   const [filterMuse, setFilterMuse] = useState<"all" | MuseId>("all");
   const [form, setForm] = useState<QuestForm>(EMPTY_FORM);
@@ -186,6 +209,13 @@ export default function MuseumQuestBoard() {
   const reviewCount = quests.filter((quest) => quest.status === "REVIEW").length;
   const completedCount = quests.filter((quest) => quest.status === "COMPLETE").length;
   const actionCount = quests.reduce((total, quest) => total + quest.events.length, 0);
+  const pendingApprovalCount = quests.reduce(
+    (total, quest) => total + quest.events.reduce(
+      (eventTotal, event) => eventTotal + event.responses.filter((response) => response.approvalStatus === "PENDING").length,
+      0,
+    ),
+    0,
+  );
 
   const openCreate = () => {
     setError("");
@@ -281,6 +311,31 @@ export default function MuseumQuestBoard() {
     }
   };
 
+  const decideResponse = async (
+    quest: Quest,
+    event: QuestEvent,
+    museResponse: MuseResponse,
+    decision: "APPROVE" | "REJECT",
+  ) => {
+    const approvalKey = `${quest.id}:${event.id}:${museResponse.museId}`;
+    setError("");
+    setApprovingResponse(approvalKey);
+    try {
+      const response = await fetch(`/api/museum/quests/${quest.id}/responses/${event.id}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ museId: museResponse.museId, decision }),
+      });
+      const updated = await response.json();
+      if (!response.ok) throw new Error(updated.error ?? "Could not record approval decision.");
+      setQuests((current) => current.map((item) => item.id === quest.id ? normalizeQuest(updated as Quest) : item));
+    } catch (approvalError) {
+      setError(approvalError instanceof Error ? approvalError.message : "Could not record approval decision.");
+    } finally {
+      setApprovingResponse("");
+    }
+  };
+
   return (
     <main className={styles.page}>
       <div className={styles.atmosphere} />
@@ -289,7 +344,7 @@ export default function MuseumQuestBoard() {
           <div>
             <p className={styles.kicker}>THE MUSEUM · SHARED AGENCY</p>
             <h1>Quest Board</h1>
-            <p>Persistent work shared by the Nine Muses. Ownership, Council actions, responses and handoffs remain attached to one shared quest.</p>
+            <p>Persistent work shared by the Nine Muses. Recommendations may cross into Wizard OS only after explicit Artist approval.</p>
           </div>
           <button className={styles.primary} onClick={openCreate}>+ New Quest</button>
         </header>
@@ -297,6 +352,7 @@ export default function MuseumQuestBoard() {
         <section className={styles.metrics}>
           <article><span>Active Quests</span><strong>{activeCount}</strong><small>Draft, active, waiting or review</small></article>
           <article><span>Awaiting Review</span><strong>{reviewCount}</strong><small>Ready for another Muse or the Artist</small></article>
+          <article><span>Pending Approvals</span><strong>{pendingApprovalCount}</strong><small>Proposals waiting on the Artist</small></article>
           <article><span>Completed</span><strong>{completedCount}</strong><small>Persistent Museum history</small></article>
           <article><span>Council Actions</span><strong>{actionCount}</strong><small>Consults, handoffs and decisions</small></article>
           <article><span>Shared Projects</span><strong>{new Set(quests.map((quest) => quest.projectId).filter(Boolean)).size}</strong><small>Linked to Wizard OS work</small></article>
@@ -368,21 +424,50 @@ export default function MuseumQuestBoard() {
                           <small>{new Date(event.createdAt).toLocaleString()}</small>
                           {event.responses.length > 0 && (
                             <div className={styles.responseStack}>
-                              {event.responses.map((museResponse, index) => (
-                                <article className={`${styles.museResponse} ${museResponse.status === "ERROR" ? styles.responseError : ""}`} key={`${event.id}:${museResponse.museId}:${index}`}>
-                                  <header>
-                                    <span>{MUSE_BY_ID[museResponse.museId]?.symbol ?? "✦"}</span>
-                                    <strong>{MUSE_BY_ID[museResponse.museId]?.name ?? museResponse.museId}</strong>
-                                    <small>{MUSE_BY_ID[museResponse.museId]?.role ?? "Muse"}</small>
-                                  </header>
-                                  {museResponse.status === "COMPLETE" ? (
-                                    <p className={styles.museResponseText}>{museResponse.text}</p>
-                                  ) : (
-                                    <p className={styles.responseErrorText}>{museResponse.error || "Muse response generation failed."}</p>
-                                  )}
-                                  <footer>{museResponse.model || "AI Gateway"}</footer>
-                                </article>
-                              ))}
+                              {event.responses.map((museResponse, index) => {
+                                const approvalKey = `${quest.id}:${event.id}:${museResponse.museId}`;
+                                const deciding = approvingResponse === approvalKey;
+                                return (
+                                  <article className={`${styles.museResponse} ${museResponse.status === "ERROR" ? styles.responseError : ""}`} key={`${event.id}:${museResponse.museId}:${index}`}>
+                                    <header>
+                                      <span>{MUSE_BY_ID[museResponse.museId]?.symbol ?? "✦"}</span>
+                                      <strong>{MUSE_BY_ID[museResponse.museId]?.name ?? museResponse.museId}</strong>
+                                      <small>{MUSE_BY_ID[museResponse.museId]?.role ?? "Muse"}</small>
+                                    </header>
+                                    {museResponse.status === "COMPLETE" ? (
+                                      <p className={styles.museResponseText}>{museResponse.text}</p>
+                                    ) : (
+                                      <p className={styles.responseErrorText}>{museResponse.error || "Muse response generation failed."}</p>
+                                    )}
+
+                                    {museResponse.status === "COMPLETE" && museResponse.recommendedNextAction && (
+                                      <section className={`${styles.proposal} ${styles[`proposal${museResponse.approvalStatus}`] ?? ""}`}>
+                                        <div className={styles.proposalHead}>
+                                          <span>Proposed Next Action</span>
+                                          <strong>{approvalLabel(museResponse.approvalStatus)}</strong>
+                                        </div>
+                                        <p>{museResponse.recommendedNextAction}</p>
+                                        {museResponse.approvalStatus === "PENDING" && (
+                                          <div className={styles.proposalActions}>
+                                            <button disabled={deciding} className={styles.approveProposal} onClick={() => void decideResponse(quest, event, museResponse, "APPROVE")}>
+                                              {deciding ? "Applying…" : quest.project ? "Approve & Apply" : "Approve Direction"}
+                                            </button>
+                                            <button disabled={deciding} className={styles.rejectProposal} onClick={() => void decideResponse(quest, event, museResponse, "REJECT")}>Reject</button>
+                                          </div>
+                                        )}
+                                        {museResponse.approvalStatus === "APPLIED" && quest.project && (
+                                          <small>Wizard OS next action is now: {quest.project.nextAction}</small>
+                                        )}
+                                        {museResponse.approvalDecidedAt && museResponse.approvalStatus !== "PENDING" && (
+                                          <small>Decision recorded {new Date(museResponse.approvalDecidedAt).toLocaleString()}</small>
+                                        )}
+                                      </section>
+                                    )}
+
+                                    <footer>{museResponse.model || "AI Gateway"}</footer>
+                                  </article>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -405,8 +490,8 @@ export default function MuseumQuestBoard() {
         )}
 
         <section className={styles.nextLayer}>
-          <span>v0.4</span>
-          <div><strong>Council actions can now return actual specialist responses.</strong><p>Consult, Delegate, Handoff, Review and Challenge call the target Muse; Escalate creates an Artist-facing memo; Convene asks every assigned Muse for a separate domain position.</p></div>
+          <span>v0.5</span>
+          <div><strong>The Council can now propose changes without silently executing them.</strong><p>A Muse may recommend a concrete next action. You approve or reject it; only an approved proposal can cross from The Museum into the linked Wizard OS project.</p></div>
         </section>
       </section>
 
