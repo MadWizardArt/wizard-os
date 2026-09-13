@@ -58,3 +58,4 @@ jobs:
           node tests/campaign-integration.mjs
           node tests/artwork-integration.mjs
           node tests/campaign-browser.mjs
+          node tests/mobile-navigation.mjs

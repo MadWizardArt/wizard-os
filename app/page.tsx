@@ -92,6 +92,8 @@ export default function Home() {
   }, []);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    if (query.get("view") === "ventures") setView("ventures");
+    if (query.get("view") === "customers") setView("customers");
     if (query.get("view") === "money") {setView("money"); if(query.get("month"))setSelectedMonth(query.get("month")!);}
   }, []);
   useEffect(() => {
@@ -335,7 +337,7 @@ export default function Home() {
       <article className="metric"><span>Next Freedom Target</span><strong>{incomeMetrics.nextTarget.progress}%</strong><small>{money(incomeMetrics.qualifyingCents)} / {money(incomeMetrics.nextTarget.targetCents)}</small></article>
     </section>
 
-    <section className="panel projectPanel">
+    <section id="projects" className="panel projectPanel">
       <div className="panelHead"><div><p className="eyebrow">Studio + business</p><h3>Works in Progress</h3></div><span className="panelHint">Select any item to enter its workspace</span></div>
       <div className="projectGrid">{productionProjects.map((p) => <button className="projectCard" key={p.id} onClick={() => openProject(p)}>
         <div className="projectCardTop"><span className={`status ${p.tone}`}>{p.kind}</span><span className="openHint">Open ↗</span></div>
@@ -344,7 +346,7 @@ export default function Home() {
       </button>)}</div>
     </section>
 
-    <section className="panel queuePanel"><div className="panelHead"><div><p className="eyebrow">FlightDeck-style queue</p><h3>Active Work</h3></div><div className="filters"><button>All</button><button>Due Soon</button><button>Waiting</button></div></div>
+    <section id="queue" className="panel queuePanel"><div className="panelHead"><div><p className="eyebrow">FlightDeck-style queue</p><h3>Active Work</h3></div><div className="filters"><button>All</button><button>Due Soon</button><button>Waiting</button></div></div>
       <div className="tableWrap"><table><thead><tr><th>Type</th><th>Work</th><th>Status</th><th>Value</th><th>Due</th><th></th></tr></thead><tbody>{productionProjects.map((p) => <tr key={p.id} className="clickRow" onClick={() => openProject(p)}><td><span className={`status ${p.tone}`}>{p.kind}</span></td><td>{p.title}</td><td>{p.status}</td><td>{p.value}</td><td>{p.due}</td><td>→</td></tr>)}</tbody></table></div>
     </section>
 

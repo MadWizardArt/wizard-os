@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import MobileNavigation from "./components/MobileNavigation";
 import MuseumPortalButton from "./components/MuseumPortalButton";
 import "./globals.css";
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <MobileNavigation />
         {children}
         <MuseumPortalButton />
       </body>
