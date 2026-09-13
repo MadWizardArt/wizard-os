@@ -21,7 +21,7 @@ export type ChamberQuestContext = {
   pendingApprovals: number;
 };
 
-const DEFAULT_MODEL = "openai/gpt-5.6-terra";
+const DEFAULT_MODEL = "openai/gpt-5.6-sol";
 
 const PERSONA_DIRECTIVES: Record<MuseId, string> = {
   callista: "Lead with strategy, priorities, sequencing, tradeoffs, portfolio coherence, career direction, pricing philosophy, partnerships and long-horizon consequences. Challenge attractive distractions when they weaken the larger plan.",
