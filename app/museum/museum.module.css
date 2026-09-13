@@ -632,3 +632,12 @@
   .actionRow { align-items: stretch; flex-direction: column; }
   .footerNote { align-items: flex-start; flex-direction: column; }
 }
+
+/* Visual Rooms v1 */
+.characterFrame { height:245px; overflow:hidden; position:relative; display:block; padding:0; }
+.characterFrame small { position:absolute; inset:auto 0 0; padding:24px 12px 12px; background:linear-gradient(transparent,#090d12e8); color:#eee0c0; font:italic 15px/1.4 Georgia,serif; }
+.roomSwitcher { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+.roomSwitcher button { border:1px solid #947e514d; border-radius:20px; background:#14191f; color:#d0c3a9; padding:10px 15px; cursor:pointer; font:14px/1.4 Georgia,serif; }
+.roomSwitcher button[aria-pressed="true"] { background:#493b24; border-color:#bea16a; color:#fff0cc; }
+.roomSwitcher button:focus-visible { outline:2px solid #f2db9f; outline-offset:3px; }
+@media(max-width:600px) { .characterFrame { height:250px; } }

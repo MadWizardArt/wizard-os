@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { MUSE_BY_ID, MUSE_DIRECTORY } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import styles from "./museum.module.css";
+import MuseRoom, { RoomArtwork } from "./MuseRoom";
+import { MUSE_ROOMS } from "../../lib/museum-rooms";
 
 type SharedProject = {
   id: string;
@@ -44,6 +46,7 @@ export default function MuseumPage() {
   const [councilQuestion, setCouncilQuestion] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const selected = MUSE_BY_ID[selectedId];
@@ -52,6 +55,7 @@ export default function MuseumPage() {
 
   const loadMuseum = async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [focusResponse, projectResponse] = await Promise.all([
         fetch("/api/museum/focus", { cache: "no-store" }),
@@ -62,6 +66,7 @@ export default function MuseumPage() {
       setFocuses(Array.isArray(focusData) ? focusData : []);
       setProjects(Array.isArray(projectData) ? projectData : []);
     } catch (error) {
+      setLoadFailed(true);
       setNotice(error instanceof Error ? error.message : "Museum state could not be read.");
     } finally {
       setLoading(false);
@@ -195,9 +200,9 @@ export default function MuseumPage() {
         <header className={styles.topbar}>
           <a className={styles.backLink} href="/">← Wizard OS</a>
           <div className={styles.titleBlock}>
-            <p className={styles.kicker}>NINE MINDS · ONE WORLD · NO BUREAUCRACY</p>
+            <p className={styles.kicker}>NINE MUSES · ONE SHARED WORLD</p>
             <h1>The Museum</h1>
-            <p>The Muses live here. Wizard OS manages the work. The Museum only remembers who each Muse is and what she is focused on now.</p>
+            <p>Visit a Muse, bring a question, and find the work you share.</p>
           </div>
           <div className={styles.gatewayStatus}><span />AI Gateway · Off</div>
         </header>
@@ -213,7 +218,7 @@ export default function MuseumPage() {
         {mode === "hall" && (
           <>
             <section className={styles.roomHeading}>
-              <div><p className={styles.kicker}>THE HALL</p><h2>Who is here, and what has her attention?</h2></div>
+              <div><p className={styles.kicker}>THE HALL</p><h2>Choose a door. Visit your Muse.</h2></div>
               <div className={styles.summaryStrip}><strong>{focuses.length}</strong><span>Current Focuses</span></div>
             </section>
 
@@ -222,15 +227,15 @@ export default function MuseumPage() {
                 const focus = focusByMuse.get(muse.id);
                 return (
                   <button key={muse.id} className={styles.museCard} data-palette={muse.palette} onClick={() => enterChamber(muse.id)}>
-                    <div className={styles.characterFrame}><span>{muse.symbol}</span><small>{muse.mythicSeat}</small></div>
+                    <div className={styles.characterFrame}><RoomArtwork muse={muse} compact /><small>{MUSE_ROOMS[muse.id].name}</small></div>
                     <div className={styles.cardCopy}>
                       <p className={styles.cardRole}>{muse.role}</p>
                       <h3>{muse.name}</h3>
                       <p className={styles.coreQuestion}>{muse.coreQuestion}</p>
                       <div className={styles.cardFocus}>
                         <span>Current Focus</span>
-                        <strong>{focus?.title || "Open"}</strong>
-                        <small>{focus?.nextAction || "No work needs her attention right now."}</small>
+                        <strong>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : focus?.title || "Open"}</strong>
+                        <small>{loading || loadFailed ? "" : focus?.nextAction || "No current focus recorded."}</small>
                       </div>
                     </div>
                   </button>
@@ -247,24 +252,22 @@ export default function MuseumPage() {
 
         {mode === "chamber" && (
           <>
-            <section className={styles.chamberHero}>
-              <div className={styles.chamberPortrait}><span>{selected.symbol}</span><small>{selected.mythicSeat}</small></div>
-              <div className={styles.chamberIdentity}>
-                <p className={styles.kicker}>CHAMBER · {selected.role.toUpperCase()}</p>
-                <h2>{selected.name}</h2>
-                <p className={styles.secondary}>{selected.secondary}</p>
-                <blockquote>{selected.coreLine}</blockquote>
-                <p>{selected.domain}</p>
-                <div className={styles.identityMeta}><span>{selected.voice}</span><span>Counterweight · {MUSE_BY_ID[selected.counterweightId].name}</span></div>
-              </div>
-            </section>
+            <nav className={styles.roomSwitcher} aria-label="Visit another Muse">
+              {MUSE_DIRECTORY.map((muse) => <button key={muse.id} aria-pressed={selectedId === muse.id} onClick={() => enterChamber(muse.id)}>{muse.name}</button>)}
+            </nav>
+            <MuseRoom muse={selected}
+              assignment={loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus?.title || "No current focus recorded"}
+              onChat={() => { document.getElementById("room-consultation")?.scrollIntoView({ block: "center" }); document.getElementById("consult-question")?.focus({ preventScroll: true }); }}
+              onFocus={() => { document.getElementById("room-focus")?.scrollIntoView({ block: "start" }); document.getElementById("focus-title")?.focus({ preventScroll: true }); }}
+              onCouncil={() => setMode("council")}
+            />
 
             <section className={styles.chamberGrid}>
-              <article className={styles.panel}>
+              <article id="room-focus" className={styles.panel}>
                 <p className={styles.kicker}>CURRENT FOCUS</p>
-                <h3>{selectedFocus ? selectedFocus.title : `${selected.name} is open.`}</h3>
+                <h3>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus ? selectedFocus.title : `${selected.name} is open.`}</h3>
                 <p className={styles.panelCopy}>This is the only work state the Museum keeps for a Muse.</p>
-                <label className={styles.field}><span>Focus</span><input value={focusDraft.title} onChange={(event) => setFocusDraft({ ...focusDraft, title: event.target.value })} placeholder="What has her attention?" /></label>
+                <label className={styles.field}><span>Focus</span><input id="focus-title" value={focusDraft.title} onChange={(event) => setFocusDraft({ ...focusDraft, title: event.target.value })} placeholder="What has her attention?" /></label>
                 <label className={styles.field}><span>Wizard OS Project · optional</span><select value={focusDraft.linkedProjectId} onChange={(event) => setFocusDraft({ ...focusDraft, linkedProjectId: event.target.value })}><option value="">None</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className={styles.field}><span>Next Step · optional</span><input value={focusDraft.nextAction} onChange={(event) => setFocusDraft({ ...focusDraft, nextAction: event.target.value })} placeholder="One next step" /></label>
                 <div className={styles.actionRow}>
@@ -273,11 +276,11 @@ export default function MuseumPage() {
                 </div>
               </article>
 
-              <article className={styles.panel}>
+              <article id="room-consultation" className={styles.panel}>
                 <p className={styles.kicker}>TALK TO {selected.name.toUpperCase()}</p>
                 <h3>Take the conversation to her home thread.</h3>
                 <p className={styles.panelCopy}>The Museum carries only the tiny bit of context that matters. ChatGPT provides the mind.</p>
-                <textarea className={styles.largeInput} value={consultQuestion} onChange={(event) => setConsultQuestion(event.target.value)} placeholder={`What do you want to ask ${selected.name}?`} />
+                <textarea id="consult-question" aria-label={`Question for ${selected.name}`} className={styles.largeInput} value={consultQuestion} onChange={(event) => setConsultQuestion(event.target.value)} placeholder={`What do you want to ask ${selected.name}?`} />
                 <button className={styles.primaryButton} onClick={copyConsultPacket}>Copy for {selected.name}</button>
                 <small className={styles.costNote}>Gateway cost: $0. No AI request is made here.</small>
               </article>
