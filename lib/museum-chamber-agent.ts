@@ -61,7 +61,7 @@ export async function generateChamberReply(input: {
 }) {
   const muse = MUSE_BY_ID[input.museId];
   const model = process.env.MUSEUM_AI_MODEL?.trim() || DEFAULT_MODEL;
-  const token = getAiGatewayAuthToken();
+  const token = await getAiGatewayAuthToken();
 
   if (!token) {
     return { content: "", model, error: "AI Gateway authentication is not available for this deployment." };
