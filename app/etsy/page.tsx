@@ -1,5 +1,6 @@
 import EtsyConsole from "./EtsyConsole";
 import DraftFinisher from "./DraftFinisher";
+import ImageRouteDiagnostic from "./ImageRouteDiagnostic";
 
 type EtsyPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -37,6 +38,7 @@ export default async function EtsyPage({ searchParams }: EtsyPageProps) {
           </a>
         </div>
 
+        <ImageRouteDiagnostic />
         <EtsyConsole />
         <DraftFinisher />
       </section>
