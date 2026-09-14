@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { MUSE_BY_ID, MUSE_DIRECTORY } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import styles from "./museum.module.css";
-import MuseRoom, { RoomArtwork } from "./MuseRoom";
-import { MUSE_ROOMS } from "../../lib/museum-rooms";
+import MuseRoom from "./MuseRoom";
+import CouncilChamber from "./CouncilChamber";
 
 type SharedProject = {
   id: string;
@@ -202,14 +202,14 @@ export default function MuseumPage() {
           <div className={styles.titleBlock}>
             <p className={styles.kicker}>NINE MUSES · ONE SHARED WORLD</p>
             <h1>The Museum</h1>
-            <p>Visit a Muse, bring a question, and find the work you share.</p>
+            <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
           </div>
           <div className={styles.gatewayStatus}><span />AI Gateway · Off</div>
         </header>
 
         <nav className={styles.museumNav} aria-label="Museum rooms">
-          <button className={mode === "hall" ? styles.navActive : ""} onClick={() => setMode("hall")}>The Hall</button>
-          <button className={mode === "chamber" ? styles.navActive : ""} onClick={() => setMode("chamber")}>{selected.name}&apos;s Chamber</button>
+          <button className={mode === "hall" ? styles.navActive : ""} onClick={() => setMode("hall")}>Council Chamber</button>
+          <button className={mode === "chamber" ? styles.navActive : ""} onClick={() => setMode("chamber")}>{selected.name}&apos;s Room</button>
           <button className={mode === "council" ? styles.navActive : ""} onClick={() => setMode("council")}>Council Table</button>
         </nav>
 
@@ -217,35 +217,10 @@ export default function MuseumPage() {
 
         {mode === "hall" && (
           <>
-            <section className={styles.roomHeading}>
-              <div><p className={styles.kicker}>THE HALL</p><h2>Choose a door. Visit your Muse.</h2></div>
-              <div className={styles.summaryStrip}><strong>{focuses.length}</strong><span>Current Focuses</span></div>
-            </section>
-
-            <section className={styles.hallGrid}>
-              {MUSE_DIRECTORY.map((muse) => {
-                const focus = focusByMuse.get(muse.id);
-                return (
-                  <button key={muse.id} className={styles.museCard} data-palette={muse.palette} onClick={() => enterChamber(muse.id)}>
-                    <div className={styles.characterFrame}><RoomArtwork muse={muse} compact /><small>{MUSE_ROOMS[muse.id].name}</small></div>
-                    <div className={styles.cardCopy}>
-                      <p className={styles.cardRole}>{muse.role}</p>
-                      <h3>{muse.name}</h3>
-                      <p className={styles.coreQuestion}>{muse.coreQuestion}</p>
-                      <div className={styles.cardFocus}>
-                        <span>Current Focus</span>
-                        <strong>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : focus?.title || "Open"}</strong>
-                        <small>{loading || loadFailed ? "" : focus?.nextAction || "No current focus recorded."}</small>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </section>
-
+            <CouncilChamber focusByMuse={focusByMuse} loading={loading} loadFailed={loadFailed} onEnter={enterChamber} />
             <section className={styles.architectureNote}>
-              <strong>Simple by design</strong>
-              <p>One optional Current Focus per Muse. Projects, tasks, status history, sales, campaigns and production stay in Wizard OS where they belong.</p>
+              <strong>Stage I · Visual Prototype</strong>
+              <p>The paintings are a mythic reference, not a style template. The architecture and rooms are being built from the adopted Muse identities; operational notifications remain deferred.</p>
             </section>
           </>
         )}
@@ -266,7 +241,7 @@ export default function MuseumPage() {
               <article id="room-focus" className={styles.panel}>
                 <p className={styles.kicker}>CURRENT FOCUS</p>
                 <h3>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus ? selectedFocus.title : `${selected.name} is open.`}</h3>
-                <p className={styles.panelCopy}>This is the only work state the Museum keeps for a Muse.</p>
+                <p className={styles.panelCopy}>This remains intentionally small: what has her attention, the related Wizard OS project if any, and one next step.</p>
                 <label className={styles.field}><span>Focus</span><input id="focus-title" value={focusDraft.title} onChange={(event) => setFocusDraft({ ...focusDraft, title: event.target.value })} placeholder="What has her attention?" /></label>
                 <label className={styles.field}><span>Wizard OS Project · optional</span><select value={focusDraft.linkedProjectId} onChange={(event) => setFocusDraft({ ...focusDraft, linkedProjectId: event.target.value })}><option value="">None</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
                 <label className={styles.field}><span>Next Step · optional</span><input value={focusDraft.nextAction} onChange={(event) => setFocusDraft({ ...focusDraft, nextAction: event.target.value })} placeholder="One next step" /></label>
@@ -277,9 +252,9 @@ export default function MuseumPage() {
               </article>
 
               <article id="room-consultation" className={styles.panel}>
-                <p className={styles.kicker}>TALK TO {selected.name.toUpperCase()}</p>
-                <h3>Take the conversation to her home thread.</h3>
-                <p className={styles.panelCopy}>The Museum carries only the tiny bit of context that matters. ChatGPT provides the mind.</p>
+                <p className={styles.kicker}>VISIT {selected.name.toUpperCase()}</p>
+                <h3>Continue the conversation in her home thread.</h3>
+                <p className={styles.panelCopy}>The Museum remains the visual layer; the Muse conversation remains in the Nine Muses project.</p>
                 <textarea id="consult-question" aria-label={`Question for ${selected.name}`} className={styles.largeInput} value={consultQuestion} onChange={(event) => setConsultQuestion(event.target.value)} placeholder={`What do you want to ask ${selected.name}?`} />
                 <button className={styles.primaryButton} onClick={copyConsultPacket}>Copy for {selected.name}</button>
                 <small className={styles.costNote}>Gateway cost: $0. No AI request is made here.</small>
@@ -325,7 +300,7 @@ export default function MuseumPage() {
 
         <footer className={styles.footerNote}>
           <span>THE MUSEUM</span>
-          <p>Character · Current Focus · Conversation. Everything else belongs in Wizard OS.</p>
+          <p>Character · Presence · Current Focus. Wizard OS remains the operational system.</p>
         </footer>
       </section>
     </main>
