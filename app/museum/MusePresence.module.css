@@ -1,0 +1,201 @@
+.roomAura {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 240ms ease, box-shadow 240ms ease, background 240ms ease;
+}
+
+.roomState {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
+  min-width: 150px;
+  padding: 9px 11px;
+  border: 1px solid rgba(224, 198, 139, .2);
+  border-radius: 999px;
+  background: rgba(10, 12, 15, .72);
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  backdrop-filter: blur(9px);
+  color: #efe2c7;
+}
+
+.roomState::before,
+.portalBadge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7f877f;
+  box-shadow: 0 0 0 3px rgba(127,135,127,.08);
+}
+
+.roomState span {
+  font: 700 10px/1.1 system-ui, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.roomState small {
+  grid-column: 2;
+  color: #aba79e;
+  font: 500 9px/1.3 system-ui, sans-serif;
+}
+
+.working.roomAura {
+  background: linear-gradient(112deg, transparent 26%, rgba(214,177,99,.035) 44%, rgba(214,177,99,.09) 49%, transparent 58%);
+  animation: workingSweep 10s ease-in-out infinite;
+}
+.working.roomState::before,
+.working.portalBadge::before {
+  background: #d0ab5e;
+  box-shadow: 0 0 10px rgba(208,171,94,.72), 0 0 0 3px rgba(208,171,94,.09);
+}
+
+.available.roomAura {
+  background: radial-gradient(circle at 16% 18%, rgba(125,157,132,.055), transparent 28%);
+}
+.available.roomState::before,
+.available.portalBadge::before {
+  background: #829b85;
+  box-shadow: 0 0 8px rgba(130,155,133,.42), 0 0 0 3px rgba(130,155,133,.08);
+}
+
+.waiting.roomAura {
+  box-shadow: inset 0 0 0 1px rgba(226,166,83,.18), inset 0 0 80px rgba(196,110,43,.045);
+  animation: waitingPulse 4.5s ease-in-out infinite;
+}
+.waiting.roomState {
+  border-color: rgba(226,166,83,.34);
+}
+.waiting.roomState::before,
+.waiting.portalBadge::before {
+  background: #e0a557;
+  box-shadow: 0 0 13px rgba(224,165,87,.82), 0 0 0 3px rgba(224,165,87,.12);
+  animation: dotPulse 2.2s ease-in-out infinite;
+}
+
+.council.roomAura {
+  background: radial-gradient(circle at 50% 52%, rgba(124,127,181,.07), transparent 35%);
+  box-shadow: inset 0 0 0 1px rgba(145,144,204,.14);
+}
+.council.roomState::before,
+.council.portalBadge::before {
+  background: #9a96cf;
+  box-shadow: 0 0 11px rgba(154,150,207,.66), 0 0 0 3px rgba(154,150,207,.09);
+}
+
+.quiet.roomAura {
+  background: rgba(6,8,11,.10);
+  box-shadow: inset 0 0 110px rgba(0,0,0,.12);
+}
+.quiet.roomState {
+  opacity: .78;
+}
+.quiet.roomState::before,
+.quiet.portalBadge::before {
+  background: #6e7476;
+  box-shadow: 0 0 0 3px rgba(110,116,118,.07);
+}
+
+.control {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(199,172,112,.18);
+}
+.control label {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: center;
+  gap: 12px;
+}
+.control label > span {
+  color: #c7b68f;
+  font: 600 10px/1.3 system-ui, sans-serif;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.control select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(190,163,103,.28);
+  border-radius: 5px;
+  color: #e8deca;
+  background: rgba(14,16,18,.72);
+  font: 500 12px/1.2 system-ui, sans-serif;
+}
+.control small {
+  display: block;
+  margin-top: 7px;
+  color: #8e8a83;
+  font: 500 9px/1.45 system-ui, sans-serif;
+}
+
+.portalHalo {
+  position: absolute;
+  inset: 3px;
+  z-index: 3;
+  border-radius: 48% 48% 7px 7px / 24% 24% 6px 6px;
+  pointer-events: none;
+  opacity: .62;
+}
+.portalHalo.working { box-shadow: inset 0 0 0 1px rgba(210,171,91,.23), 0 0 18px rgba(210,171,91,.08); }
+.portalHalo.available { box-shadow: inset 0 0 0 1px rgba(128,153,131,.13); opacity: .4; }
+.portalHalo.waiting { box-shadow: inset 0 0 0 1px rgba(228,165,79,.34), 0 0 24px rgba(228,165,79,.16); animation: portalWaiting 3.8s ease-in-out infinite; }
+.portalHalo.council { box-shadow: inset 0 0 0 1px rgba(151,146,207,.28), 0 0 22px rgba(151,146,207,.12); }
+.portalHalo.quiet { box-shadow: inset 0 0 36px rgba(0,0,0,.22); opacity: .45; }
+
+.portalBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: fit-content;
+  margin: 2px auto 0;
+  color: #a99f8c;
+  font: 700 6px/1.1 system-ui, sans-serif;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.portalBadge::before { width: 5px; height: 5px; }
+
+@keyframes workingSweep {
+  0%,100% { transform: translateX(-3%); opacity: .64; }
+  50% { transform: translateX(3%); opacity: 1; }
+}
+@keyframes waitingPulse {
+  0%,100% { opacity: .62; }
+  50% { opacity: 1; }
+}
+@keyframes dotPulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.22); }
+}
+@keyframes portalWaiting {
+  0%,100% { opacity: .48; }
+  50% { opacity: .9; }
+}
+
+@media (max-width: 720px) {
+  .roomState { top: 12px; left: 12px; min-width: 0; max-width: calc(100% - 24px); }
+  .roomState small { display: none; }
+  .control label { grid-template-columns: 1fr; gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roomAura,
+  .roomState::before,
+  .portalHalo,
+  .portalBadge::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
