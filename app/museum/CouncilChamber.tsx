@@ -1,12 +1,15 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import { MUSE_DIRECTORY } from "../../lib/museum-directory";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import { RoomArtwork } from "./MuseRoom";
 import styles from "./CouncilChamber.module.css";
 import polish from "./CouncilChamberPolish.module.css";
+import presenceStyles from "./MusePresence.module.css";
+import { deriveDefaultPresence, PRESENCE_META, useMusePresence } from "./useMusePresence";
 
 type FocusPreview = { title: string; nextAction?: string };
 
@@ -29,6 +32,52 @@ const POSITIONS = [
   [25, 18],
 ] as const;
 
+function MusePortal({ muse, index, focus, loading, loadFailed, onEnter }: {
+  muse: MuseDirectoryEntry;
+  index: number;
+  focus?: FocusPreview;
+  loading: boolean;
+  loadFailed: boolean;
+  onEnter: (id: MuseId) => void;
+}) {
+  const [x, y] = POSITIONS[index];
+  const style = {
+    "--portal-x": `${x}%`,
+    "--portal-y": `${y}%`,
+    "--portal-delay": `${index * -0.7}s`,
+  } as CSSProperties;
+  const defaultPresence = deriveDefaultPresence(Boolean(focus));
+  const { presence } = useMusePresence(muse.id, defaultPresence);
+  const presenceMeta = PRESENCE_META[presence];
+
+  return (
+    <button
+      className={`${styles.portal} ${polish.portal}`}
+      style={style}
+      data-muse={muse.id}
+      data-palette={muse.palette}
+      data-presence={presence}
+      onClick={() => onEnter(muse.id)}
+      aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}. ${presenceMeta.label}.`}
+    >
+      <span className={`${styles.arch} ${polish.arch}`} aria-hidden="true">
+        <span className={`${styles.roomWindow} ${polish.roomWindow}`}><RoomArtwork muse={muse} compact /></span>
+        <span className={`${presenceStyles.portalHalo} ${presenceStyles[presence]}`} />
+        <span className={styles.portalShade} />
+        <span className={styles.lintel}>{muse.symbol}</span>
+      </span>
+      <span className={styles.nameplate}>
+        <strong>{muse.name}</strong>
+        <small>{MUSE_ROOMS[muse.id].name}</small>
+        <em className={focus ? styles.active : styles.idle}>
+          {loading ? "…" : loadFailed ? "Unavailable" : focus?.title || "Open"}
+        </em>
+        <span className={`${presenceStyles.portalBadge} ${presenceStyles[presence]}`}>{presenceMeta.label}</span>
+      </span>
+    </button>
+  );
+}
+
 export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
   return (
     <section className={`${styles.chamber} ${polish.chamber}`} aria-label="Council Chamber">
@@ -42,40 +91,17 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
       </div>
 
       <div className={styles.portalRing}>
-        {MUSE_DIRECTORY.map((muse, index) => {
-          const focus = focusByMuse.get(muse.id);
-          const [x, y] = POSITIONS[index];
-          const style = {
-            "--portal-x": `${x}%`,
-            "--portal-y": `${y}%`,
-            "--portal-delay": `${index * -0.7}s`,
-          } as CSSProperties;
-
-          return (
-            <button
-              key={muse.id}
-              className={`${styles.portal} ${polish.portal}`}
-              style={style}
-              data-muse={muse.id}
-              data-palette={muse.palette}
-              onClick={() => onEnter(muse.id)}
-              aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}`}
-            >
-              <span className={`${styles.arch} ${polish.arch}`} aria-hidden="true">
-                <span className={`${styles.roomWindow} ${polish.roomWindow}`}><RoomArtwork muse={muse} compact /></span>
-                <span className={styles.portalShade} />
-                <span className={styles.lintel}>{muse.symbol}</span>
-              </span>
-              <span className={styles.nameplate}>
-                <strong>{muse.name}</strong>
-                <small>{MUSE_ROOMS[muse.id].name}</small>
-                <em className={focus ? styles.active : styles.idle}>
-                  {loading ? "…" : loadFailed ? "Unavailable" : focus?.title || "Open"}
-                </em>
-              </span>
-            </button>
-          );
-        })}
+        {MUSE_DIRECTORY.map((muse, index) => (
+          <MusePortal
+            key={muse.id}
+            muse={muse}
+            index={index}
+            focus={focusByMuse.get(muse.id)}
+            loading={loading}
+            loadFailed={loadFailed}
+            onEnter={onEnter}
+          />
+        ))}
       </div>
 
       <div className={styles.inscription} aria-hidden="true">
