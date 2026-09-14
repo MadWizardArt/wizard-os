@@ -4,7 +4,7 @@ import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders, getOwnedEtsyShop, getValidEts
 
 export const dynamic = "force-dynamic";
 
-const TEST_TITLE = "WARLOCK IMAGE ROUTE TEST — DELETE ME";
+const TEST_TITLE = "Warlock Image Route Test — Delete Me";
 
 function crc32(buffer: Buffer) {
   let crc = 0xffffffff;
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (!draftsResponse.ok) return failed("draft_lookup", "draft_lookup_failed", draftsPayload, draftsResponse.status);
 
     const matchingDrafts = (Array.isArray(draftsPayload?.results) ? draftsPayload.results : [])
-      .filter((item: EtsyDraft) => (item.title ?? "").includes("WARLOCK IMAGE ROUTE TEST"))
+      .filter((item: EtsyDraft) => (item.title ?? "").toLowerCase().includes("warlock image route test"))
       .sort((a: EtsyDraft, b: EtsyDraft) => (b.creation_timestamp ?? 0) - (a.creation_timestamp ?? 0));
 
     let listing: EtsyDraft | Record<string, unknown> = matchingDrafts[0] ?? {};
