@@ -113,8 +113,8 @@ export default function DraftFinisher() {
   useEffect(() => {
     loadDrafts().catch((e) => setError(e.message));
     const onDraftCreated = (event: Event) => {
-      const listingId = String((event as CustomEvent<{ listingId?: number }>).detail?.listingId ?? "");
-      if (listingId) syncWithEtsy(listingId);
+      const nextId = String((event as CustomEvent<{ listingId?: number }>).detail?.listingId ?? "");
+      if (nextId) syncWithEtsy(nextId);
     };
     window.addEventListener("warlock:draft-created", onDraftCreated);
     return () => window.removeEventListener("warlock:draft-created", onDraftCreated);
@@ -154,8 +154,8 @@ export default function DraftFinisher() {
     }
   }
 
-  async function uploadImages(files: FileList | null) {
-    if (!listingId || !files?.length || loadedListing?.state !== "draft") return;
+  async function uploadImages(files: File[]) {
+    if (!listingId || files.length === 0 || loadedListing?.state !== "draft") return;
     setBusy("image");
     setNotice("");
     setError("");
@@ -233,12 +233,12 @@ export default function DraftFinisher() {
             <label style={{ padding: 14, borderRadius: 10, border: "1px solid #34404d", background: "#0d141c" }}>
               <strong style={{ display: "block", marginBottom: 5 }}>Add images</strong>
               <span style={{ display: "block", color: "#8e99a7", fontSize: 12, marginBottom: 10 }}>Select one or several listing images.</span>
-              <input type="file" multiple accept="image/jpeg,image/png,image/gif" disabled={locked} onChange={(e) => { const files = e.currentTarget.files; uploadImages(files); e.currentTarget.value = ""; }} />
+              <input type="file" multiple accept="image/jpeg,image/png,image/gif" disabled={locked} onChange={(e) => { const files = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ""; uploadImages(files); }} />
             </label>
             <label style={{ padding: 14, borderRadius: 10, border: "1px solid #34404d", background: "#0d141c" }}>
               <strong style={{ display: "block", marginBottom: 5 }}>Customer file</strong>
               <span style={{ display: "block", color: "#8e99a7", fontSize: 12, marginBottom: 10 }}>PDF, ZIP, or customer-ready asset.</span>
-              <input type="file" accept=".pdf,.zip,.png,.jpg,.jpeg" disabled={locked} onChange={(e) => { const file = e.currentTarget.files?.[0]; uploadCustomerFile(file); e.currentTarget.value = ""; }} />
+              <input type="file" accept=".pdf,.zip,.png,.jpg,.jpeg" disabled={locked} onChange={(e) => { const file = e.currentTarget.files?.[0]; e.currentTarget.value = ""; uploadCustomerFile(file); }} />
             </label>
           </div>
 
