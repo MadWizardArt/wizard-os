@@ -1,5 +1,5 @@
 .room { position:relative; isolation:isolate; min-height:650px; overflow:hidden; margin:24px 0; border:1px solid #77613b66; border-radius:12px; background:#141310; }
-.roomArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:30% center; z-index:-3; }
+.roomArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:30% center; z-index:-4; }
 .cardArt { width:100%; height:100%; display:block; object-fit:cover; object-position:25% 30%; }
 .scrim { position:absolute; inset:0; z-index:-2; background:linear-gradient(90deg,transparent 20%,#0c101330 40%,#0c1013e8 70%,#0c1013f2),linear-gradient(0deg,#0c1013a0,transparent 25%); }
 .roomCaption { position:absolute; left:28px; bottom:26px; color:#f2dfb6; font:italic 19px/1.4 Georgia,serif; text-shadow:0 2px 8px #000; }
@@ -19,7 +19,29 @@
 .actions button:focus-visible, .actions a:focus-visible { outline:2px solid #f2db9f; outline-offset:4px; }
 .artFallback { width:100%; height:100%; min-height:230px; display:grid; align-content:center; justify-items:center; gap:12px; background:radial-gradient(ellipse at top,#464039,#16191e); color:#e5c889; font:18px/1.5 Georgia,serif; }
 .artFallback > span:first-child { font-size:60px; }
-.room > .artFallback { position:absolute; inset:0; z-index:-3; }
+.room > .artFallback { position:absolute; inset:0; z-index:-4; }
+.actions a { text-decoration:none; box-sizing:border-box; }
+
+/* Stage 1 living-painting treatment: Novy only. */
+.novyRoom .roomArt { animation: novyPush 24s ease-in-out infinite alternate; }
+.novyAmbient { position:absolute; inset:0; z-index:-3; pointer-events:none; overflow:hidden; }
+.constellationField { position:absolute; inset:0 42% 35% 0; opacity:.44; background-image:radial-gradient(circle at 18% 24%,#e8d49c 0 1px,transparent 1.6px),radial-gradient(circle at 34% 17%,#e8d49c 0 1px,transparent 1.6px),radial-gradient(circle at 52% 29%,#e8d49c 0 1px,transparent 1.6px),radial-gradient(circle at 68% 15%,#e8d49c 0 1px,transparent 1.6px),radial-gradient(circle at 76% 38%,#e8d49c 0 1px,transparent 1.6px),linear-gradient(28deg,transparent 48%,rgba(223,199,143,.15) 49% 50%,transparent 51%),linear-gradient(151deg,transparent 48%,rgba(223,199,143,.12) 49% 50%,transparent 51%); background-size:auto,auto,auto,auto,auto,210px 180px,240px 200px; animation: constellationDrift 16s ease-in-out infinite alternate; mix-blend-mode:screen; }
+.orrery { position:absolute; left:14%; top:17%; width:156px; height:156px; border:1px solid rgba(217,190,130,.16); border-radius:50%; animation: orrerySpin 32s linear infinite; }
+.orrery::before,.orrery::after,.orrery i { content:""; position:absolute; inset:18%; border:1px solid rgba(217,190,130,.22); border-radius:50%; }
+.orrery::after { inset:34%; transform:rotate(62deg); border-color:rgba(217,190,130,.28); }
+.orrery i:nth-child(1) { inset:8% 28%; transform:rotate(38deg); }
+.orrery i:nth-child(2) { inset:27% 5%; transform:rotate(-28deg); }
+.orrery i:nth-child(3) { inset:40% 14%; transform:rotate(76deg); }
+.orrery b { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#dcc287; font:18px/1 Georgia,serif; text-shadow:0 0 16px rgba(221,193,132,.7); }
+.candleGlow { position:absolute; left:4%; bottom:8%; width:32%; height:42%; background:radial-gradient(ellipse at 45% 80%,rgba(234,159,73,.22),rgba(212,112,43,.08) 35%,transparent 68%); filter:blur(12px); animation:candleBreath 4.8s ease-in-out infinite; }
+.dust { position:absolute; inset:0; opacity:.28; background-image:radial-gradient(circle at 20% 70%,#f0d8a5 0 1px,transparent 1.5px),radial-gradient(circle at 31% 59%,#f0d8a5 0 1px,transparent 1.5px),radial-gradient(circle at 42% 75%,#f0d8a5 0 1px,transparent 1.5px),radial-gradient(circle at 15% 48%,#f0d8a5 0 1px,transparent 1.5px),radial-gradient(circle at 54% 45%,#f0d8a5 0 1px,transparent 1.5px); animation:dustFloat 18s linear infinite; }
+
+@keyframes novyPush { from { transform:scale(1.015) translate3d(0,0,0); } to { transform:scale(1.055) translate3d(-.5%, -.35%,0); } }
+@keyframes constellationDrift { from { transform:translate3d(-5px,2px,0); opacity:.32; } to { transform:translate3d(8px,-5px,0); opacity:.5; } }
+@keyframes orrerySpin { to { transform:rotate(360deg); } }
+@keyframes candleBreath { 0%,100% { opacity:.62; transform:scale(1); } 45% { opacity:.9; transform:scale(1.04); } 65% { opacity:.72; transform:scale(.985); } }
+@keyframes dustFloat { from { transform:translate3d(0,10px,0); } to { transform:translate3d(22px,-24px,0); } }
+
 @media(max-width:900px) {
   .room { min-height:0; }
   .roomArt { position:relative; height:390px; object-position:20% 25%; }
@@ -28,6 +50,8 @@
   .roomCaption { left:22px; top:345px; bottom:auto; font-size:17px; }
   .identity { width:100%; padding:26px; background:#101418; }
   .identity h2 { font-size:52px; }
+  .novyAmbient { height:390px; bottom:auto; }
+  .orrery { width:112px; height:112px; left:9%; top:14%; }
 }
 @media(max-width:480px) {
   .roomArt { height:310px; object-position:20% center; }
@@ -36,6 +60,8 @@
   .identity blockquote { font-size:20px; }
   .actions { gap:8px; }
   .actions button, .actions a { padding:12px 10px; }
+  .novyAmbient { height:310px; }
 }
-
-.actions a { text-decoration:none; box-sizing:border-box; }
+@media(prefers-reduced-motion:reduce) {
+  .novyRoom .roomArt,.constellationField,.orrery,.candleGlow,.dust { animation:none; }
+}

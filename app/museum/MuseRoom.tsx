@@ -27,9 +27,20 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
   onCouncil: () => void;
 }) {
   const room = MUSE_ROOMS[muse.id];
+  const isNovy = muse.id === "novy";
   return (
-    <section className={styles.room} aria-labelledby="muse-room-name">
+    <section className={`${styles.room} ${isNovy ? styles.novyRoom : ""}`} aria-labelledby="muse-room-name">
       <RoomArtwork key={muse.id} muse={muse} />
+      {isNovy && (
+        <div className={styles.novyAmbient} aria-hidden="true">
+          <div className={styles.constellationField} />
+          <div className={styles.orrery}>
+            <i /><i /><i /><b>✦</b>
+          </div>
+          <div className={styles.candleGlow} />
+          <div className={styles.dust} />
+        </div>
+      )}
       <div className={styles.scrim} />
       <div className={styles.roomCaption}><span aria-hidden="true">{muse.symbol}</span> {room.name}</div>
       <div className={styles.identity}>
@@ -39,9 +50,9 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
         <blockquote>“{muse.coreLine}”</blockquote>
         <div className={styles.assignment}><span>Current Focus</span><strong>{assignment}</strong></div>
         <nav className={styles.actions} aria-label={`${muse.name} room controls`}>
-          <button onClick={onChat}>Chat <span>Prepare a consultation ↗</span></button>
-          <button onClick={onFocus}>Focus <span>View or update her focus</span></button>
-          <button onClick={onCouncil}>Council <span>Bring sisters together</span></button>
+          <button onClick={onChat}>Visit <span>Prepare a consultation ↗</span></button>
+          <button onClick={onFocus}>Focus <span>View or update her attention</span></button>
+          <button onClick={onCouncil}>Council <span>Return to the council chamber</span></button>
           <a href="/">Wizard OS <span>Open your workspace</span></a>
         </nav>
       </div>
