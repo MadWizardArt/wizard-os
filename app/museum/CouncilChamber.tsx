@@ -31,17 +31,14 @@ const POSITIONS = [
 
 export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
   return (
-    <section className={`${styles.chamber} ${polish.chamber}`} aria-labelledby="council-chamber-title">
+    <section className={`${styles.chamber} ${polish.chamber}`} aria-label="Council Chamber">
       <div className={styles.vault} aria-hidden="true" />
       <div className={styles.stars} aria-hidden="true" />
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
 
-      <div className={`${styles.dais} ${polish.dais}`}>
-        <span className={`${styles.seal} ${polish.seal}`} aria-hidden="true">✦</span>
-        <p>The Council Chamber</p>
-        <h2 id="council-chamber-title">Nine doors. Nine minds.</h2>
-        <small>Enter a room to see where her attention rests.</small>
+      <div className={`${styles.dais} ${polish.dais}`} aria-hidden="true">
+        <span className={`${styles.seal} ${polish.seal}`}>✦</span>
       </div>
 
       <div className={styles.portalRing}>
