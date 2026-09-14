@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { inProduction } from "../../../lib/artwork-lifecycle";
 import { prisma } from "../../../lib/prisma";
 import { MUSEUM_BRIEF_PREFIX } from "../../../lib/museum-brief-storage";
 import { MUSEUM_CHAMBER_PREFIX } from "../../../lib/museum-chamber-storage";
@@ -25,7 +26,8 @@ const toneByType = {
   INTERNAL: "navy",
 } as const;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const includeCompleted = request.nextUrl.searchParams.get("scope") === "all";
   const projects = await prisma.project.findMany({
     where: { archivedAt: null },
     include: { artwork: true },
@@ -40,6 +42,13 @@ export async function GET() {
         && !project.notes?.startsWith(MUSEUM_BRIEF_PREFIX)
         && !project.notes?.startsWith(MUSEUM_FOCUS_PREFIX)
         && !project.notes?.startsWith(MUSEUM_SIGNAL_PREFIX)
+      )
+      .filter((project) =>
+        includeCompleted || inProduction({
+          type: project.type,
+          statusEnum: project.status,
+          artworkAvailability: project.artwork?.availability ?? null,
+        })
       )
       .map((project) => ({
         id: project.id,
