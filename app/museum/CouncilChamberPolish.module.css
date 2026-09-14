@@ -1,0 +1,68 @@
+.chamber {
+  margin: 0 0 22px;
+}
+
+.dais {
+  top: 50%;
+  width: min(330px, 29vw);
+}
+
+.seal {
+  width: 82px;
+  height: 82px;
+  margin-bottom: 10px;
+  font-size: 34px;
+}
+
+.dais h2 {
+  margin: 8px 0 7px;
+  font: 500 clamp(1.6rem, 2.45vw, 2.65rem)/1 Georgia, serif;
+  letter-spacing: -.03em;
+}
+
+.portal {
+  width: clamp(100px, 9.5vw, 138px);
+}
+
+.arch {
+  height: clamp(118px, 12.4vw, 168px);
+}
+
+.portal[data-muse="callista"] .roomWindow img {
+  object-position: 50% 16%;
+  transform: scale(1.015);
+}
+
+@media (max-width: 980px) {
+  .dais {
+    width: 30vw;
+  }
+
+  .portal {
+    width: 108px;
+  }
+
+  .arch {
+    height: 134px;
+  }
+}
+
+@media (max-width: 720px) {
+  .dais {
+    width: auto;
+  }
+
+  .portal {
+    width: 100%;
+  }
+
+  .arch {
+    height: 180px;
+  }
+}
+
+@media (max-width: 430px) {
+  .arch {
+    height: 220px;
+  }
+}

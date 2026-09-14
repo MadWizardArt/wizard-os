@@ -6,6 +6,7 @@ import { MUSE_DIRECTORY } from "../../lib/museum-directory";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import { RoomArtwork } from "./MuseRoom";
 import styles from "./CouncilChamber.module.css";
+import polish from "./CouncilChamberPolish.module.css";
 
 type FocusPreview = { title: string; nextAction?: string };
 
@@ -17,27 +18,27 @@ type CouncilChamberProps = {
 };
 
 const POSITIONS = [
-  [50, 10],
-  [75, 17],
+  [50, 16],
+  [75, 18],
   [89, 39],
   [82, 69],
-  [63, 84],
-  [37, 84],
+  [63, 82],
+  [37, 82],
   [18, 69],
   [11, 39],
-  [25, 17],
+  [25, 18],
 ] as const;
 
 export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
   return (
-    <section className={styles.chamber} aria-labelledby="council-chamber-title">
+    <section className={`${styles.chamber} ${polish.chamber}`} aria-labelledby="council-chamber-title">
       <div className={styles.vault} aria-hidden="true" />
       <div className={styles.stars} aria-hidden="true" />
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
 
-      <div className={styles.dais}>
-        <span className={styles.seal} aria-hidden="true">✦</span>
+      <div className={`${styles.dais} ${polish.dais}`}>
+        <span className={`${styles.seal} ${polish.seal}`} aria-hidden="true">✦</span>
         <p>The Council Chamber</p>
         <h2 id="council-chamber-title">Nine doors. Nine minds.</h2>
         <small>Enter a room to see where her attention rests.</small>
@@ -56,14 +57,15 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
           return (
             <button
               key={muse.id}
-              className={styles.portal}
+              className={`${styles.portal} ${polish.portal}`}
               style={style}
+              data-muse={muse.id}
               data-palette={muse.palette}
               onClick={() => onEnter(muse.id)}
               aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}`}
             >
-              <span className={styles.arch} aria-hidden="true">
-                <span className={styles.roomWindow}><RoomArtwork muse={muse} compact /></span>
+              <span className={`${styles.arch} ${polish.arch}`} aria-hidden="true">
+                <span className={`${styles.roomWindow} ${polish.roomWindow}`}><RoomArtwork muse={muse} compact /></span>
                 <span className={styles.portalShade} />
                 <span className={styles.lintel}>{muse.symbol}</span>
               </span>
