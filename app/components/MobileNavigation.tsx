@@ -5,11 +5,10 @@ import { usePathname } from "next/navigation";
 
 const destinations = [
   ["The Crucible", "/"], ["Campaigns", "/campaigns"],
-  ["Calendar", "/calendar"], ["Inventory & Sold", "/inventory"],
-  ["Projects", "/#projects"], ["Queue", "/#queue"],
-  ["Money", "/?view=money"], ["Ventures", "/?view=ventures"],
-  ["Clients", "/?view=customers"], ["Warlock", "/etsy"],
-  ["The Museum", "/museum"],
+  ["Projects", "/?view=projects"], ["Inventory & Sold", "/inventory"],
+  ["Calendar", "/calendar"], ["Money", "/?view=money"],
+  ["Ventures", "/?view=ventures"], ["Clients", "/?view=customers"],
+  ["Warlock", "/etsy"], ["The Museum", "/museum"],
 ];
 
 export default function MobileNavigation() {
