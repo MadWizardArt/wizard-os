@@ -20,6 +20,7 @@ export default function SoldPaintingsCounterClient({
 }: SoldPaintingsCounterClientProps) {
   const counterRef = useRef<HTMLElement | null>(null);
   const dragOffsetRef = useRef(0);
+  const topRef = useRef<number | null>(null);
   const [top, setTop] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -29,6 +30,13 @@ export default function SoldPaintingsCounterClient({
     return Math.min(Math.max(nextTop, EDGE_GAP), maxTop);
   }
 
+  function applyTop(nextTop: number) {
+    const clamped = clampTop(nextTop);
+    topRef.current = clamped;
+    setTop(clamped);
+    return clamped;
+  }
+
   useEffect(() => {
     const element = counterRef.current;
     if (!element) return;
@@ -36,11 +44,12 @@ export default function SoldPaintingsCounterClient({
     const stored = window.localStorage.getItem(STORAGE_KEY);
     const rect = element.getBoundingClientRect();
     const initial = stored == null ? rect.top : Number(stored);
-    const nextTop = clampTop(Number.isFinite(initial) ? initial : rect.top);
-    setTop(nextTop);
+    applyTop(Number.isFinite(initial) ? initial : rect.top);
 
     const onResize = () => {
-      setTop((current) => (current == null ? current : clampTop(current)));
+      if (topRef.current == null) return;
+      const clamped = applyTop(topRef.current);
+      window.localStorage.setItem(STORAGE_KEY, String(clamped));
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -56,8 +65,7 @@ export default function SoldPaintingsCounterClient({
 
   function moveDrag(event: PointerEvent<HTMLButtonElement>) {
     if (!dragging) return;
-    const nextTop = clampTop(event.clientY - dragOffsetRef.current);
-    setTop(nextTop);
+    applyTop(event.clientY - dragOffsetRef.current);
   }
 
   function endDrag(event: PointerEvent<HTMLButtonElement>) {
@@ -68,7 +76,9 @@ export default function SoldPaintingsCounterClient({
     } catch {
       // Pointer capture may already have been released by the browser.
     }
-    if (top != null) window.localStorage.setItem(STORAGE_KEY, String(top));
+    if (topRef.current != null) {
+      window.localStorage.setItem(STORAGE_KEY, String(topRef.current));
+    }
   }
 
   return (
