@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import { MUSE_DIRECTORY } from "../../lib/museum-directory";
@@ -9,7 +9,9 @@ import { RoomArtwork } from "./MuseRoom";
 import styles from "./CouncilChamber.module.css";
 import polish from "./CouncilChamberPolish.module.css";
 import presenceStyles from "./MusePresence.module.css";
+import signalStyles from "./MuseSignals.module.css";
 import { deriveDefaultPresence, PRESENCE_META, useMusePresence } from "./useMusePresence";
+import { SIGNAL_META, type MuseSignal, useMuseSignals } from "./useMuseSignals";
 
 type FocusPreview = { title: string; nextAction?: string };
 
@@ -32,10 +34,11 @@ const POSITIONS = [
   [25, 18],
 ] as const;
 
-function MusePortal({ muse, index, focus, loading, loadFailed, onEnter }: {
+function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }: {
   muse: MuseDirectoryEntry;
   index: number;
   focus?: FocusPreview;
+  signal?: MuseSignal;
   loading: boolean;
   loadFailed: boolean;
   onEnter: (id: MuseId) => void;
@@ -46,9 +49,10 @@ function MusePortal({ muse, index, focus, loading, loadFailed, onEnter }: {
     "--portal-y": `${y}%`,
     "--portal-delay": `${index * -0.7}s`,
   } as CSSProperties;
-  const defaultPresence = deriveDefaultPresence(Boolean(focus));
-  const { presence } = useMusePresence(muse.id, defaultPresence);
+  const automaticPresence = signal?.visualState ?? deriveDefaultPresence(Boolean(focus));
+  const { presence } = useMusePresence(muse.id, automaticPresence);
   const presenceMeta = PRESENCE_META[presence];
+  const signalMeta = signal ? SIGNAL_META[signal.type] : null;
 
   return (
     <button
@@ -57,8 +61,9 @@ function MusePortal({ muse, index, focus, loading, loadFailed, onEnter }: {
       data-muse={muse.id}
       data-palette={muse.palette}
       data-presence={presence}
+      data-signal={signal?.type ?? "none"}
       onClick={() => onEnter(muse.id)}
-      aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}. ${presenceMeta.label}.`}
+      aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}. ${presenceMeta.label}.${signal ? ` ${signalMeta?.label}: ${signal.title}.` : ""}`}
     >
       <span className={`${styles.arch} ${polish.arch}`} aria-hidden="true">
         <span className={`${styles.roomWindow} ${polish.roomWindow}`}><RoomArtwork muse={muse} compact /></span>
@@ -73,12 +78,24 @@ function MusePortal({ muse, index, focus, loading, loadFailed, onEnter }: {
           {loading ? "…" : loadFailed ? "Unavailable" : focus?.title || "Open"}
         </em>
         <span className={`${presenceStyles.portalBadge} ${presenceStyles[presence]}`}>{presenceMeta.label}</span>
+        {signal && signalMeta && (
+          <span className={`${signalStyles.doorSignal} ${signalStyles[signal.type]} ${signal.readAt ? "" : signalStyles.unread}`}>
+            <strong aria-hidden="true">{signalMeta.symbol}</strong>{signalMeta.label}
+          </span>
+        )}
       </span>
     </button>
   );
 }
 
 export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
+  const { active } = useMuseSignals();
+  const signalByMuse = useMemo(() => {
+    const map = new Map<MuseId, MuseSignal>();
+    for (const signal of active) if (!map.has(signal.museId)) map.set(signal.museId, signal);
+    return map;
+  }, [active]);
+
   return (
     <section className={`${styles.chamber} ${polish.chamber}`} aria-label="Council Chamber">
       <div className={styles.vault} aria-hidden="true" />
@@ -97,6 +114,7 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
             muse={muse}
             index={index}
             focus={focusByMuse.get(muse.id)}
+            signal={signalByMuse.get(muse.id)}
             loading={loading}
             loadFailed={loadFailed}
             onEnter={onEnter}
