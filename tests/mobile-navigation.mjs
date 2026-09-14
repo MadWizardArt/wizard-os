@@ -5,6 +5,25 @@ try {
  const page = await browser.newPage({viewport:{width:390,height:844}});
  const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
  await page.goto(base);
+
+ const crucibleDate=page.locator('.topbar:has(.dashboardActions) .eyebrow');
+ await crucibleDate.waitFor({state:'visible'});
+ const dateFits=await crucibleDate.evaluate((el)=>el.scrollWidth<=el.clientWidth && getComputedStyle(el).whiteSpace==='nowrap');
+ assert.equal(dateFits,true,'Crucible date should remain on one line at 390px');
+ const crucibleTitle=page.locator('.topbar:has(.dashboardActions) h2');
+ const titleSize=Number.parseFloat(await crucibleTitle.evaluate((el)=>getComputedStyle(el).fontSize));
+ assert.ok(titleSize<=21,'Crucible mobile title should use the compact size');
+ const warlock=page.locator('.dashboardActions .warlockMobile');
+ const newOrder=page.locator('.dashboardActions button',{hasText:'+ New Work Order'});
+ assert.equal(await warlock.isVisible(),true);
+ const [warlockBox,orderBox]=await Promise.all([warlock.boundingBox(),newOrder.boundingBox()]);
+ assert.ok(warlockBox && orderBox);
+ assert.ok(Math.abs(warlockBox.y-orderBox.y)<2,'Warlock and New Work Order should share one row');
+ const museum=page.getByRole('link',{name:'Enter The Museum',exact:true});
+ const museumBox=await museum.boundingBox();
+ assert.ok(museumBox && museumBox.width<=40 && museumBox.height<=40,'Museum portal should be a discreet mobile sigil');
+ assert.equal((await museum.textContent())?.trim(),'✦');
+
  await page.getByRole('button',{name:'☰ Menu',exact:true}).click();
  const menu=page.getByRole('dialog',{name:'Explore Wizard OS'});
  await menu.waitFor({state:'visible'});
@@ -32,5 +51,5 @@ try {
  }
  await page.setViewportSize({width:1280,height:900});
  assert.equal(await page.getByRole('button',{name:'☰ Menu',exact:true}).isVisible(),false);
- console.log('Mobile navigation: simplified destinations, project route, ordering, active state, Escape and desktop visibility passed.');
+ console.log('Mobile UI: Crucible header, discreet Museum sigil, simplified navigation, project route, ordering, active state, Escape and desktop visibility passed.');
 } finally { await browser.close(); }
