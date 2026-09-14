@@ -6,8 +6,14 @@ try {
  const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
  await page.goto(base);
 
- const crucibleDate=page.locator('.topbar:has(.dashboardActions) .eyebrow');
- await crucibleDate.waitFor({state:'visible'});
+ const dateSelector='.topbar:has(.dashboardActions) .eyebrow';
+ await page.waitForFunction((selector)=>{
+  const el=document.querySelector(selector);
+  if(!(el instanceof HTMLElement)) return false;
+  const style=getComputedStyle(el);
+  return el.clientWidth>0 && el.clientHeight>0 && style.whiteSpace.length>0;
+ },dateSelector);
+ const crucibleDate=page.locator(dateSelector);
  const dateLayout=await crucibleDate.evaluate((el)=>({
   scrollWidth:el.scrollWidth,
   clientWidth:el.clientWidth,
@@ -16,10 +22,7 @@ try {
   letterSpacing:getComputedStyle(el).letterSpacing,
   display:getComputedStyle(el).display,
   width:getComputedStyle(el).width,
-  parentDisplay:el.parentElement ? getComputedStyle(el.parentElement).display : null,
-  parentWidth:el.parentElement ? getComputedStyle(el.parentElement).width : null,
  }));
- console.log('Crucible date layout',dateLayout);
  assert.equal(dateLayout.whiteSpace,'nowrap',`Crucible date white-space mismatch: ${JSON.stringify(dateLayout)}`);
  assert.ok(dateLayout.scrollWidth<=dateLayout.clientWidth,`Crucible date should fit at 390px: ${JSON.stringify(dateLayout)}`);
  const crucibleTitle=page.locator('.topbar:has(.dashboardActions) h2');
