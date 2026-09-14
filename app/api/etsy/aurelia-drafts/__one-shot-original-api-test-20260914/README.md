@@ -1,0 +1,1 @@
+Temporary one-shot verification route. Remove after successful original API handoff test.
