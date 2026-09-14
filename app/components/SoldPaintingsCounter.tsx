@@ -47,32 +47,18 @@ export default async function SoldPaintingsCounter() {
 
   return (
     <aside
+      className="soldPaintingsCounter"
       aria-label="MadWizardArt sold painting profit counter"
-      style={{
-        position: "fixed",
-        right: "1rem",
-        bottom: "1rem",
-        zIndex: 30,
-        width: "min(22rem, calc(100vw - 2rem))",
-        padding: "1rem 1.1rem",
-        border: "1px solid rgba(255,255,255,.18)",
-        borderRadius: "14px",
-        background: "rgba(20, 18, 25, .94)",
-        boxShadow: "0 12px 32px rgba(0,0,0,.35)",
-        backdropFilter: "blur(14px)",
-      }}
     >
-      <p className="eyebrow" style={{ margin: 0 }}>
+      <p className="eyebrow soldCounterEyebrow">
         MadWizardArt.com · Sold paintings only
       </p>
-      <h3 style={{ margin: ".35rem 0 .15rem", fontSize: "1.7rem" }}>
-        {money(profitCents)}
-      </h3>
-      <p style={{ margin: 0 }}>
+      <h3 className="soldCounterAmount">{money(profitCents)}</h3>
+      <p className="soldCounterSummary">
         <strong>{fullyDocumented ? "Profit" : "Provisional profit"}</strong> ·{" "}
         {paintings.length} archived painting{paintings.length === 1 ? "" : "s"}
       </p>
-      <small style={{ display: "block", marginTop: ".45rem", opacity: 0.78 }}>
+      <small className="soldCounterDetails">
         Listed sold value {money(listedValueCents)}. This counter excludes every
         non-imported artwork. Until historical sale terms and costs are entered,
         listed price minus known materials/framing costs is used provisionally.
