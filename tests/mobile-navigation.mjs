@@ -22,13 +22,14 @@ try {
   if(!(date instanceof HTMLElement) || !(title instanceof HTMLElement) || !(warlock instanceof HTMLElement) || !(order instanceof HTMLElement) || !(museum instanceof HTMLElement)) throw new Error('Mobile header elements missing');
   const dateStyle=getComputedStyle(date);
   const titleStyle=getComputedStyle(title);
+  const warlockStyle=getComputedStyle(warlock);
   const warlockRect=warlock.getBoundingClientRect();
   const orderRect=order.getBoundingClientRect();
   const museumRect=museum.getBoundingClientRect();
   return {
    date:{scrollWidth:date.scrollWidth,clientWidth:date.clientWidth,whiteSpace:dateStyle.whiteSpace,text:date.textContent?.trim() ?? ''},
    titleSize:Number.parseFloat(titleStyle.fontSize),
-   warlock:{display:getComputedStyle(warlock).display,x:warlockRect.x,y:warlockRect.y,width:warlockRect.width,height:warlockRect.height},
+   warlock:{display:warlockStyle.display,x:warlockRect.x,y:warlockRect.y,width:warlockRect.width,height:warlockRect.height,fontSize:Number.parseFloat(warlockStyle.fontSize),sigil:getComputedStyle(warlock,'::before').content,backgroundImage:warlockStyle.backgroundImage},
    order:{x:orderRect.x,y:orderRect.y,width:orderRect.width,height:orderRect.height},
    museum:{width:museumRect.width,height:museumRect.height,text:museum.textContent?.trim() ?? ''},
   };
@@ -38,6 +39,10 @@ try {
  assert.ok(mobileLayout.titleSize<=21,`Crucible mobile title should use the compact size: ${JSON.stringify(mobileLayout)}`);
  assert.notEqual(mobileLayout.warlock.display,'none','Warlock should be visible on mobile');
  assert.ok(Math.abs(mobileLayout.warlock.y-mobileLayout.order.y)<2,`Warlock and New Work Order should share one row: ${JSON.stringify(mobileLayout)}`);
+ assert.ok(mobileLayout.warlock.width<=42 && mobileLayout.warlock.height<=42,`Warlock should be a compact logo button: ${JSON.stringify(mobileLayout)}`);
+ assert.equal(mobileLayout.warlock.fontSize,0,`Warlock text label should be visually replaced by the sigil: ${JSON.stringify(mobileLayout)}`);
+ assert.notEqual(mobileLayout.warlock.sigil,'none',`Warlock sigil should render: ${JSON.stringify(mobileLayout)}`);
+ assert.notEqual(mobileLayout.warlock.backgroundImage,'none',`Warlock should retain the reddish branded treatment: ${JSON.stringify(mobileLayout)}`);
  assert.ok(mobileLayout.museum.width<=40 && mobileLayout.museum.height<=40,`Museum portal should be a discreet mobile sigil: ${JSON.stringify(mobileLayout)}`);
  assert.equal(mobileLayout.museum.text,'✦');
 
@@ -69,5 +74,5 @@ try {
  }
  await page.setViewportSize({width:1280,height:900});
  assert.equal(await page.getByRole('button',{name:'☰ Menu',exact:true}).isVisible(),false);
- console.log('Mobile UI: Crucible header, private Museum sigil, simplified navigation, project route, ordering, active state, Escape and desktop visibility passed.');
+ console.log('Mobile UI: Crucible header, compact Warlock sigil, private Museum sigil, simplified navigation, project route, ordering, active state, Escape and desktop visibility passed.');
 } finally { await browser.close(); }
