@@ -5,6 +5,7 @@ import { MUSE_BY_ID, MUSE_DIRECTORY } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import styles from "./museum.module.css";
 import polish from "./MuseumPolish.module.css";
+import transitions from "./MuseumTransitions.module.css";
 import MuseRoom from "./MuseRoom";
 import CouncilChamber from "./CouncilChamber";
 
@@ -53,6 +54,12 @@ export default function MuseumPage() {
   const selected = MUSE_BY_ID[selectedId];
   const focusByMuse = useMemo(() => new Map(focuses.map((focus) => [focus.museId, focus])), [focuses]);
   const selectedFocus = focusByMuse.get(selectedId) ?? null;
+  const viewClass = mode === "hall"
+    ? transitions.hallView
+    : mode === "chamber"
+      ? transitions.chamberView
+      : transitions.councilView;
+  const viewKey = mode === "chamber" ? `${mode}-${selectedId}` : mode;
 
   const loadMuseum = async () => {
     setLoading(true);
@@ -195,7 +202,7 @@ export default function MuseumPage() {
   };
 
   return (
-    <main className={styles.page} data-palette={selected.palette}>
+    <main className={`${styles.page} ${transitions.page}`} data-palette={selected.palette}>
       <div className={styles.atmosphere} />
       <section className={`${styles.shell} ${polish.shell}`}>
         <header className={`${styles.topbar} ${polish.topbar}`}>
@@ -216,88 +223,84 @@ export default function MuseumPage() {
 
         {notice && <button className={styles.notice} onClick={() => setNotice("")}>{notice}<span>×</span></button>}
 
-        {mode === "hall" && (
-          <>
+        <div key={viewKey} className={`${transitions.view} ${viewClass}`}>
+          {mode === "hall" && (
             <CouncilChamber focusByMuse={focusByMuse} loading={loading} loadFailed={loadFailed} onEnter={enterChamber} />
-            <section className={`${styles.architectureNote} ${polish.architectureNote}`}>
-              <strong>Stage II · Living Rooms</strong>
-              <p>The paintings remain mythic references rather than style templates. Each room now takes its atmosphere and movement language from the adopted Muse identity; operational notifications remain deferred.</p>
-            </section>
-          </>
-        )}
+          )}
 
-        {mode === "chamber" && (
-          <>
-            <nav className={styles.roomSwitcher} aria-label="Visit another Muse">
-              {MUSE_DIRECTORY.map((muse) => <button key={muse.id} aria-pressed={selectedId === muse.id} onClick={() => enterChamber(muse.id)}>{muse.name}</button>)}
-            </nav>
-            <MuseRoom muse={selected}
-              assignment={loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus?.title || "No current focus recorded"}
-              onChat={() => { document.getElementById("room-consultation")?.scrollIntoView({ block: "center" }); document.getElementById("consult-question")?.focus({ preventScroll: true }); }}
-              onFocus={() => { document.getElementById("room-focus")?.scrollIntoView({ block: "start" }); document.getElementById("focus-title")?.focus({ preventScroll: true }); }}
-              onCouncil={() => setMode("council")}
-            />
+          {mode === "chamber" && (
+            <>
+              <nav className={`${styles.roomSwitcher} ${transitions.roomSwitcher}`} aria-label="Visit another Muse">
+                {MUSE_DIRECTORY.map((muse) => <button key={muse.id} aria-pressed={selectedId === muse.id} onClick={() => enterChamber(muse.id)}>{muse.name}</button>)}
+              </nav>
+              <MuseRoom muse={selected}
+                assignment={loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus?.title || "No current focus recorded"}
+                onChat={() => { document.getElementById("room-consultation")?.scrollIntoView({ block: "center" }); document.getElementById("consult-question")?.focus({ preventScroll: true }); }}
+                onFocus={() => { document.getElementById("room-focus")?.scrollIntoView({ block: "start" }); document.getElementById("focus-title")?.focus({ preventScroll: true }); }}
+                onCouncil={() => setMode("council")}
+              />
 
-            <section className={styles.chamberGrid}>
-              <article id="room-focus" className={styles.panel}>
-                <p className={styles.kicker}>CURRENT FOCUS</p>
-                <h3>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus ? selectedFocus.title : `${selected.name} is open.`}</h3>
-                <p className={styles.panelCopy}>This remains intentionally small: what has her attention, the related Wizard OS project if any, and one next step.</p>
-                <label className={styles.field}><span>Focus</span><input id="focus-title" value={focusDraft.title} onChange={(event) => setFocusDraft({ ...focusDraft, title: event.target.value })} placeholder="What has her attention?" /></label>
-                <label className={styles.field}><span>Wizard OS Project · optional</span><select value={focusDraft.linkedProjectId} onChange={(event) => setFocusDraft({ ...focusDraft, linkedProjectId: event.target.value })}><option value="">None</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
-                <label className={styles.field}><span>Next Step · optional</span><input value={focusDraft.nextAction} onChange={(event) => setFocusDraft({ ...focusDraft, nextAction: event.target.value })} placeholder="One next step" /></label>
-                <div className={styles.actionRow}>
-                  <button className={styles.primaryButton} disabled={saving} onClick={saveFocus}>{saving ? "Saving…" : "Save Focus"}</button>
-                  {selectedFocus && <button className={styles.textButton} disabled={saving} onClick={clearFocus}>Clear Focus</button>}
+              <section className={`${styles.chamberGrid} ${transitions.secondaryGrid}`}>
+                <article id="room-focus" className={styles.panel}>
+                  <p className={styles.kicker}>CURRENT FOCUS</p>
+                  <h3>{loading ? "Reading focus…" : loadFailed ? "Focus unavailable" : selectedFocus ? selectedFocus.title : `${selected.name} is open.`}</h3>
+                  <p className={styles.panelCopy}>This remains intentionally small: what has her attention, the related Wizard OS project if any, and one next step.</p>
+                  <label className={styles.field}><span>Focus</span><input id="focus-title" value={focusDraft.title} onChange={(event) => setFocusDraft({ ...focusDraft, title: event.target.value })} placeholder="What has her attention?" /></label>
+                  <label className={styles.field}><span>Wizard OS Project · optional</span><select value={focusDraft.linkedProjectId} onChange={(event) => setFocusDraft({ ...focusDraft, linkedProjectId: event.target.value })}><option value="">None</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+                  <label className={styles.field}><span>Next Step · optional</span><input value={focusDraft.nextAction} onChange={(event) => setFocusDraft({ ...focusDraft, nextAction: event.target.value })} placeholder="One next step" /></label>
+                  <div className={styles.actionRow}>
+                    <button className={styles.primaryButton} disabled={saving} onClick={saveFocus}>{saving ? "Saving…" : "Save Focus"}</button>
+                    {selectedFocus && <button className={styles.textButton} disabled={saving} onClick={clearFocus}>Clear Focus</button>}
+                  </div>
+                </article>
+
+                <article id="room-consultation" className={styles.panel}>
+                  <p className={styles.kicker}>VISIT {selected.name.toUpperCase()}</p>
+                  <h3>Continue the conversation in her home thread.</h3>
+                  <p className={styles.panelCopy}>The Museum remains the visual layer; the Muse conversation remains in the Nine Muses project.</p>
+                  <textarea id="consult-question" aria-label={`Question for ${selected.name}`} className={styles.largeInput} value={consultQuestion} onChange={(event) => setConsultQuestion(event.target.value)} placeholder={`What do you want to ask ${selected.name}?`} />
+                  <button className={styles.primaryButton} onClick={copyConsultPacket}>Copy for {selected.name}</button>
+                  <small className={styles.costNote}>Gateway cost: $0. No AI request is made here.</small>
+                </article>
+              </section>
+
+              <section className={`${styles.panel} ${transitions.contextPanel}`}>
+                <div className={styles.panelHeader}><div><p className={styles.kicker}>WIZARD OS</p><h3>Nearby operational context</h3></div><strong>{projects.length}</strong></div>
+                <div className={styles.projectGrid}>
+                  {loading && <p className={styles.empty}>Reading Wizard OS…</p>}
+                  {!loading && projects.length === 0 && <p className={styles.empty}>No Wizard OS projects returned.</p>}
+                  {projects.slice(0, 8).map((project) => <article key={project.id}><span>{project.kind ?? project.type ?? "Project"}</span><strong>{project.title}</strong><small>{project.next ?? project.nextAction ?? "No next action"}</small></article>)}
                 </div>
-              </article>
+              </section>
+            </>
+          )}
 
-              <article id="room-consultation" className={styles.panel}>
-                <p className={styles.kicker}>VISIT {selected.name.toUpperCase()}</p>
-                <h3>Continue the conversation in her home thread.</h3>
-                <p className={styles.panelCopy}>The Museum remains the visual layer; the Muse conversation remains in the Nine Muses project.</p>
-                <textarea id="consult-question" aria-label={`Question for ${selected.name}`} className={styles.largeInput} value={consultQuestion} onChange={(event) => setConsultQuestion(event.target.value)} placeholder={`What do you want to ask ${selected.name}?`} />
-                <button className={styles.primaryButton} onClick={copyConsultPacket}>Copy for {selected.name}</button>
-                <small className={styles.costNote}>Gateway cost: $0. No AI request is made here.</small>
-              </article>
-            </section>
+          {mode === "council" && (
+            <>
+              <section className={`${styles.roomHeading} ${transitions.councilHeading}`}>
+                <div><p className={styles.kicker}>COUNCIL TABLE</p><h2>Choose the perspectives. Have the discussion here.</h2></div>
+                <div className={styles.zeroCallBadge}>Nothing is stored</div>
+              </section>
 
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}><div><p className={styles.kicker}>WIZARD OS</p><h3>Nearby operational context</h3></div><strong>{projects.length}</strong></div>
-              <div className={styles.projectGrid}>
-                {loading && <p className={styles.empty}>Reading Wizard OS…</p>}
-                {!loading && projects.length === 0 && <p className={styles.empty}>No Wizard OS projects returned.</p>}
-                {projects.slice(0, 8).map((project) => <article key={project.id}><span>{project.kind ?? project.type ?? "Project"}</span><strong>{project.title}</strong><small>{project.next ?? project.nextAction ?? "No next action"}</small></article>)}
-              </div>
-            </section>
-          </>
-        )}
-
-        {mode === "council" && (
-          <>
-            <section className={styles.roomHeading}>
-              <div><p className={styles.kicker}>COUNCIL TABLE</p><h2>Choose the perspectives. Have the discussion here.</h2></div>
-              <div className={styles.zeroCallBadge}>Nothing is stored</div>
-            </section>
-
-            <section className={styles.councilPanel}>
-              <div className={styles.councilRoster}>
-                {MUSE_DIRECTORY.map((muse) => {
-                  const active = councilIds.includes(muse.id);
-                  return <button key={muse.id} className={active ? styles.councilSelected : ""} onClick={() => toggleCouncilMuse(muse.id)}><span>{muse.symbol}</span><strong>{muse.name}</strong><small>{muse.role}</small></button>;
-                })}
-              </div>
-              <div className={styles.councilComposer}>
-                <p className={styles.kicker}>TEMPORARY COUNCIL · {councilIds.length}/3</p>
-                <h3>Choose two or three sisters.</h3>
-                <p className={styles.panelCopy}>No Council object, no log, no assignment record. This simply prepares the discussion for the Nine Muses project.</p>
-                <textarea className={styles.largeInput} value={councilQuestion} onChange={(event) => setCouncilQuestion(event.target.value)} placeholder="What should the Council consider?" />
-                <button className={styles.primaryButton} onClick={copyCouncilPacket}>Copy Council Discussion</button>
-                <button className={styles.textButton} onClick={() => { setCouncilIds([]); setCouncilQuestion(""); }}>Clear</button>
-              </div>
-            </section>
-          </>
-        )}
+              <section className={`${styles.councilPanel} ${transitions.councilPanel}`}>
+                <div className={styles.councilRoster}>
+                  {MUSE_DIRECTORY.map((muse) => {
+                    const active = councilIds.includes(muse.id);
+                    return <button key={muse.id} className={active ? styles.councilSelected : ""} onClick={() => toggleCouncilMuse(muse.id)}><span>{muse.symbol}</span><strong>{muse.name}</strong><small>{muse.role}</small></button>;
+                  })}
+                </div>
+                <div className={styles.councilComposer}>
+                  <p className={styles.kicker}>TEMPORARY COUNCIL · {councilIds.length}/3</p>
+                  <h3>Choose two or three sisters.</h3>
+                  <p className={styles.panelCopy}>No Council object, no log, no assignment record. This simply prepares the discussion for the Nine Muses project.</p>
+                  <textarea className={styles.largeInput} value={councilQuestion} onChange={(event) => setCouncilQuestion(event.target.value)} placeholder="What should the Council consider?" />
+                  <button className={styles.primaryButton} onClick={copyCouncilPacket}>Copy Council Discussion</button>
+                  <button className={styles.textButton} onClick={() => { setCouncilIds([]); setCouncilQuestion(""); }}>Clear</button>
+                </div>
+              </section>
+            </>
+          )}
+        </div>
 
         <footer className={styles.footerNote}>
           <span>THE MUSEUM</span>
