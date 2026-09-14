@@ -28,8 +28,9 @@ try {
  const menu=page.getByRole('dialog',{name:'Explore Wizard OS'});
  await menu.waitFor({state:'visible'});
  const labels=(await menu.getByRole('link').allTextContents()).map(label=>label.replace('›','').trim());
- assert.equal(labels.length,10);
+ assert.equal(labels.length,9);
  assert.equal(labels.includes('Queue'),false);
+ assert.equal(labels.includes('The Museum'),false);
  assert.ok(labels.indexOf('Campaigns') < labels.indexOf('Money'));
  assert.ok(labels.indexOf('Projects') < labels.indexOf('Money'));
  await menu.getByRole('link',{name:'Projects',exact:true}).click();
@@ -44,12 +45,12 @@ try {
  assert.equal(await menu.getByRole('link',{name:'Money',exact:true}).getAttribute('aria-current'),'page');
  await page.keyboard.press('Escape');
  await menu.waitFor({state:'hidden'});
- for(const name of ['Inventory & Sold','Campaigns','Calendar','The Museum','Warlock']) {
+ for(const name of ['Inventory & Sold','Campaigns','Calendar','Warlock']) {
   await page.getByRole('button',{name:'☰ Menu',exact:true}).click();
   await Promise.all([page.waitForEvent('load'),menu.getByRole('link',{name,exact:true}).click()]);
   await page.getByRole('button',{name:'☰ Menu',exact:true}).waitFor();
  }
  await page.setViewportSize({width:1280,height:900});
  assert.equal(await page.getByRole('button',{name:'☰ Menu',exact:true}).isVisible(),false);
- console.log('Mobile UI: Crucible header, discreet Museum sigil, simplified navigation, project route, ordering, active state, Escape and desktop visibility passed.');
+ console.log('Mobile UI: Crucible header, private Museum sigil, simplified navigation, project route, ordering, active state, Escape and desktop visibility passed.');
 } finally { await browser.close(); }
