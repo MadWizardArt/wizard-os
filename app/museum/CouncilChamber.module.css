@@ -1,0 +1,331 @@
+.chamber {
+  position: relative;
+  min-height: 760px;
+  overflow: hidden;
+  margin: 10px 0 28px;
+  border: 1px solid rgba(201, 167, 96, .22);
+  border-radius: 18px 18px 40px 40px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(210, 180, 118, .12), transparent 28%),
+    linear-gradient(180deg, #10131a 0%, #111016 58%, #17110f 100%);
+  box-shadow: inset 0 0 80px rgba(0,0,0,.65), 0 32px 80px rgba(0,0,0,.28);
+  isolation: isolate;
+}
+
+.vault {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% -8%, transparent 0 38%, rgba(186,149,83,.08) 38.4% 39%, transparent 39.4%),
+    repeating-radial-gradient(ellipse at 50% -9%, transparent 0 84px, rgba(213,183,121,.045) 85px 87px, transparent 88px 142px),
+    linear-gradient(90deg, transparent 0 7%, rgba(205,172,103,.055) 7.1% 7.6%, transparent 7.7% 92.3%, rgba(205,172,103,.055) 92.4% 92.9%, transparent 93%);
+  pointer-events: none;
+  z-index: -4;
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+  opacity: .46;
+  background-image:
+    radial-gradient(circle at 18% 14%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 9%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 63% 12%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 79% 19%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 47% 7%, #d8c18c 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 55% 26%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 8% 27%, #d8c18c 0 1px, transparent 1.5px),
+    radial-gradient(circle at 90% 31%, #d8c18c 0 1px, transparent 1.5px);
+  animation: breathe 8s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -3;
+}
+
+.floor {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  bottom: -22%;
+  height: 48%;
+  border-radius: 50% 50% 0 0;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 48%, rgba(203,168,98,.06) 0 1deg, transparent 1deg 12deg),
+    radial-gradient(ellipse at 50% 34%, rgba(143,105,54,.20), rgba(24,15,13,.82) 58%, #0d0b0c 82%);
+  transform: perspective(800px) rotateX(62deg);
+  transform-origin: bottom;
+  pointer-events: none;
+  z-index: -2;
+}
+
+.centralGlow {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 36%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(209,170,93,.14), rgba(209,170,93,.035) 35%, transparent 70%);
+  filter: blur(2px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dais {
+  position: absolute;
+  left: 50%;
+  top: 49%;
+  width: min(360px, 31vw);
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 3;
+}
+
+.seal {
+  display: grid;
+  place-items: center;
+  width: 98px;
+  height: 98px;
+  margin: 0 auto 14px;
+  border: 1px solid rgba(214,182,116,.36);
+  border-radius: 50%;
+  color: #e6cd93;
+  background:
+    radial-gradient(circle, rgba(215,180,107,.13), transparent 60%),
+    repeating-conic-gradient(from 10deg, rgba(226,195,128,.18) 0 1deg, transparent 1deg 20deg);
+  box-shadow: 0 0 42px rgba(203,166,90,.12), inset 0 0 28px rgba(0,0,0,.3);
+  font: 400 40px/1 Georgia, serif;
+  animation: sealPulse 7s ease-in-out infinite;
+}
+
+.dais p {
+  margin: 0;
+  color: #c6aa70;
+  font: 700 9px/1.2 system-ui, sans-serif;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.dais h2 {
+  margin: 9px 0 8px;
+  color: #f1e3c5;
+  font: 500 clamp(1.8rem, 3vw, 3.2rem)/.98 Georgia, serif;
+  letter-spacing: -.035em;
+}
+
+.dais small {
+  color: #8e8a83;
+  font: 400 10px/1.6 system-ui, sans-serif;
+}
+
+.portalRing {
+  position: absolute;
+  inset: 0;
+}
+
+.portal {
+  --portal-x: 50%;
+  --portal-y: 50%;
+  position: absolute;
+  left: var(--portal-x);
+  top: var(--portal-y);
+  width: clamp(104px, 10vw, 145px);
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  z-index: 2;
+}
+
+.arch {
+  position: relative;
+  display: block;
+  height: clamp(120px, 13vw, 176px);
+  overflow: hidden;
+  border: 2px solid rgba(203,171,105,.32);
+  border-bottom-width: 5px;
+  border-radius: 50% 50% 10px 10px / 28% 28% 8px 8px;
+  background: #0a0b0e;
+  box-shadow:
+    0 15px 28px rgba(0,0,0,.36),
+    0 0 0 4px rgba(91,67,35,.15),
+    inset 0 0 34px rgba(0,0,0,.38);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.roomWindow {
+  position: absolute;
+  inset: 7px;
+  overflow: hidden;
+  border-radius: 48% 48% 7px 7px / 24% 24% 6px 6px;
+  filter: saturate(.78) contrast(.96) brightness(.7);
+  transition: filter 220ms ease, transform 220ms ease;
+}
+
+.roomWindow img { transform: scale(1.04); }
+
+.portalShade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(225,199,146,.06), transparent 22%),
+    linear-gradient(0deg, rgba(5,6,8,.72), transparent 44%),
+    radial-gradient(circle at 50% 35%, transparent 0 35%, rgba(0,0,0,.32) 82%);
+  pointer-events: none;
+}
+
+.lintel {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(229,199,132,.32);
+  border-radius: 50%;
+  color: #dfc48b;
+  background: rgba(17,15,13,.66);
+  font: 400 15px/1 Georgia, serif;
+  backdrop-filter: blur(4px);
+}
+
+.nameplate {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  text-shadow: 0 2px 8px #000;
+}
+
+.nameplate strong {
+  color: #eee0c0;
+  font: 500 16px/1 Georgia, serif;
+}
+
+.nameplate small {
+  color: #857d70;
+  font: 700 7px/1.25 system-ui, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.nameplate em {
+  width: fit-content;
+  max-width: 130px;
+  margin: 2px auto 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #918978;
+  font: normal 500 7px/1.2 system-ui, sans-serif;
+}
+
+.nameplate em::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.active::before { background: #c9a95f; box-shadow: 0 0 8px rgba(201,169,95,.7); }
+.idle::before { background: #586057; }
+
+.portal:hover .arch,
+.portal:focus-visible .arch {
+  transform: translateY(-5px) scale(1.025);
+  border-color: rgba(229,198,132,.72);
+  box-shadow: 0 20px 40px rgba(0,0,0,.42), 0 0 26px rgba(201,166,94,.15), 0 0 0 4px rgba(91,67,35,.18);
+}
+
+.portal:hover .roomWindow,
+.portal:focus-visible .roomWindow {
+  filter: saturate(.95) contrast(1.02) brightness(.92);
+  transform: scale(1.015);
+}
+
+.portal:focus-visible { outline: none; }
+
+.inscription {
+  position: absolute;
+  left: 50%;
+  bottom: 13px;
+  transform: translateX(-50%);
+  width: 84%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(183,157,104,.34);
+  font: 700 6px/1 system-ui, sans-serif;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+@keyframes breathe {
+  from { opacity: .3; }
+  to { opacity: .55; }
+}
+
+@keyframes sealPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 42px rgba(203,166,90,.10), inset 0 0 28px rgba(0,0,0,.3); }
+  50% { transform: scale(1.025); box-shadow: 0 0 56px rgba(203,166,90,.17), inset 0 0 28px rgba(0,0,0,.3); }
+}
+
+@media (max-width: 980px) {
+  .chamber { min-height: 700px; }
+  .dais { width: 32vw; }
+  .dais small { display: none; }
+  .portal { width: 112px; }
+  .arch { height: 138px; }
+  .inscription { display: none; }
+}
+
+@media (max-width: 720px) {
+  .chamber {
+    min-height: 0;
+    padding: 28px 16px 24px;
+    border-radius: 14px;
+  }
+  .vault, .floor { opacity: .55; }
+  .dais {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: auto;
+    transform: none;
+    margin: 0 auto 24px;
+  }
+  .seal { width: 70px; height: 70px; font-size: 28px; }
+  .portalRing {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+  .portal {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: 100%;
+    transform: none;
+  }
+  .arch { height: 180px; }
+  .nameplate em { max-width: 150px; }
+}
+
+@media (max-width: 430px) {
+  .portalRing { grid-template-columns: 1fr; }
+  .arch { height: 220px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stars, .seal { animation: none; }
+  .arch, .roomWindow { transition: none; }
+}
