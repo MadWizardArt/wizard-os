@@ -1,0 +1,99 @@
+.signalAura {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .78;
+}
+
+.signalAura.update {
+  background: linear-gradient(112deg, transparent 25%, rgba(222,190,125,.04) 42%, rgba(222,190,125,.13) 50%, transparent 60%);
+  animation: signalSweep 7s ease-in-out infinite;
+}
+.signalAura.recommendation {
+  background: radial-gradient(circle at 25% 36%, rgba(224,185,106,.16), transparent 30%);
+  animation: recommendationGlow 5.5s ease-in-out infinite;
+}
+.signalAura.waiting {
+  box-shadow: inset 0 0 0 1px rgba(230,169,79,.18), inset 0 0 100px rgba(190,106,40,.07);
+  animation: waitingGlow 4.2s ease-in-out infinite;
+}
+.signalAura.completed {
+  background: radial-gradient(circle at 28% 42%, rgba(145,183,142,.10), transparent 34%);
+  animation: completionGlow 7s ease-in-out infinite;
+}
+.signalAura.warning {
+  box-shadow: inset 0 0 0 1px rgba(216,130,77,.23), inset 0 0 90px rgba(167,71,38,.07);
+  animation: warningGlow 3.8s ease-in-out infinite;
+}
+.signalAura.urgent {
+  box-shadow: inset 0 0 0 1px rgba(228,102,78,.34), inset 0 0 120px rgba(174,44,34,.10);
+  animation: urgentGlow 2.4s ease-in-out infinite;
+}
+
+.signalCard {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(205,176,112,.24);
+  border-radius: 8px;
+  background: rgba(10,12,15,.63);
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+  backdrop-filter: blur(8px);
+}
+.signalCard.unread { border-color: rgba(222,188,113,.46); }
+.signalHeader { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.signalType { display:inline-flex; align-items:center; gap:7px; color:#d9bf86; font:700 9px/1.2 system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+.signalType i { display:grid; place-items:center; width:21px; height:21px; border:1px solid rgba(219,187,116,.26); border-radius:50%; font:normal 13px/1 Georgia,serif; }
+.signalTime { color:#85827c; font:500 9px/1.2 system-ui,sans-serif; }
+.signalCard h4 { margin:9px 0 5px; color:#f0e4ce; font:500 17px/1.25 Georgia,serif; }
+.signalCard p { margin:0; color:#bdb6aa; font:12px/1.5 system-ui,sans-serif; }
+.signalArea { display:block; margin-top:8px; color:#908778; font:700 8px/1.2 system-ui,sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.signalActions { display:flex; gap:8px; margin-top:11px; }
+.signalActions button { padding:6px 9px; border:1px solid rgba(190,161,102,.25); border-radius:5px; color:#d9cfbd; background:rgba(25,25,24,.58); font:600 10px/1.2 system-ui,sans-serif; cursor:pointer; }
+.signalActions button:hover { border-color:rgba(222,190,122,.5); background:rgba(50,43,31,.62); }
+.signalActions button:last-child { color:#e6d5af; }
+
+.doorSignal {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  width:fit-content;
+  max-width:132px;
+  margin:3px auto 0;
+  padding:3px 6px;
+  border:1px solid rgba(205,173,105,.24);
+  border-radius:999px;
+  color:#d8bd82;
+  background:rgba(14,13,12,.68);
+  font:700 6px/1.1 system-ui,sans-serif;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  box-shadow:0 0 14px rgba(205,166,91,.08);
+}
+.doorSignal strong { font:700 7px/1 system-ui,sans-serif; }
+.doorSignal.unread { border-color:rgba(226,188,104,.52); box-shadow:0 0 18px rgba(220,174,77,.16); animation:doorSignalPulse 3.2s ease-in-out infinite; }
+.doorSignal.warning, .doorSignal.urgent { border-color:rgba(221,126,82,.55); color:#e8b08e; }
+.doorSignal.urgent { animation:urgentDoorPulse 1.9s ease-in-out infinite; }
+
+@keyframes signalSweep { 0%,100%{transform:translateX(-5%);opacity:.55} 50%{transform:translateX(5%);opacity:.95} }
+@keyframes recommendationGlow { 0%,100%{opacity:.5} 50%{opacity:1} }
+@keyframes waitingGlow { 0%,100%{opacity:.52} 50%{opacity:.94} }
+@keyframes completionGlow { 0%,100%{opacity:.42} 50%{opacity:.82} }
+@keyframes warningGlow { 0%,100%{opacity:.55} 50%{opacity:1} }
+@keyframes urgentGlow { 0%,100%{opacity:.5} 50%{opacity:1} }
+@keyframes doorSignalPulse { 0%,100%{transform:scale(1);opacity:.78} 50%{transform:scale(1.025);opacity:1} }
+@keyframes urgentDoorPulse { 0%,100%{box-shadow:0 0 12px rgba(218,95,65,.1)} 50%{box-shadow:0 0 24px rgba(218,95,65,.3)} }
+
+@media (max-width:720px) {
+  .signalCard { margin-top:12px; }
+  .signalActions { flex-wrap:wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signalAura,
+  .doorSignal { animation:none !important; }
+}

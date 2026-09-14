@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { emitMuseSignal } from "../../../../lib/museum-signals";
 import { ProjectStatus, ProjectType } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -97,14 +98,32 @@ export async function POST(request: NextRequest) {
   };
 
   const isGated = status === "gated_waiting_for_evidence";
-  const project = await prisma.project.create({
-    data: {
-      title: internalName || title,
-      type: ProjectType.DIGITAL_PRODUCT,
-      status: isGated ? ProjectStatus.WAITING : ProjectStatus.PLANNED,
-      nextAction: isGated ? "Await performance evidence before advancing" : "Review in Warlock",
-      notes: JSON.stringify(payload),
-    },
+  const project = await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        title: internalName || title,
+        type: ProjectType.DIGITAL_PRODUCT,
+        status: isGated ? ProjectStatus.WAITING : ProjectStatus.PLANNED,
+        nextAction: isGated ? "Await performance evidence before advancing" : "Review in Warlock",
+        notes: JSON.stringify(payload),
+      },
+    });
+
+    await emitMuseSignal(tx, {
+      museId: "aurelia",
+      title: isGated ? "Product waiting for evidence" : "New product entered Warlock",
+      summary: isGated
+        ? `${title} entered Warlock but is gated until performance evidence is available.`
+        : `${title} entered Warlock and is ready for visual/listing review.`,
+      type: isGated ? "waiting" : "update",
+      area: collection ? `Spellmark / ${collection}` : "Spellmark / Etsy",
+      priority: isGated ? "high" : "normal",
+      visualState: isGated ? "waiting" : "working",
+      relatedProjectId: created.id,
+      sourceKey: `etsy-aurelia-draft:${created.id}`,
+    });
+
+    return created;
   });
 
   return NextResponse.json({

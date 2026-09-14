@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { validDate } from "../../../lib/campaign-rules";
+import { emitMuseSignal } from "../../../lib/museum-signals";
 export const runtime = "nodejs";
 function amount(v: unknown, nullable = false): number | null {
   if (nullable && (v == null || v === "")) return null;
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
                   ]),
                 },
               });
-            await tx.artworkHistory.create({
+            const history = await tx.artworkHistory.create({
               data: {
                 projectId: project.id,
                 fromStatus: painting.availability,
@@ -86,6 +87,17 @@ export async function POST(req: NextRequest) {
                     ? "Painting completed and moved to available inventory."
                     : String(b.reason),
               },
+            });
+            await emitMuseSignal(tx, {
+              museId: "cleo",
+              title: b.action === "complete" ? "Painting entered available inventory" : "Painting lifecycle changed",
+              summary: `${project.title} moved from ${painting.availability} to ${next}.`,
+              type: b.action === "complete" ? "completed" : "update",
+              area: "Original Art / Inventory",
+              priority: next === "Sold" ? "high" : "normal",
+              visualState: "working",
+              relatedProjectId: project.id,
+              sourceKey: `artwork-history:${history.id}`,
             });
           }
           return tx.painting.update({
@@ -244,13 +256,24 @@ export async function POST(req: NextRequest) {
               });
             }
           }
-          await tx.artworkHistory.create({
+          const history = await tx.artworkHistory.create({
             data: {
               projectId: project.id,
               fromStatus: painting.availability,
               toStatus: "Sold",
               note: `Sale recorded on ${sale.saleDate}: artwork $${(sale.salePriceCents/100).toFixed(2)}; fulfillment ${sale.fulfillment}.`,
             },
+          });
+          await emitMuseSignal(tx, {
+            museId: "cleo",
+            title: "Painting sale entered the archive",
+            summary: `${project.title} was recorded sold for $${(sale.salePriceCents / 100).toFixed(2)}.`,
+            type: "completed",
+            area: "Original Art / Sales & Treasury",
+            priority: "high",
+            visualState: "working",
+            relatedProjectId: project.id,
+            sourceKey: `artwork-sale:${sale.id}:${history.id}`,
           });
           return sale;
         }

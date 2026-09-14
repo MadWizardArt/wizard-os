@@ -4,6 +4,7 @@ import { MUSEUM_BRIEF_PREFIX } from "../../../lib/museum-brief-storage";
 import { MUSEUM_CHAMBER_PREFIX } from "../../../lib/museum-chamber-storage";
 import { MUSEUM_FOCUS_PREFIX } from "../../../lib/museum-focus-storage";
 import { MUSEUM_QUEST_PREFIX } from "../../../lib/museum-quest-storage";
+import { MUSEUM_SIGNAL_PREFIX } from "../../../lib/museum-signal-storage";
 import { ProjectStatus, ProjectType } from "../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -38,6 +39,7 @@ export async function GET() {
         && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX)
         && !project.notes?.startsWith(MUSEUM_BRIEF_PREFIX)
         && !project.notes?.startsWith(MUSEUM_FOCUS_PREFIX)
+        && !project.notes?.startsWith(MUSEUM_SIGNAL_PREFIX)
       )
       .map((project) => ({
         id: project.id,
