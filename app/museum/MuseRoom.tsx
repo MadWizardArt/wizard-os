@@ -5,12 +5,14 @@ import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import styles from "./MuseRoom.module.css";
 import presenceStyles from "./MusePresence.module.css";
+import signalStyles from "./MuseSignals.module.css";
 import {
   deriveDefaultPresence,
   PRESENCE_META,
   type MusePresenceState,
   useMusePresence,
 } from "./useMusePresence";
+import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -112,6 +114,12 @@ function AmbientLayers({ muse }: { muse: MuseDirectoryEntry }) {
   }
 }
 
+function signalTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
 export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil }: {
   muse: MuseDirectoryEntry;
   assignment: string;
@@ -121,19 +129,34 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
 }) {
   const room = MUSE_ROOMS[muse.id];
   const hasKnownFocus = assignment !== "No current focus recorded" && assignment !== "Reading focus…" && assignment !== "Focus unavailable";
-  const defaultPresence = deriveDefaultPresence(hasKnownFocus);
-  const { presence, overridden, setPresence } = useMusePresence(muse.id, defaultPresence);
+  const { latestActive, markRead, acknowledge } = useMuseSignals(muse.id);
+  const automaticPresence = latestActive?.visualState ?? deriveDefaultPresence(hasKnownFocus);
+  const { presence, overridden, setPresence } = useMusePresence(muse.id, automaticPresence);
   const presenceMeta = PRESENCE_META[presence];
+  const signalMeta = latestActive ? SIGNAL_META[latestActive.type] : null;
+  const [signalError, setSignalError] = useState("");
 
   const changePresence = (value: string) => {
     setPresence(value === "auto" ? null : value as MusePresenceState);
   };
 
+  const updateSignal = async (action: "read" | "acknowledge") => {
+    if (!latestActive) return;
+    setSignalError("");
+    try {
+      if (action === "read") await markRead(latestActive.id);
+      else await acknowledge(latestActive.id);
+    } catch (error) {
+      setSignalError(error instanceof Error ? error.message : "Signal could not be updated.");
+    }
+  };
+
   return (
-    <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} data-presence={presence} aria-labelledby="muse-room-name">
+    <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} data-presence={presence} data-signal={latestActive?.type ?? "none"} aria-labelledby="muse-room-name">
       <RoomArtwork key={muse.id} muse={muse} />
       <AmbientLayers muse={muse} />
       <div className={`${presenceStyles.roomAura} ${presenceStyles[presence]}`} aria-hidden="true" />
+      {latestActive && <div className={`${signalStyles.signalAura} ${signalStyles[latestActive.type]}`} aria-hidden="true" />}
       <div className={styles.scrim} />
       <div className={`${presenceStyles.roomState} ${presenceStyles[presence]}`} role="status" aria-label={`${muse.name} is ${presenceMeta.label}`}>
         <span>{presenceMeta.label}</span>
@@ -146,11 +169,29 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
         <p className={styles.description}>{room.description}</p>
         <blockquote>“{muse.coreLine}”</blockquote>
         <div className={styles.assignment}><span>Current Focus</span><strong>{assignment}</strong></div>
+
+        {latestActive && signalMeta && (
+          <section className={`${signalStyles.signalCard} ${latestActive.readAt ? "" : signalStyles.unread}`} aria-label={`Latest signal for ${muse.name}`}>
+            <div className={signalStyles.signalHeader}>
+              <span className={signalStyles.signalType}><i aria-hidden="true">{signalMeta.symbol}</i>{signalMeta.label}</span>
+              <time className={signalStyles.signalTime} dateTime={latestActive.occurredAt}>{signalTime(latestActive.occurredAt)}</time>
+            </div>
+            <h4>{latestActive.title}</h4>
+            <p>{latestActive.summary}</p>
+            <span className={signalStyles.signalArea}>{latestActive.area}</span>
+            <div className={signalStyles.signalActions}>
+              {!latestActive.readAt && <button onClick={() => void updateSignal("read")}>Mark seen</button>}
+              <button onClick={() => void updateSignal("acknowledge")}>Acknowledge</button>
+            </div>
+            {signalError && <p role="alert">{signalError}</p>}
+          </section>
+        )}
+
         <div className={presenceStyles.control}>
           <label>
             <span>Presence</span>
             <select aria-label={`${muse.name} visual presence`} value={overridden ? presence : "auto"} onChange={(event) => changePresence(event.target.value)}>
-              <option value="auto">Auto · {PRESENCE_META[defaultPresence].label}</option>
+              <option value="auto">Auto · {PRESENCE_META[automaticPresence].label}</option>
               <option value="working">Working</option>
               <option value="available">Available</option>
               <option value="waiting">Waiting on Brandon</option>
@@ -158,7 +199,7 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
               <option value="quiet">Quiet</option>
             </select>
           </label>
-          <small>Visual only. This changes how the room reads; it does not create or modify work.</small>
+          <small>Visual only. Manual presence overrides Wizard OS signals until returned to Auto.</small>
         </div>
         <nav className={styles.actions} aria-label={`${muse.name} room controls`}>
           <button onClick={onChat}>Visit <span>Prepare a consultation ↗</span></button>
