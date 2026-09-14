@@ -17,15 +17,15 @@ type CouncilChamberProps = {
 };
 
 const POSITIONS = [
-  [50, 10],
-  [75, 17],
+  [50, 16],
+  [75, 18],
   [89, 39],
   [82, 69],
-  [63, 84],
-  [37, 84],
+  [63, 82],
+  [37, 82],
   [18, 69],
   [11, 39],
-  [25, 17],
+  [25, 18],
 ] as const;
 
 export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
@@ -58,6 +58,7 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
               key={muse.id}
               className={styles.portal}
               style={style}
+              data-muse={muse.id}
               data-palette={muse.palette}
               onClick={() => onEnter(muse.id)}
               aria-label={`Enter ${muse.name}'s room, ${MUSE_ROOMS[muse.id].name}`}
