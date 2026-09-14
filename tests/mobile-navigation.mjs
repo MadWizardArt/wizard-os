@@ -8,8 +8,20 @@ try {
 
  const crucibleDate=page.locator('.topbar:has(.dashboardActions) .eyebrow');
  await crucibleDate.waitFor({state:'visible'});
- const dateFits=await crucibleDate.evaluate((el)=>el.scrollWidth<=el.clientWidth && getComputedStyle(el).whiteSpace==='nowrap');
- assert.equal(dateFits,true,'Crucible date should remain on one line at 390px');
+ const dateLayout=await crucibleDate.evaluate((el)=>({
+  scrollWidth:el.scrollWidth,
+  clientWidth:el.clientWidth,
+  whiteSpace:getComputedStyle(el).whiteSpace,
+  fontSize:getComputedStyle(el).fontSize,
+  letterSpacing:getComputedStyle(el).letterSpacing,
+  display:getComputedStyle(el).display,
+  width:getComputedStyle(el).width,
+  parentDisplay:el.parentElement ? getComputedStyle(el.parentElement).display : null,
+  parentWidth:el.parentElement ? getComputedStyle(el.parentElement).width : null,
+ }));
+ console.log('Crucible date layout',dateLayout);
+ assert.equal(dateLayout.whiteSpace,'nowrap',`Crucible date white-space mismatch: ${JSON.stringify(dateLayout)}`);
+ assert.ok(dateLayout.scrollWidth<=dateLayout.clientWidth,`Crucible date should fit at 390px: ${JSON.stringify(dateLayout)}`);
  const crucibleTitle=page.locator('.topbar:has(.dashboardActions) h2');
  const titleSize=Number.parseFloat(await crucibleTitle.evaluate((el)=>getComputedStyle(el).fontSize));
  assert.ok(titleSize<=21,'Crucible mobile title should use the compact size');
