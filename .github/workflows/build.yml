@@ -41,6 +41,9 @@ jobs:
       - name: Verify workflow rules
         run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs
 
+      - name: Apply migrations to isolated CI database
+        run: npm run db:deploy
+
       - name: Build Wizard OS
         run: npm run build
 
