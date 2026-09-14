@@ -6,38 +6,40 @@ try {
  const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
  await page.goto(base);
 
- const dateSelector='.topbar:has(.dashboardActions) .eyebrow';
- await page.waitForFunction((selector)=>{
-  const el=document.querySelector(selector);
-  if(!(el instanceof HTMLElement)) return false;
-  const style=getComputedStyle(el);
-  return el.clientWidth>0 && el.clientHeight>0 && style.whiteSpace.length>0;
- },dateSelector);
- const crucibleDate=page.locator(dateSelector);
- const dateLayout=await crucibleDate.evaluate((el)=>({
-  scrollWidth:el.scrollWidth,
-  clientWidth:el.clientWidth,
-  whiteSpace:getComputedStyle(el).whiteSpace,
-  fontSize:getComputedStyle(el).fontSize,
-  letterSpacing:getComputedStyle(el).letterSpacing,
-  display:getComputedStyle(el).display,
-  width:getComputedStyle(el).width,
- }));
- assert.equal(dateLayout.whiteSpace,'nowrap',`Crucible date white-space mismatch: ${JSON.stringify(dateLayout)}`);
- assert.ok(dateLayout.scrollWidth<=dateLayout.clientWidth,`Crucible date should fit at 390px: ${JSON.stringify(dateLayout)}`);
- const crucibleTitle=page.locator('.topbar:has(.dashboardActions) h2');
- const titleSize=Number.parseFloat(await crucibleTitle.evaluate((el)=>getComputedStyle(el).fontSize));
- assert.ok(titleSize<=21,'Crucible mobile title should use the compact size');
- const warlock=page.locator('.dashboardActions .warlockMobile');
- const newOrder=page.locator('.dashboardActions button',{hasText:'+ New Work Order'});
- assert.equal(await warlock.isVisible(),true);
- const [warlockBox,orderBox]=await Promise.all([warlock.boundingBox(),newOrder.boundingBox()]);
- assert.ok(warlockBox && orderBox);
- assert.ok(Math.abs(warlockBox.y-orderBox.y)<2,'Warlock and New Work Order should share one row');
- const museum=page.getByRole('link',{name:'Enter The Museum',exact:true});
- const museumBox=await museum.boundingBox();
- assert.ok(museumBox && museumBox.width<=40 && museumBox.height<=40,'Museum portal should be a discreet mobile sigil');
- assert.equal((await museum.textContent())?.trim(),'✦');
+ await page.waitForFunction(()=>{
+  const date=document.querySelector('.topbar:has(.dashboardActions) .eyebrow');
+  const warlock=document.querySelector('.dashboardActions .warlockMobile');
+  const order=[...document.querySelectorAll('.dashboardActions button')].find(el=>el.textContent?.includes('+ New Work Order'));
+  const museum=document.querySelector('a[aria-label="Enter The Museum"]');
+  return date instanceof HTMLElement && date.clientWidth>0 && warlock instanceof HTMLElement && order instanceof HTMLElement && museum instanceof HTMLElement;
+ });
+ const mobileLayout=await page.evaluate(()=>{
+  const date=document.querySelector('.topbar:has(.dashboardActions) .eyebrow');
+  const title=document.querySelector('.topbar:has(.dashboardActions) h2');
+  const warlock=document.querySelector('.dashboardActions .warlockMobile');
+  const order=[...document.querySelectorAll('.dashboardActions button')].find(el=>el.textContent?.includes('+ New Work Order'));
+  const museum=document.querySelector('a[aria-label="Enter The Museum"]');
+  if(!(date instanceof HTMLElement) || !(title instanceof HTMLElement) || !(warlock instanceof HTMLElement) || !(order instanceof HTMLElement) || !(museum instanceof HTMLElement)) throw new Error('Mobile header elements missing');
+  const dateStyle=getComputedStyle(date);
+  const titleStyle=getComputedStyle(title);
+  const warlockRect=warlock.getBoundingClientRect();
+  const orderRect=order.getBoundingClientRect();
+  const museumRect=museum.getBoundingClientRect();
+  return {
+   date:{scrollWidth:date.scrollWidth,clientWidth:date.clientWidth,whiteSpace:dateStyle.whiteSpace,text:date.textContent?.trim() ?? ''},
+   titleSize:Number.parseFloat(titleStyle.fontSize),
+   warlock:{display:getComputedStyle(warlock).display,x:warlockRect.x,y:warlockRect.y,width:warlockRect.width,height:warlockRect.height},
+   order:{x:orderRect.x,y:orderRect.y,width:orderRect.width,height:orderRect.height},
+   museum:{width:museumRect.width,height:museumRect.height,text:museum.textContent?.trim() ?? ''},
+  };
+ });
+ assert.equal(mobileLayout.date.whiteSpace,'nowrap',`Crucible date should stay on one line: ${JSON.stringify(mobileLayout)}`);
+ assert.ok(mobileLayout.date.scrollWidth<=mobileLayout.date.clientWidth,`Crucible date should fit at 390px: ${JSON.stringify(mobileLayout)}`);
+ assert.ok(mobileLayout.titleSize<=21,`Crucible mobile title should use the compact size: ${JSON.stringify(mobileLayout)}`);
+ assert.notEqual(mobileLayout.warlock.display,'none','Warlock should be visible on mobile');
+ assert.ok(Math.abs(mobileLayout.warlock.y-mobileLayout.order.y)<2,`Warlock and New Work Order should share one row: ${JSON.stringify(mobileLayout)}`);
+ assert.ok(mobileLayout.museum.width<=40 && mobileLayout.museum.height<=40,`Museum portal should be a discreet mobile sigil: ${JSON.stringify(mobileLayout)}`);
+ assert.equal(mobileLayout.museum.text,'✦');
 
  await page.getByRole('button',{name:'☰ Menu',exact:true}).click();
  const menu=page.getByRole('dialog',{name:'Explore Wizard OS'});
