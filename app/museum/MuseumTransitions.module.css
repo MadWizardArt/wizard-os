@@ -1,0 +1,143 @@
+.page {
+  --threshold-glow: rgba(198, 160, 86, .16);
+}
+
+.page[data-palette="novy"] { --threshold-glow: rgba(111, 101, 183, .18); }
+.page[data-palette="callista"] { --threshold-glow: rgba(168, 111, 77, .17); }
+.page[data-palette="aurelia"] { --threshold-glow: rgba(220, 145, 102, .18); }
+.page[data-palette="lyra"] { --threshold-glow: rgba(106, 128, 177, .18); }
+.page[data-palette="cleo"] { --threshold-glow: rgba(199, 158, 66, .18); }
+.page[data-palette="melina"] { --threshold-glow: rgba(131, 137, 163, .16); }
+.page[data-palette="seraphine"] { --threshold-glow: rgba(137, 108, 83, .16); }
+.page[data-palette="tessa"] { --threshold-glow: rgba(110, 148, 92, .16); }
+.page[data-palette="thalia"] { --threshold-glow: rgba(211, 109, 62, .17); }
+
+.view {
+  position: relative;
+  isolation: isolate;
+  transform-origin: 50% 24%;
+  animation: museumArrive .48s cubic-bezier(.2,.72,.22,1) both;
+}
+
+.view::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 42%, transparent 0 24%, var(--threshold-glow) 52%, rgba(5,7,10,.42) 100%);
+  opacity: 0;
+  animation: thresholdPass .58s cubic-bezier(.22,.62,.2,1) both;
+}
+
+.hallView {
+  animation-name: rotundaArrive;
+  transform-origin: 50% 46%;
+}
+
+.chamberView {
+  animation-name: chamberArrive;
+  transform-origin: 50% 28%;
+}
+
+.councilView {
+  animation-name: councilArrive;
+  transform-origin: 50% 18%;
+}
+
+.roomSwitcher {
+  position: relative;
+  z-index: 3;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(204,172,103,.10);
+  animation: controlsSettle .42s .08s cubic-bezier(.2,.7,.2,1) both;
+}
+
+.secondaryGrid {
+  animation: lowerSettle .44s .10s cubic-bezier(.2,.7,.2,1) both;
+}
+
+.contextPanel {
+  animation: lowerSettle .46s .15s cubic-bezier(.2,.7,.2,1) both;
+}
+
+.councilHeading {
+  animation: controlsSettle .42s .05s cubic-bezier(.2,.7,.2,1) both;
+}
+
+.councilPanel {
+  position: relative;
+  overflow: hidden;
+  animation: lowerSettle .48s .09s cubic-bezier(.2,.7,.2,1) both;
+}
+
+.councilPanel::before {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  left: 50%;
+  top: -290px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(204,172,103,.08);
+  border-radius: 50%;
+  box-shadow: 0 0 90px rgba(201,165,93,.035);
+  pointer-events: none;
+}
+
+@keyframes museumArrive {
+  0% { opacity: 0; transform: translateY(8px) scale(.992); filter: blur(1.4px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes rotundaArrive {
+  0% { opacity: 0; transform: scale(.982); filter: blur(1.2px) brightness(.86); }
+  100% { opacity: 1; transform: scale(1); filter: none; }
+}
+
+@keyframes chamberArrive {
+  0% { opacity: 0; transform: scale(1.014) translateY(7px); filter: blur(1.8px) brightness(.84); }
+  52% { opacity: 1; }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes councilArrive {
+  0% { opacity: 0; transform: translateY(12px) scale(.994); filter: blur(1px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes thresholdPass {
+  0% { opacity: .52; transform: scale(1.02); }
+  38% { opacity: .18; }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes controlsSettle {
+  0% { opacity: 0; transform: translateY(-5px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes lowerSettle {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@media (max-width: 760px) {
+  .view::before { inset: -4px; border-radius: 14px; }
+  .roomSwitcher { margin-bottom: 10px; padding-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view,
+  .view::before,
+  .roomSwitcher,
+  .secondaryGrid,
+  .contextPanel,
+  .councilHeading,
+  .councilPanel {
+    animation: none !important;
+  }
+}
