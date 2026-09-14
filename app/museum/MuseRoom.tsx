@@ -4,6 +4,13 @@ import { useState } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import styles from "./MuseRoom.module.css";
+import presenceStyles from "./MusePresence.module.css";
+import {
+  deriveDefaultPresence,
+  PRESENCE_META,
+  type MusePresenceState,
+  useMusePresence,
+} from "./useMusePresence";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -113,11 +120,25 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
   onCouncil: () => void;
 }) {
   const room = MUSE_ROOMS[muse.id];
+  const hasKnownFocus = assignment !== "No current focus recorded" && assignment !== "Reading focus…" && assignment !== "Focus unavailable";
+  const defaultPresence = deriveDefaultPresence(hasKnownFocus);
+  const { presence, overridden, setPresence } = useMusePresence(muse.id, defaultPresence);
+  const presenceMeta = PRESENCE_META[presence];
+
+  const changePresence = (value: string) => {
+    setPresence(value === "auto" ? null : value as MusePresenceState);
+  };
+
   return (
-    <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} aria-labelledby="muse-room-name">
+    <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} data-presence={presence} aria-labelledby="muse-room-name">
       <RoomArtwork key={muse.id} muse={muse} />
       <AmbientLayers muse={muse} />
+      <div className={`${presenceStyles.roomAura} ${presenceStyles[presence]}`} aria-hidden="true" />
       <div className={styles.scrim} />
+      <div className={`${presenceStyles.roomState} ${presenceStyles[presence]}`} role="status" aria-label={`${muse.name} is ${presenceMeta.label}`}>
+        <span>{presenceMeta.label}</span>
+        <small>{presenceMeta.roomLine}</small>
+      </div>
       <div className={styles.roomCaption}><span aria-hidden="true">{muse.symbol}</span> {room.name}</div>
       <div className={styles.identity}>
         <p className={styles.eyebrow}>{muse.role}</p>
@@ -125,6 +146,20 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
         <p className={styles.description}>{room.description}</p>
         <blockquote>“{muse.coreLine}”</blockquote>
         <div className={styles.assignment}><span>Current Focus</span><strong>{assignment}</strong></div>
+        <div className={presenceStyles.control}>
+          <label>
+            <span>Presence</span>
+            <select aria-label={`${muse.name} visual presence`} value={overridden ? presence : "auto"} onChange={(event) => changePresence(event.target.value)}>
+              <option value="auto">Auto · {PRESENCE_META[defaultPresence].label}</option>
+              <option value="working">Working</option>
+              <option value="available">Available</option>
+              <option value="waiting">Waiting on Brandon</option>
+              <option value="council">In Council</option>
+              <option value="quiet">Quiet</option>
+            </select>
+          </label>
+          <small>Visual only. This changes how the room reads; it does not create or modify work.</small>
+        </div>
         <nav className={styles.actions} aria-label={`${muse.name} room controls`}>
           <button onClick={onChat}>Visit <span>Prepare a consultation ↗</span></button>
           <button onClick={onFocus}>Focus <span>View or update her attention</span></button>
