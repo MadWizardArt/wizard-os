@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import MobileNavigation from "./components/MobileNavigation";
 import MuseumPortalButton from "./components/MuseumPortalButton";
 import "./globals.css";
+import "./mobile-cleanup.css";
 
 export const metadata: Metadata = {
   title: {
