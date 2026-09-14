@@ -1,0 +1,64 @@
+.shell {
+  padding-top: 18px;
+  padding-bottom: 40px;
+}
+
+.topbar {
+  grid-template-columns: minmax(120px, 1fr) minmax(380px, 1.65fr) minmax(160px, 1fr);
+  gap: 18px;
+}
+
+.titleBlock h1 {
+  margin: 2px 0 4px;
+  font: 500 clamp(2.35rem, 4vw, 4rem)/.96 Georgia, serif;
+  letter-spacing: -.04em;
+}
+
+.titleBlock > p:last-child {
+  max-width: 560px;
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.museumNav {
+  margin: 18px 0 14px;
+  gap: 6px;
+}
+
+.museumNav button {
+  padding: 9px 13px;
+}
+
+.architectureNote {
+  margin-top: 12px;
+}
+
+@media (max-width: 1050px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .titleBlock {
+    grid-row: 1;
+  }
+
+  .museumNav {
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .shell {
+    padding-top: 14px;
+  }
+
+  .titleBlock h1 {
+    font-size: clamp(2.15rem, 12vw, 3.25rem);
+  }
+
+  .museumNav {
+    margin: 14px 0 12px;
+  }
+}
