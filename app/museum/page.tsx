@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MUSE_BY_ID, MUSE_DIRECTORY } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import styles from "./museum.module.css";
+import polish from "./MuseumPolish.module.css";
 import MuseRoom from "./MuseRoom";
 import CouncilChamber from "./CouncilChamber";
 
@@ -196,10 +197,10 @@ export default function MuseumPage() {
   return (
     <main className={styles.page} data-palette={selected.palette}>
       <div className={styles.atmosphere} />
-      <section className={styles.shell}>
-        <header className={styles.topbar}>
+      <section className={`${styles.shell} ${polish.shell}`}>
+        <header className={`${styles.topbar} ${polish.topbar}`}>
           <a className={styles.backLink} href="/">← Wizard OS</a>
-          <div className={styles.titleBlock}>
+          <div className={`${styles.titleBlock} ${polish.titleBlock}`}>
             <p className={styles.kicker}>NINE MUSES · ONE SHARED WORLD</p>
             <h1>The Museum</h1>
             <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
@@ -207,7 +208,7 @@ export default function MuseumPage() {
           <div className={styles.gatewayStatus}><span />AI Gateway · Off</div>
         </header>
 
-        <nav className={styles.museumNav} aria-label="Museum rooms">
+        <nav className={`${styles.museumNav} ${polish.museumNav}`} aria-label="Museum rooms">
           <button className={mode === "hall" ? styles.navActive : ""} onClick={() => setMode("hall")}>Council Chamber</button>
           <button className={mode === "chamber" ? styles.navActive : ""} onClick={() => setMode("chamber")}>{selected.name}&apos;s Room</button>
           <button className={mode === "council" ? styles.navActive : ""} onClick={() => setMode("council")}>Council Table</button>
@@ -218,9 +219,9 @@ export default function MuseumPage() {
         {mode === "hall" && (
           <>
             <CouncilChamber focusByMuse={focusByMuse} loading={loading} loadFailed={loadFailed} onEnter={enterChamber} />
-            <section className={styles.architectureNote}>
-              <strong>Stage I · Visual Prototype</strong>
-              <p>The paintings are a mythic reference, not a style template. The architecture and rooms are being built from the adopted Muse identities; operational notifications remain deferred.</p>
+            <section className={`${styles.architectureNote} ${polish.architectureNote}`}>
+              <strong>Stage II · Living Rooms</strong>
+              <p>The paintings remain mythic references rather than style templates. Each room now takes its atmosphere and movement language from the adopted Muse identity; operational notifications remain deferred.</p>
             </section>
           </>
         )}
