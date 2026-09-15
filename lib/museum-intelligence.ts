@@ -5,6 +5,7 @@ import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters
 import { readRelevantCouncilKnowledge } from "./museum-knowledge";
 import { readSharedCouncilCognition } from "./museum-agent-cognition";
 import { intelligenceBudget, intelligenceFuelEnabled } from "./museum-artist-auth";
+import { buildIntelligenceContextPacket } from "./museum-intelligence-context";
 
 export const MUSEUM_INTELLIGENCE_PREFIX = "MUSEUM_INTELLIGENCE_V1:";
 
@@ -41,7 +42,7 @@ export type IntelligenceFuelUsage = {
   maxOutputTokens: number;
 };
 
-type IntelligenceDb = Pick<Prisma.TransactionClient, "project">;
+type IntelligenceDb = Pick<Prisma.TransactionClient, "project" | "painting" | "artworkSale" | "campaign" | "venture">;
 
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -212,8 +213,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
 
   try {
     const charter = MUSE_AGENT_CHARTERS[running.museId];
-    const knowledge = await readRelevantCouncilKnowledge(db, running.museId, running.category, 8);
-    const cognition = await readSharedCouncilCognition(db, running.museId);
+    const [knowledge, cognition, liveContext] = await Promise.all([
+      readRelevantCouncilKnowledge(db, running.museId, running.category, 8),
+      readSharedCouncilCognition(db, running.museId),
+      buildIntelligenceContextPacket(db, running.museId, running.category),
+    ]);
     const relevantMemories = cognition.routedMemories.filter((item) => item.memory.category === running.category).slice(0, 5);
     const relevantPatterns = cognition.patterns.filter((item) => item.category === running.category).slice(0, 3);
 
@@ -227,7 +231,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
 
     const model = running.model || "openai/gpt-5.6-sol";
     const system = `You are ${running.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
-    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
+    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
       method: "POST",
@@ -261,10 +265,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
         totalTokens: typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null,
       },
       contextRefs: [
+        ...liveContext.refs.map((ref) => `Live state:${ref}`),
         ...knowledge.map((entry) => entry.sourceRef),
         ...relevantMemories.map((item) => `Muse memory:${item.id}`),
         ...relevantPatterns.map((item) => `Council pattern:${item.category}:${item.kind}`),
-      ].slice(0, 18),
+      ].slice(0, 24),
     };
 
     await db.project.update({
