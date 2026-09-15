@@ -2,6 +2,7 @@ import { Prisma, ProjectStatus, ProjectType, VentureStatus } from "../app/genera
 import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import { activeCampaignStatuses } from "./campaign-rules";
+import { isMuseumInfrastructureNotes } from "./museum-project-hygiene";
 
 export type IntelligenceContextPacket = {
   generatedAt: string;
@@ -152,12 +153,12 @@ async function contentContext(db: ContextDb, museId: MuseId, category: ProposalC
 }
 
 async function capacityContext(db: ContextDb, museId: MuseId, category: ProposalCategory) {
-  const [projects, campaigns] = await Promise.all([
+  const [projectCandidates, campaigns] = await Promise.all([
     db.project.findMany({
       where: { archivedAt: null, status: { in: [ProjectStatus.ACTIVE, ProjectStatus.WAITING, ProjectStatus.BLOCKED] } },
-      select: { id: true, title: true, type: true, status: true, dueDate: true, nextAction: true, updatedAt: true },
+      select: { id: true, title: true, type: true, status: true, dueDate: true, nextAction: true, notes: true, updatedAt: true },
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
-      take: 10,
+      take: 30,
     }),
     db.campaign.findMany({
       where: { status: { in: activeCampaignStatuses } },
@@ -166,8 +167,9 @@ async function capacityContext(db: ContextDb, museId: MuseId, category: Proposal
       take: 5,
     }),
   ]);
+  const projects = projectCandidates.filter((project) => !isMuseumInfrastructureNotes(project.notes)).slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
-  const lines = [`Active/waiting/blocked workload: ${projects.length} priority records shown.`];
+  const lines = [`Active/waiting/blocked operational workload: ${projects.length} priority records shown. Museum infrastructure is excluded.`];
   const refs: string[] = [];
   for (const project of projects) {
     lines.push(`${project.type} · ${project.title} · ${project.status} · due ${isoDay(project.dueDate)}${project.nextAction ? ` · next: ${textField(project.nextAction, 100)}` : ""}`);
@@ -183,12 +185,12 @@ async function capacityContext(db: ContextDb, museId: MuseId, category: Proposal
 }
 
 async function riskContext(db: ContextDb, museId: MuseId, category: ProposalCategory) {
-  const [blocked, costGapCount, campaigns] = await Promise.all([
+  const [blockedCandidates, costGapCount, campaigns] = await Promise.all([
     db.project.findMany({
       where: { archivedAt: null, status: ProjectStatus.BLOCKED },
-      select: { id: true, title: true, type: true, nextAction: true, updatedAt: true },
+      select: { id: true, title: true, type: true, nextAction: true, notes: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-      take: 8,
+      take: 24,
     }),
     db.painting.count({
       where: {
@@ -205,8 +207,9 @@ async function riskContext(db: ContextDb, museId: MuseId, category: ProposalCate
       take: 5,
     }),
   ]);
+  const blocked = blockedCandidates.filter((project) => !isMuseumInfrastructureNotes(project.notes)).slice(0, 8);
   const today = new Date().toISOString().slice(0, 10);
-  const lines = [`Blocked projects: ${blocked.length} shown. Sold artworks with missing material/framing cost data: ${costGapCount}.`];
+  const lines = [`Blocked operational projects: ${blocked.length} shown. Sold artworks with missing material/framing cost data: ${costGapCount}. Museum infrastructure is excluded.`];
   const refs: string[] = [];
   for (const project of blocked) {
     lines.push(`Blocked: ${project.type} · ${project.title}${project.nextAction ? ` · next: ${textField(project.nextAction, 120)}` : ""}`);
@@ -239,13 +242,14 @@ async function experimentContext(db: ContextDb, museId: MuseId, category: Propos
 }
 
 async function genericProjectContext(db: ContextDb, museId: MuseId, category: ProposalCategory) {
-  const projects = await db.project.findMany({
+  const candidates = await db.project.findMany({
     where: { archivedAt: null, status: { in: [ProjectStatus.ACTIVE, ProjectStatus.WAITING, ProjectStatus.BLOCKED] } },
-    select: { id: true, title: true, type: true, status: true, dueDate: true, nextAction: true, updatedAt: true },
+    select: { id: true, title: true, type: true, status: true, dueDate: true, nextAction: true, notes: true, updatedAt: true },
     orderBy: { updatedAt: "desc" },
-    take: 10,
+    take: 30,
   });
-  const lines = [`Relevant live project state: ${projects.length} recent active/waiting/blocked records shown.`];
+  const projects = candidates.filter((project) => !isMuseumInfrastructureNotes(project.notes)).slice(0, 10);
+  const lines = [`Relevant live operational state: ${projects.length} recent active/waiting/blocked records shown. Museum infrastructure is excluded.`];
   const refs: string[] = [];
   for (const project of projects) {
     lines.push(`${project.type} · ${project.title} · ${project.status} · due ${isoDay(project.dueDate)}${project.nextAction ? ` · next: ${textField(project.nextAction, 100)}` : ""}`);
