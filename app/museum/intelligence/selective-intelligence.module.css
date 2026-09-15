@@ -30,16 +30,19 @@
 .composer label { display: grid; gap: 7px; color: rgba(244,239,231,.72); font-size: .82rem; }
 .composer input, .composer select, .composer textarea { width: 100%; box-sizing: border-box; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.22); color: #f4efe7; border-radius: 10px; padding: 10px 11px; font: inherit; }
 .composer textarea { min-height: 105px; resize: vertical; }
-.primary, .fuel { border: 1px solid rgba(208,183,134,.38); background: rgba(208,183,134,.13); color: #f4efe7; border-radius: 10px; padding: 10px 13px; cursor: pointer; font-weight: 600; }
+.primary, .fuel, .secondary { border: 1px solid rgba(208,183,134,.38); background: rgba(208,183,134,.13); color: #f4efe7; border-radius: 10px; padding: 10px 13px; cursor: pointer; font-weight: 600; }
 .primary { justify-self: start; }
-.primary:disabled, .fuel:disabled { opacity: .55; cursor: not-allowed; }
+.secondary { border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.035); color: rgba(244,239,231,.68); }
+.primary:disabled, .fuel:disabled, .secondary:disabled { opacity: .55; cursor: not-allowed; }
 .questGrid, .knowledgeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .quest, .knowledge { border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.025); border-radius: 17px; padding: 17px; }
+.pendingKnowledge { border-color: rgba(208,183,134,.22); background: linear-gradient(145deg, rgba(208,183,134,.055), rgba(255,255,255,.018)); }
 .quest h3, .knowledge h3 { margin: 14px 0 8px; font-size: 1.08rem; font-weight: 520; }
 .quest > p, .knowledge p, .explainer, .answer { color: rgba(244,239,231,.63); line-height: 1.5; white-space: pre-wrap; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .tags span { border: 1px solid rgba(255,255,255,.10); border-radius: 999px; padding: 5px 8px; color: rgba(244,239,231,.58); font-size: .7rem; text-transform: capitalize; }
 .quest small, .knowledge small { color: rgba(208,183,134,.70); }
+.reviewRow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.07); }
 .fuel { margin-top: 14px; }
 .running { border-left: 2px solid rgba(208,183,134,.52); padding-left: 10px; }
 .error { color: #e8a7a7 !important; border-left: 2px solid rgba(232,167,167,.55); padding-left: 10px; }
@@ -52,4 +55,4 @@
 .emptyBox { border: 1px dashed rgba(255,255,255,.10); border-radius: 15px; padding: 20px; }
 .emptyBox p { margin-bottom: 0; }
 @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } .guardrail { grid-template-columns: 1fr; } .questGrid, .knowledgeGrid { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .page { padding: 14px 12px 44px; } .header, .sectionHead { flex-direction: column; align-items: stretch; } .header h1 { font-size: 3rem; } .twoCol, .unlockRow { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } .primary { width: 100%; } }
+@media (max-width: 620px) { .page { padding: 14px 12px 44px; } .header, .sectionHead { flex-direction: column; align-items: stretch; } .header h1 { font-size: 3rem; } .twoCol, .unlockRow { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } .primary { width: 100%; } .reviewRow .primary, .reviewRow .secondary { width: 100%; } }
