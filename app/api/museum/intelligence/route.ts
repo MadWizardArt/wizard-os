@@ -20,6 +20,41 @@ export const dynamic = "force-dynamic";
 
 const CATEGORIES = new Set<ProposalCategory>(["revenue", "product", "content", "system", "risk", "research", "capacity", "experiment"]);
 
+const DERIVED_QUEST_CONTEXT: Record<ProposalCategory, { reason: string; expectedValue: string }> = {
+  revenue: {
+    reason: "This requires synthesis across current commercial state, constraints, verified Council knowledge, and Brandon's economic objective rather than a simple deterministic rule.",
+    expectedValue: "A clear near-term commercial judgment with evidence, tradeoffs, unknowns, and a concrete next step for Brandon's approval.",
+  },
+  product: {
+    reason: "This requires synthesis across product state, audience fit, creative assets, workload, and verified Council knowledge rather than a simple deterministic rule.",
+    expectedValue: "A concrete product recommendation or refinement with tradeoffs, unknowns, and the next action for Brandon's approval.",
+  },
+  content: {
+    reason: "This requires editorial and strategic synthesis across current assets, audience context, brand direction, and publishing constraints rather than a simple deterministic rule.",
+    expectedValue: "A focused content direction with rationale, useful alternatives, and a concrete next step for Brandon's approval.",
+  },
+  system: {
+    reason: "This requires systems judgment across current Wizard OS state, architecture, constraints, and Council operating rules rather than a simple deterministic rule.",
+    expectedValue: "A practical system recommendation with tradeoffs, risks, unknowns, and a bounded next step for Brandon's approval.",
+  },
+  risk: {
+    reason: "This requires risk synthesis across current evidence, failure modes, constraints, and verified Council knowledge rather than a simple deterministic rule.",
+    expectedValue: "A proportionate risk assessment with concrete mitigations, unresolved unknowns, and a next step for Brandon's approval.",
+  },
+  research: {
+    reason: "This requires evidence synthesis across available sources, current context, uncertainty, and verified Council knowledge rather than a simple deterministic rule.",
+    expectedValue: "A grounded synthesis that separates evidence from inference and gives Brandon a clear next research or decision step.",
+  },
+  capacity: {
+    reason: "This requires synthesis across workload, timing, priorities, dependencies, and Brandon's protected painting time rather than a simple deterministic rule.",
+    expectedValue: "A sustainable capacity recommendation with what to do, defer, or drop and a concrete next step for Brandon's approval.",
+  },
+  experiment: {
+    reason: "This requires creative judgment across current opportunities, brand fit, constraints, and expected learning value rather than a simple deterministic rule.",
+    expectedValue: "A bounded experiment with a clear hypothesis, useful success signal, risk, and next step for Brandon's approval.",
+  },
+};
+
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -112,16 +147,19 @@ export async function POST(request: NextRequest) {
   if (!isMuseId(body.museId)) return NextResponse.json({ error: "Choose an accountable Muse." }, { status: 400 });
   if (!CATEGORIES.has(body.category as ProposalCategory)) return NextResponse.json({ error: "Choose a valid quest category." }, { status: 400 });
 
-  const question = text(body.question, 1200);
-  const reason = text(body.reason, 700);
-  const expectedValue = text(body.expectedValue, 400);
-  if (!question || !reason || !expectedValue) {
-    return NextResponse.json({ error: "Question, reason, and expected value are required." }, { status: 400 });
+  const category = body.category as ProposalCategory;
+  const brief = text(body.brief, 1200);
+  const question = brief || text(body.question, 1200);
+  const derived = DERIVED_QUEST_CONTEXT[category];
+  const reason = text(body.reason, 700) || derived.reason;
+  const expectedValue = text(body.expectedValue, 400) || derived.expectedValue;
+  if (!question) {
+    return NextResponse.json({ error: "Paste a quest brief before preparing the quest." }, { status: 400 });
   }
 
   const result = await prisma.$transaction(async (tx) => createIntelligenceQuest(tx, {
     museId: body.museId,
-    category: body.category as ProposalCategory,
+    category,
     question,
     reason,
     expectedValue,

@@ -26,7 +26,7 @@ type IntelligencePayload = {
   quests: IntelligenceQuestRecord[];
 };
 
-type QuestDraft = { museId: MuseId; category: ProposalCategory; question: string; reason: string; expectedValue: string };
+type QuestDraft = { museId: MuseId; category: ProposalCategory; brief: string };
 type ArtistSession = {
   configured: boolean;
   authenticated: boolean;
@@ -39,9 +39,7 @@ type ArtistSession = {
 const EMPTY_QUEST: QuestDraft = {
   museId: "callista",
   category: "revenue",
-  question: "",
-  reason: "",
-  expectedValue: "",
+  brief: "",
 };
 
 const EMPTY_PAYLOAD: IntelligencePayload = {
@@ -168,6 +166,10 @@ export default function SelectiveIntelligencePage() {
   const totalTokens = completed.reduce((sum, quest) => sum + (quest.usage?.totalTokens ?? 0), 0);
 
   const createQuest = async () => {
+    if (!draft.brief.trim()) {
+      setNotice("Paste a quest brief first.");
+      return;
+    }
     setBusy("create");
     try {
       const response = await fetch("/api/museum/intelligence", {
@@ -177,8 +179,8 @@ export default function SelectiveIntelligencePage() {
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Quest could not be prepared.");
-      setDraft(EMPTY_QUEST);
-      setNotice("Quest prepared. No AI credits have been spent yet.");
+      setDraft((current) => ({ ...current, brief: "" }));
+      setNotice("Quest prepared from one brief. No AI credits have been spent yet.");
       await loadProtected();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Quest could not be prepared.");
@@ -353,18 +355,15 @@ export default function SelectiveIntelligencePage() {
           </section>}
 
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>FETCH QUEST</p><h2>Ask one Muse a question worth deeper thought</h2></div><small>Preparing is free</small></div>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>FETCH QUEST</p><h2>Paste it once. Ask one Muse.</h2></div><small>Preparing is free</small></div>
             <div className={styles.composer}>
               <div className={styles.twoCol}>
                 <label>Accountable Muse<select value={draft.museId} onChange={(event) => setDraft({ ...draft, museId: event.target.value as MuseId })}>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name} · {muse.role}</option>)}</select></label>
                 <label>Domain<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as ProposalCategory })}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
               </div>
-              <label>Your question<textarea value={draft.question} onChange={(event) => setDraft({ ...draft, question: event.target.value })} placeholder="What decision or creative problem deserves a deeper synthesis?" /></label>
-              <div className={styles.twoCol}>
-                <label>Why deeper reasoning helps<input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="What can’t a simple rule settle?" /></label>
-                <label>What a useful answer unlocks<input value={draft.expectedValue} onChange={(event) => setDraft({ ...draft, expectedValue: event.target.value })} placeholder="What decision should become clearer?" /></label>
-              </div>
-              <button className={styles.primary} disabled={busy === "create"} onClick={createQuest}>{busy === "create" ? "Preparing…" : "Prepare quest"}</button>
+              <label>Quest brief<textarea value={draft.brief} onChange={(event) => setDraft({ ...draft, brief: event.target.value })} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void createQuest(); }} placeholder="Paste the question or request exactly as you asked it here. Wizard OS will derive the internal reasoning purpose and useful outcome automatically." /></label>
+              <p className={styles.explainer}>One paste is enough. The Museum derives the internal reasoning and expected-value fields deterministically, without spending an extra AI call. Press Ctrl/⌘ + Enter to prepare.</p>
+              <button className={styles.primary} disabled={busy === "create" || !draft.brief.trim()} onClick={createQuest}>{busy === "create" ? "Preparing…" : "Prepare quest"}</button>
             </div>
           </section>
 
