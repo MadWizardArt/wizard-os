@@ -12,6 +12,10 @@ function sessionSecret() {
   return process.env.MUSE_ARTIST_SESSION_SECRET?.trim() || accessKey();
 }
 
+function ingestKey() {
+  return process.env.MUSE_KNOWLEDGE_INGEST_KEY?.trim() || "";
+}
+
 function digest(value: string) {
   return createHmac("sha256", sessionSecret()).update(value).digest("hex");
 }
@@ -22,8 +26,16 @@ function safeEqual(a: string, b: string) {
   return aa.length === bb.length && timingSafeEqual(aa, bb);
 }
 
+function keyedFingerprint(key: string, value: string) {
+  return createHmac("sha256", key).update(value).digest("hex");
+}
+
 export function artistAccessConfigured() {
   return accessKey().length >= 16 && sessionSecret().length >= 16;
+}
+
+export function knowledgeIngestConfigured() {
+  return ingestKey().length >= 24;
 }
 
 export function verifyArtistAccessKey(candidate: unknown) {
@@ -31,7 +43,15 @@ export function verifyArtistAccessKey(candidate: unknown) {
   if (!artistAccessConfigured() || typeof candidate !== "string") return false;
   const supplied = candidate.trim();
   if (!supplied) return false;
-  return safeEqual(createHmac("sha256", configured).update(supplied).digest("hex"), createHmac("sha256", configured).update(configured).digest("hex"));
+  return safeEqual(keyedFingerprint(configured, supplied), keyedFingerprint(configured, configured));
+}
+
+export function verifyKnowledgeIngestKey(candidate: unknown) {
+  const configured = ingestKey();
+  if (!knowledgeIngestConfigured() || typeof candidate !== "string") return false;
+  const supplied = candidate.trim();
+  if (!supplied) return false;
+  return safeEqual(keyedFingerprint(configured, supplied), keyedFingerprint(configured, configured));
 }
 
 export function createArtistSessionToken() {
