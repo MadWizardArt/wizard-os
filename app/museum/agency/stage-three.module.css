@@ -1,0 +1,87 @@
+.page {
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 0%, rgba(98, 74, 137, .22), transparent 34%), #0d0b12;
+  color: #f4efe7;
+  padding: 28px 18px 64px;
+}
+
+.shell { max-width: 1180px; margin: 0 auto; }
+.header, .sectionHeading, .charterTitle, .proposalTop, .decisionArea { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.header { padding: 16px 0 26px; border-bottom: 1px solid rgba(255,255,255,.10); }
+.header h1 { margin: 4px 0 8px; font-size: clamp(2.2rem, 7vw, 4.7rem); line-height: .95; font-weight: 500; letter-spacing: -.04em; }
+.lede { max-width: 720px; color: rgba(244,239,231,.68); font-size: 1.05rem; }
+.kicker { margin: 0; text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; color: rgba(244,239,231,.52); }
+.back { color: #f4efe7; text-decoration: none; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; padding: 10px 14px; white-space: nowrap; }
+
+.notice { width: 100%; margin: 18px 0 0; border: 1px solid rgba(208,183,134,.35); background: rgba(208,183,134,.10); color: #f4efe7; border-radius: 14px; padding: 12px 14px; display: flex; justify-content: space-between; text-align: left; }
+.policy { margin-top: 22px; border: 1px solid rgba(255,255,255,.11); background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018)); border-radius: 22px; padding: 24px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
+.policy h2, .sectionHeading h2 { margin: 6px 0 8px; font-weight: 500; letter-spacing: -.02em; }
+.policy p { color: rgba(244,239,231,.72); line-height: 1.55; }
+.rule { border-left: 1px solid rgba(255,255,255,.12); padding-left: 24px; }
+.loop { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.loop span, .authority span, .charterLists span, .meta span, .museTag, .category, .status { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); padding: 7px 9px; border-radius: 999px; font-size: .76rem; }
+
+.rosterSection, .proposalSection { margin-top: 34px; }
+.sectionHeading { align-items: end; margin-bottom: 14px; }
+.sectionHeading small { color: rgba(244,239,231,.45); }
+.roster { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; }
+.roster button { min-height: 88px; border: 1px solid rgba(255,255,255,.09); border-radius: 14px; background: rgba(255,255,255,.025); color: inherit; padding: 10px 6px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; cursor: pointer; }
+.roster button > span { font-size: 1.25rem; }
+.roster button small { color: rgba(244,239,231,.46); font-size: .64rem; text-align: center; }
+.roster .selectedMuse { background: rgba(208,183,134,.12); border-color: rgba(208,183,134,.42); transform: translateY(-2px); }
+
+.charter { margin-top: 12px; border: 1px solid rgba(255,255,255,.10); border-radius: 20px; padding: 22px; background: rgba(255,255,255,.028); }
+.charter h3 { max-width: 780px; margin: 7px 0 0; font-size: 1.45rem; font-weight: 500; }
+.authority { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.charterGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+.charterGrid > div { padding: 16px; background: rgba(0,0,0,.16); border-radius: 14px; }
+.charterGrid p { color: rgba(244,239,231,.65); line-height: 1.5; margin-bottom: 0; }
+.charterLists { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 18px; }
+.charterLists > div { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.charterLists strong { width: 100%; margin-bottom: 3px; }
+.charterLists span { border-radius: 8px; color: rgba(244,239,231,.72); }
+
+.filters { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.filters button { border: 1px solid rgba(255,255,255,.10); background: transparent; color: rgba(244,239,231,.6); border-radius: 999px; padding: 7px 10px; cursor: pointer; text-transform: capitalize; }
+.filters .activeFilter { color: #f4efe7; background: rgba(255,255,255,.08); }
+.proposals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.proposal { border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.025); border-radius: 18px; padding: 18px; }
+.proposalTop > div { display: flex; gap: 6px; flex-wrap: wrap; }
+.proposal h3 { font-size: 1.2rem; font-weight: 520; margin: 16px 0 8px; }
+.proposal > p { color: rgba(244,239,231,.68); line-height: 1.5; }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0; }
+.meta span { border-radius: 8px; color: rgba(244,239,231,.58); }
+.proposal details { border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; }
+.proposal summary { cursor: pointer; color: rgba(244,239,231,.76); }
+.proposal details p { color: rgba(244,239,231,.60); line-height: 1.5; }
+.status_proposed { border-color: rgba(208,183,134,.35); }
+.status_approved { border-color: rgba(127,190,147,.38); }
+.status_rejected { opacity: .55; }
+.status_completed { border-color: rgba(132,167,214,.35); }
+.decisionNote { border-left: 2px solid rgba(208,183,134,.45); padding-left: 10px; }
+.decisionArea { align-items: center; margin-top: 14px; }
+.decisionArea input { flex: 1; min-width: 0; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.20); color: #f4efe7; border-radius: 10px; padding: 10px 12px; }
+.decisionArea > div { display: flex; gap: 6px; }
+.decisionArea button, .complete { border: 1px solid rgba(255,255,255,.13); background: rgba(255,255,255,.05); color: #f4efe7; padding: 9px 12px; border-radius: 10px; cursor: pointer; }
+.decisionArea .approve, .complete { background: rgba(208,183,134,.15); border-color: rgba(208,183,134,.35); }
+.empty, .emptyState { color: rgba(244,239,231,.5); padding: 24px 4px; }
+.emptyState { border: 1px dashed rgba(255,255,255,.10); border-radius: 16px; padding: 22px; }
+.emptyState p { margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .policy, .charterGrid, .charterLists { grid-template-columns: 1fr; }
+  .rule { border-left: 0; border-top: 1px solid rgba(255,255,255,.12); padding: 18px 0 0; }
+  .roster { grid-template-columns: repeat(3, 1fr); }
+  .proposals { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .page { padding: 14px 12px 44px; }
+  .header, .sectionHeading, .charterTitle, .decisionArea { flex-direction: column; align-items: stretch; }
+  .header h1 { font-size: 3.2rem; }
+  .back { align-self: flex-start; }
+  .authority, .filters { justify-content: flex-start; }
+  .roster { grid-template-columns: repeat(3, 1fr); }
+  .decisionArea > div { width: 100%; }
+  .decisionArea button { flex: 1; }
+}
