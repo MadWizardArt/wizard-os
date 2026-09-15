@@ -10,7 +10,22 @@ import styles from "./selective-intelligence.module.css";
 
 const CATEGORIES: ProposalCategory[] = ["revenue", "product", "content", "system", "risk", "research", "capacity", "experiment"];
 
-type IntelligencePayload = { enabled: boolean; model: string; usage: IntelligenceFuelUsage | null; quests: IntelligenceQuestRecord[] };
+type GatewayStatus = {
+  state: "ready" | "empty" | "unavailable" | "unknown";
+  balance: number | null;
+  totalUsed: number | null;
+  modelListed: boolean | null;
+  checkedAt: string;
+};
+
+type IntelligencePayload = {
+  enabled: boolean;
+  model: string;
+  gateway: GatewayStatus | null;
+  usage: IntelligenceFuelUsage | null;
+  quests: IntelligenceQuestRecord[];
+};
+
 type QuestDraft = { museId: MuseId; category: ProposalCategory; question: string; reason: string; expectedValue: string };
 type ArtistSession = {
   configured: boolean;
@@ -29,7 +44,43 @@ const EMPTY_QUEST: QuestDraft = {
   expectedValue: "",
 };
 
-const EMPTY_PAYLOAD: IntelligencePayload = { enabled: false, model: "openai/gpt-5.6-sol", usage: null, quests: [] };
+const EMPTY_PAYLOAD: IntelligencePayload = {
+  enabled: false,
+  model: "openai/gpt-5.6-sol",
+  gateway: null,
+  usage: null,
+  quests: [],
+};
+
+function modelLabel(model: string) {
+  const id = model.split("/").pop() ?? model;
+  if (id === "gpt-5.6-sol") return "GPT-5.6 Sol";
+  return id.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function questStatus(status: IntelligenceQuestRecord["status"]) {
+  if (status === "candidate") return "Ready to fuel";
+  if (status === "running") return "Thinking";
+  if (status === "completed") return "Complete";
+  if (status === "failed") return "Needs attention";
+  return "Closed";
+}
+
+function cleanMarkdown(text: string) {
+  return text.replace(/\*\*/g, "").replace(/^#{1,4}\s*/, "").trim();
+}
+
+function MuseAnswer({ answer }: { answer: string }) {
+  return <div className={styles.answerBody}>
+    {answer.split("\n").map((raw, index) => {
+      const line = raw.trim();
+      if (!line) return <span className={styles.answerSpace} key={index} />;
+      if (/^#{1,4}\s/.test(line)) return <h4 key={index}>{cleanMarkdown(line)}</h4>;
+      if (/^[-*]\s/.test(line)) return <p className={styles.answerBullet} key={index}><span>•</span>{cleanMarkdown(line.slice(2))}</p>;
+      return <p key={index}>{cleanMarkdown(line)}</p>;
+    })}
+  </div>;
+}
 
 export default function SelectiveIntelligencePage() {
   const [session, setSession] = useState<ArtistSession | null>(null);
@@ -52,14 +103,14 @@ export default function SelectiveIntelligencePage() {
       const intelligenceJson = await intelligenceResponse.json();
       if (knowledgeResponse.status === 401 || intelligenceResponse.status === 401) {
         setSession((current) => current ? { ...current, authenticated: false } : current);
-        throw new Error("Artist session expired. Unlock Selective Intelligence again.");
+        throw new Error("Artist session expired. Unlock the chamber again.");
       }
-      if (!knowledgeResponse.ok) throw new Error(knowledgeJson.error || "Knowledge Vault could not be read.");
+      if (!knowledgeResponse.ok) throw new Error(knowledgeJson.error || "Council knowledge could not be read.");
       if (!intelligenceResponse.ok) throw new Error(intelligenceJson.error || "Intelligence quests could not be read.");
       setKnowledge(Array.isArray(knowledgeJson) ? knowledgeJson : []);
       setPayload(intelligenceJson);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Selective Intelligence could not be loaded.");
+      setNotice(error instanceof Error ? error.message : "The Intelligence Chamber could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -94,7 +145,7 @@ export default function SelectiveIntelligencePage() {
       if (!response.ok) throw new Error(json.error || "Artist Gate did not unlock.");
       setSession(json);
       setAccessKey("");
-      setNotice("Artist session authenticated. Paid Muse reasoning remains subject to the visible fuel budget.");
+      setNotice("Welcome back, Artist. The Council is ready when you are.");
       await loadProtected();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Artist Gate did not unlock.");
@@ -108,7 +159,7 @@ export default function SelectiveIntelligencePage() {
     setSession((current) => current ? { ...current, authenticated: false } : current);
     setKnowledge([]);
     setPayload(EMPTY_PAYLOAD);
-    setNotice("Artist session locked.");
+    setNotice("Intelligence Chamber locked.");
   };
 
   const completed = useMemo(() => payload.quests.filter((quest) => quest.status === "completed"), [payload.quests]);
@@ -125,12 +176,12 @@ export default function SelectiveIntelligencePage() {
         body: JSON.stringify(draft),
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "Quest could not be created.");
+      if (!response.ok) throw new Error(json.error || "Quest could not be prepared.");
       setDraft(EMPTY_QUEST);
-      setNotice("Intelligence Quest prepared. No model call has been made yet.");
+      setNotice("Quest prepared. No AI credits have been spent yet.");
       await loadProtected();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Quest could not be created.");
+      setNotice(error instanceof Error ? error.message : "Quest could not be prepared.");
     } finally {
       setBusy(null);
     }
@@ -145,12 +196,31 @@ export default function SelectiveIntelligencePage() {
         body: JSON.stringify({ id, action: "run" }),
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "The quest could not be fueled.");
-      setNotice("The Muse returned one bounded synthesis. Nothing was committed automatically.");
+      if (!response.ok) throw new Error(json.error || "The Muse could not complete this quest.");
+      setNotice("Muse synthesis complete. Nothing was committed without your approval.");
       await loadProtected();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "The quest could not be fueled.");
+      setNotice(error instanceof Error ? error.message : "The Muse could not complete this quest.");
       await loadProtected();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const retryQuest = async (id: string) => {
+    setBusy(`retry:${id}`);
+    try {
+      const response = await fetch("/api/museum/intelligence", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "retry" }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "The quest could not be prepared for retry.");
+      setNotice("Fresh retry prepared. The original failed attempt remains in history.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The quest could not be prepared for retry.");
     } finally {
       setBusy(null);
     }
@@ -167,8 +237,8 @@ export default function SelectiveIntelligencePage() {
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Knowledge review failed.");
       setNotice(action === "verify"
-        ? "Knowledge capsule verified by the Artist and admitted to future Muse retrieval."
-        : "Knowledge capsule archived and excluded from Muse retrieval.");
+        ? "Knowledge admitted to future Muse reasoning."
+        : "Knowledge archived and excluded from future Muse reasoning.");
       await loadProtected();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Knowledge review failed.");
@@ -178,16 +248,21 @@ export default function SelectiveIntelligencePage() {
   };
 
   const usage = payload.usage;
+  const gateway = payload.gateway;
   const authenticated = Boolean(session?.authenticated);
+  const poweredToday = usage ? usage.completedRuns + usage.activeRuns : 0;
+  const gatewayBalance = gateway?.balance == null ? "—" : `$${gateway.balance.toFixed(2)}`;
+  const modelReady = gateway?.modelListed !== false;
+  const councilReady = payload.enabled && gateway?.state === "ready" && modelReady;
 
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
         <header className={styles.header}>
           <div>
-            <p className={styles.kicker}>THE MUSEUM · STAGE III-E</p>
+            <p className={styles.kicker}>THE MUSEUM · INTELLIGENCE CHAMBER</p>
             <h1>Selective Intelligence</h1>
-            <p>Deterministic systems do the gathering. A model is invited only for a bounded question that deserves deeper judgment, strategy, research, or invention.</p>
+            <p>Bring the Council the questions that deserve deeper thought. Wizard OS gathers the evidence; one accountable Muse returns the synthesis; you retain the decision.</p>
           </div>
           <div className={styles.links}><a href="/museum/cognition">Cognition</a><a href="/museum/agency">Agency</a><a href="/museum">Museum</a></div>
         </header>
@@ -198,10 +273,10 @@ export default function SelectiveIntelligencePage() {
           <section className={styles.artistGate}>
             <div>
               <p className={styles.kicker}>ARTIST GATE</p>
-              <h2>{session?.configured ? "Unlock the intelligence chamber" : "Artist access awaits one-time configuration"}</h2>
+              <h2>{session?.configured ? "Unlock the Intelligence Chamber" : "Artist access awaits one-time configuration"}</h2>
               <p>{session?.configured
-                ? "The Knowledge Vault and paid reasoning controls are private to your Artist session. The key is exchanged for a short-lived HttpOnly session cookie and is not stored in the page."
-                : "Set MUSE_ARTIST_ACCESS_KEY to a private value of at least 16 characters in the Wizard OS production environment. AI fuel remains locked until Artist access is configured."}</p>
+                ? "Your key opens a short-lived private session. It is exchanged for a secure cookie and is not kept in the page."
+                : "Configure the Artist access key in the production environment before the Council can use powered reasoning."}</p>
             </div>
             {session?.configured && <div className={styles.unlockRow}>
               <input type="password" value={accessKey} onChange={(event) => setAccessKey(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void unlock(); }} placeholder="Artist access key" autoComplete="current-password" />
@@ -211,27 +286,43 @@ export default function SelectiveIntelligencePage() {
         )}
 
         {authenticated && <>
-          <div className={styles.sessionBar}><span>Artist session authenticated</span><button onClick={logout}>Lock</button></div>
+          <div className={styles.sessionBar}><span><span className={styles.liveDot} />Artist session active</span><button onClick={logout}>Lock</button></div>
 
-          <section className={styles.stats}>
-            <article><strong>{activeKnowledge.length}</strong><span>active knowledge</span></article>
-            <article><strong>{pendingKnowledge.length}</strong><span>knowledge inbox</span></article>
-            <article><strong>{payload.quests.filter((quest) => quest.status === "candidate").length}</strong><span>waiting quests</span></article>
-            <article><strong>{totalTokens.toLocaleString()}</strong><span>recorded tokens total</span></article>
+          <section className={`${styles.readiness} ${councilReady ? styles.ready : styles.attention}`}>
+            <div className={styles.readinessLead}>
+              <p className={styles.kicker}>COUNCIL FUEL</p>
+              <h2>{councilReady ? "The Council is ready." : "The Council needs attention."}</h2>
+              <p>{councilReady
+                ? `${modelLabel(payload.model)} is armed with a funded Gateway balance. Every powered quest still requires your explicit click.`
+                : !payload.enabled
+                  ? "Powered reasoning is locked. You may still prepare quests without spending credits."
+                  : gateway?.state === "empty"
+                    ? "AI Gateway has no available balance. Add credits before fueling another quest."
+                    : !modelReady
+                      ? `${modelLabel(payload.model)} is not currently listed for this Gateway account.`
+                      : "Gateway status could not be confirmed. Prepared quests remain safe until you choose to fuel them."}</p>
+            </div>
+            <div className={styles.readinessGrid}>
+              <article><span>Model</span><strong>{modelLabel(payload.model)}</strong><small>{modelReady ? "Available" : "Check access"}</small></article>
+              <article><span>Gateway credits</span><strong>{gatewayBalance}</strong><small>{gateway?.state === "ready" ? "Funded" : gateway?.state === "empty" ? "Top up required" : "Status unavailable"}</small></article>
+              <article><span>Today</span><strong>{poweredToday}/{usage?.maxRuns ?? session?.budget.maxRuns ?? 0}</strong><small>{usage ? `${usage.usedTokens.toLocaleString()} / ${usage.dailyTokens.toLocaleString()} tokens` : "Reading allowance"}</small></article>
+            </div>
+            {gateway?.state === "empty" && <a className={styles.gatewayLink} href="https://vercel.com/mad-wizard/~/ai" target="_blank" rel="noreferrer">Open AI Gateway treasury ↗</a>}
           </section>
 
-          <section className={styles.guardrail}>
-            <div><strong>AI fuel</strong><p>{payload.enabled ? `Armed · ${payload.model}` : "Locked. Quests may be prepared, but no model call can fire."}</p></div>
-            <div><strong>Today&apos;s allowance</strong><p>{usage ? `${usage.completedRuns + usage.activeRuns}/${usage.maxRuns} runs · ${usage.usedTokens.toLocaleString()}/${usage.dailyTokens.toLocaleString()} recorded tokens` : "Reading budget…"}</p></div>
-            <div><strong>Project knowledge bridge</strong><p>{session?.knowledgeIntakeConfigured ? "Intake key configured. Incoming Nine Muses capsules enter the Inbox inert until you verify them." : "Bridge endpoint installed; intake key is not configured yet."}</p></div>
+          <section className={styles.stats}>
+            <article><strong>{activeKnowledge.length}</strong><span>verified knowledge</span></article>
+            <article><strong>{pendingKnowledge.length}</strong><span>awaiting review</span></article>
+            <article><strong>{payload.quests.filter((quest) => quest.status === "candidate").length}</strong><span>ready quests</span></article>
+            <article><strong>{totalTokens.toLocaleString()}</strong><span>lifetime quest tokens</span></article>
           </section>
 
           {pendingKnowledge.length > 0 && <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>KNOWLEDGE INBOX</p><h2>Project context awaiting the Artist</h2></div><small>{pendingKnowledge.length} inert capsule{pendingKnowledge.length === 1 ? "" : "s"}</small></div>
-            <p className={styles.explainer}>Inbox capsules are stored with provenance but cannot influence Intelligence Quests until you verify them.</p>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>KNOWLEDGE INBOX</p><h2>Context awaiting your approval</h2></div><small>{pendingKnowledge.length} capsule{pendingKnowledge.length === 1 ? "" : "s"}</small></div>
+            <p className={styles.explainer}>Incoming project knowledge stays inert until you verify it. Nothing here can influence a Muse yet.</p>
             <div className={styles.knowledgeGrid}>
               {pendingKnowledge.map((entry) => <article key={entry.id} className={`${styles.knowledge} ${styles.pendingKnowledge}`}>
-                <div className={styles.tags}><span>awaiting Artist</span><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}</div>
+                <div className={styles.tags}><span>Awaiting Artist</span><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}</div>
                 <h3>{entry.title}</h3><p>{entry.content}</p><small>{entry.sourceRef}</small>
                 <div className={styles.reviewRow}>
                   <button className={styles.primary} disabled={busy === `knowledge:${entry.id}`} onClick={() => reviewKnowledge(entry.id, "verify")}>Verify for Muses</button>
@@ -242,52 +333,66 @@ export default function SelectiveIntelligencePage() {
           </section>}
 
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>FETCH QUEST</p><h2>Prepare one question worth paying intelligence for</h2></div><small>No AI call on creation</small></div>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>FETCH QUEST</p><h2>Ask one Muse a question worth deeper thought</h2></div><small>Preparing is free</small></div>
             <div className={styles.composer}>
               <div className={styles.twoCol}>
                 <label>Accountable Muse<select value={draft.museId} onChange={(event) => setDraft({ ...draft, museId: event.target.value as MuseId })}>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name} · {muse.role}</option>)}</select></label>
-                <label>Category<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as ProposalCategory })}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
+                <label>Domain<select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as ProposalCategory })}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
               </div>
-              <label>Question<textarea value={draft.question} onChange={(event) => setDraft({ ...draft, question: event.target.value })} placeholder="What decision or creative problem genuinely deserves deeper synthesis?" /></label>
+              <label>Your question<textarea value={draft.question} onChange={(event) => setDraft({ ...draft, question: event.target.value })} placeholder="What decision or creative problem deserves a deeper synthesis?" /></label>
               <div className={styles.twoCol}>
-                <label>Why AI is worth using<input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="Why deterministic rules are not enough" /></label>
-                <label>Expected value<input value={draft.expectedValue} onChange={(event) => setDraft({ ...draft, expectedValue: event.target.value })} placeholder="What better decision could this unlock?" /></label>
+                <label>Why deeper reasoning helps<input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} placeholder="What can’t a simple rule settle?" /></label>
+                <label>What a useful answer unlocks<input value={draft.expectedValue} onChange={(event) => setDraft({ ...draft, expectedValue: event.target.value })} placeholder="What decision should become clearer?" /></label>
               </div>
-              <button className={styles.primary} disabled={busy === "create"} onClick={createQuest}>{busy === "create" ? "Preparing…" : "Prepare Intelligence Quest"}</button>
+              <button className={styles.primary} disabled={busy === "create"} onClick={createQuest}>{busy === "create" ? "Preparing…" : "Prepare quest"}</button>
             </div>
           </section>
 
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>QUEST LOG</p><h2>Bounded model reasoning</h2></div><small>{payload.quests.length} total</small></div>
-            {loading && <p className={styles.empty}>Reading the intelligence ledger…</p>}
-            {!loading && payload.quests.length === 0 && <div className={styles.emptyBox}><strong>No quests yet.</strong><p>The Council can remain fully deterministic until a question is worth escalating.</p></div>}
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>QUEST LOG</p><h2>Council answers and attempts</h2></div><small>{payload.quests.length} total</small></div>
+            {loading && <p className={styles.empty}>Reading the Council ledger…</p>}
+            {!loading && payload.quests.length === 0 && <div className={styles.emptyBox}><strong>No quests yet.</strong><p>The Council stays deterministic until you decide a question deserves powered reasoning.</p></div>}
             <div className={styles.questGrid}>
               {payload.quests.map((quest) => {
                 const muse = MUSE_DIRECTORY.find((item) => item.id === quest.museId);
-                return <article className={styles.quest} key={quest.id}>
-                  <div className={styles.tags}><span>{muse?.name ?? quest.museId}</span><span>{quest.category}</span><span>{quest.status}</span></div>
+                const museName = muse?.name ?? quest.museId;
+                return <article className={`${styles.quest} ${quest.status === "completed" ? styles.questComplete : ""}`} key={quest.id}>
+                  <div className={styles.questTop}>
+                    <div className={styles.tags}><span>{museName}</span><span>{quest.category}</span></div>
+                    <span className={`${styles.status} ${styles[`status_${quest.status}`]}`}>{questStatus(quest.status)}</span>
+                  </div>
                   <h3>{quest.question}</h3>
-                  <p>{quest.reason}</p>
-                  <small>Expected value · {quest.expectedValue}</small>
-                  {quest.status === "candidate" && <button className={styles.fuel} disabled={busy === quest.id || !payload.enabled || (usage?.remainingRuns ?? 0) <= 0} onClick={() => runQuest(quest.id)}>{busy === quest.id ? "Fueling…" : payload.enabled ? "✦ Fuel this quest" : "AI fuel locked"}</button>}
-                  {quest.status === "running" && <p className={styles.running}>The accountable Muse is synthesizing this quest now.</p>}
-                  {quest.error && <p className={styles.error}>Quest failure · {quest.error}</p>}
-                  {quest.answer && <details open><summary>Muse synthesis</summary><p className={styles.answer}>{quest.answer}</p>{quest.usage && <small>Usage · {quest.usage.inputTokens ?? "?"} in / {quest.usage.outputTokens ?? "?"} out / {quest.usage.totalTokens ?? "?"} total · {quest.model}</small>}</details>}
+                  <p className={styles.questReason}>{quest.reason}</p>
+                  <small>Useful if · {quest.expectedValue}</small>
+                  {quest.retryOf && <p className={styles.retryNote}>Prepared from an earlier failed attempt; the original remains preserved below.</p>}
+
+                  {quest.status === "candidate" && <button className={styles.fuel} disabled={busy === quest.id || !payload.enabled || (usage?.remainingRuns ?? 0) <= 0} onClick={() => runQuest(quest.id)}>{busy === quest.id ? `${museName} is thinking…` : payload.enabled ? `✦ Ask ${museName}` : "AI fuel locked"}</button>}
+                  {quest.status === "running" && <p className={styles.running}>✦ {museName} is synthesizing the current evidence.</p>}
+                  {quest.status === "failed" && <div className={styles.failureBox}>
+                    <strong>This attempt did not complete.</strong>
+                    <p>{quest.error || "The quest stopped before a synthesis was returned."}</p>
+                    <button className={styles.secondary} disabled={busy === `retry:${quest.id}`} onClick={() => retryQuest(quest.id)}>{busy === `retry:${quest.id}` ? "Preparing retry…" : "Prepare retry"}</button>
+                  </div>}
+                  {quest.answer && <div className={styles.synthesis}>
+                    <div className={styles.synthesisHead}><span>✦</span><div><small>{museName} returned</small><strong>Muse synthesis</strong></div></div>
+                    <MuseAnswer answer={quest.answer} />
+                    {quest.usage && <div className={styles.usageLine}><span>{(quest.usage.totalTokens ?? 0).toLocaleString()} tokens</span><span>{modelLabel(quest.model ?? payload.model)}</span></div>}
+                  </div>}
                 </article>;
               })}
             </div>
           </section>
 
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>COUNCIL KNOWLEDGE VAULT</p><h2>Artist-verified context available to future quests</h2></div><small>{activeKnowledge.length} active capsules</small></div>
-            <p className={styles.explainer}>These are retrieval capsules, not model-weight training. Only Artist-verified capsules can enter Muse reasoning.</p>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>COUNCIL KNOWLEDGE</p><h2>What the Muses are allowed to remember</h2></div><small>{activeKnowledge.length} verified capsules</small></div>
+            <p className={styles.explainer}>These are retrieval capsules, not model training. Only context you have verified can enter future powered quests.</p>
             <div className={styles.knowledgeGrid}>
               {activeKnowledge.map((entry) => <article key={entry.id} className={styles.knowledge}>
                 <div className={styles.tags}><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}<span>Artist verified</span></div>
                 <h3>{entry.title}</h3><p>{entry.content}</p><small>{entry.sourceRef}</small>
               </article>)}
             </div>
-            <details className={styles.importNote}><summary>How Nine Muses project knowledge enters Wizard OS</summary><p>A trusted intake endpoint accepts compact capsules from a future Project connector or other approved bridge. Every external capsule is forced into the Knowledge Inbox as unverified, even if the sender labels it as an Artist directive. You decide what becomes active Council memory.</p></details>
+            <details className={styles.importNote}><summary>How project knowledge enters Wizard OS</summary><p>A trusted bridge can send compact capsules into the Knowledge Inbox. Every external capsule arrives unverified. You decide what becomes active Council context.</p></details>
           </section>
         </>}
       </section>
