@@ -1,6 +1,7 @@
 import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import { calibrateConfidence, readMuseMemoryCalibration } from "./museum-agent-memory";
+import { readSharedCategoryContext } from "./museum-agent-cognition";
 import {
   decodeMuseProposal,
   encodeMuseProposal,
@@ -46,8 +47,13 @@ export async function proposeMuseOpportunity(db: ProposalDb, input: MuseProposal
 
   const baseConfidence = input.confidence ?? "medium";
   const memory = await readMuseMemoryCalibration(db, input.museId, input.category);
+  const sharedContext = await readSharedCategoryContext(db, input.museId, input.category);
   const confidence = calibrateConfidence(baseConfidence, memory);
-  const rationale = [input.rationale.trim(), memory.note].filter(Boolean).join("\n\n").slice(0, 1200);
+  const rationale = [
+    input.rationale.trim(),
+    memory.note,
+    sharedContext,
+  ].filter(Boolean).join("\n\n").slice(0, 1200);
 
   const proposal: StoredMuseProposal = {
     version: 1,
