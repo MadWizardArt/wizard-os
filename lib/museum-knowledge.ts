@@ -1,6 +1,7 @@
 import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
 import { MUSE_IDS, type MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
+import { knowledgeEligibleForMuse } from "./museum-knowledge-policy";
 
 export const MUSEUM_KNOWLEDGE_PREFIX = "MUSEUM_KNOWLEDGE_V1:";
 
@@ -183,8 +184,7 @@ const KIND_WEIGHT: Record<KnowledgeKind, number> = {
 export async function readRelevantCouncilKnowledge(db: KnowledgeDb, museId: MuseId, category: ProposalCategory, limit = 8) {
   const all = await listCouncilKnowledge(db);
   return all
-    .filter((entry) => entry.verifiedByArtist)
-    .filter((entry) => entry.targetMuseIds.length === 0 || entry.targetMuseIds.includes(museId))
+    .filter((entry) => knowledgeEligibleForMuse(entry, museId))
     .map((entry) => ({
       entry,
       score: KIND_WEIGHT[entry.kind]
