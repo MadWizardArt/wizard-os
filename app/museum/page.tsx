@@ -8,6 +8,7 @@ import polish from "./MuseumPolish.module.css";
 import transitions from "./MuseumTransitions.module.css";
 import MuseRoom from "./MuseRoom";
 import CouncilChamber from "./CouncilChamber";
+import MuseumGatewayStatus from "./MuseumGatewayStatus";
 
 type SharedProject = {
   id: string;
@@ -112,7 +113,7 @@ export default function MuseumPage() {
             <h1>The Museum</h1>
             <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
           </div>
-          <div className={styles.gatewayStatus}><span />AI Gateway · Off</div>
+          <MuseumGatewayStatus />
         </header>
 
         <nav className={`${styles.museumNav} ${polish.museumNav}`} aria-label="Museum rooms">
