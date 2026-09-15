@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
 import { MUSE_DIRECTORY } from "../../lib/museum-directory";
@@ -8,6 +8,7 @@ import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import { RoomArtwork } from "./MuseRoom";
 import styles from "./CouncilChamber.module.css";
 import polish from "./CouncilChamberPolish.module.css";
+import systemPortal from "./CouncilSystemsPortal.module.css";
 import presenceStyles from "./MusePresence.module.css";
 import signalStyles from "./MuseSignals.module.css";
 import { deriveDefaultPresence, PRESENCE_META, useMusePresence } from "./useMusePresence";
@@ -28,24 +29,6 @@ const POSITIONS = [
   [11, 39],
   [25, 18],
 ] as const;
-
-const AGENCY_LINK_STYLE: CSSProperties = {
-  position: "absolute",
-  top: "4%",
-  left: "50%",
-  transform: "translateX(-50%)",
-  zIndex: 30,
-  padding: "8px 13px",
-  borderRadius: 999,
-  border: "1px solid rgba(230, 205, 151, .34)",
-  background: "rgba(13, 11, 18, .78)",
-  color: "rgba(247, 238, 218, .90)",
-  textDecoration: "none",
-  fontSize: ".72rem",
-  letterSpacing: ".12em",
-  textTransform: "uppercase",
-  backdropFilter: "blur(10px)",
-};
 
 function MusePortal({ muse, index, signal, onEnter }: {
   muse: MuseDirectoryEntry;
@@ -97,6 +80,7 @@ function MusePortal({ muse, index, signal, onEnter }: {
 
 export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
   const { active } = useMuseSignals();
+  const [systemsOpen, setSystemsOpen] = useState(false);
   const signalByMuse = useMemo(() => {
     const map = new Map<MuseId, MuseSignal>();
     for (const signal of active) if (!map.has(signal.museId)) map.set(signal.museId, signal);
@@ -110,10 +94,29 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
 
-      <a href="/museum/agency" style={AGENCY_LINK_STYLE}>Stage III · Agency</a>
-
-      <div className={`${styles.dais} ${polish.dais}`} aria-hidden="true">
-        <span className={`${styles.seal} ${polish.seal}`}>✦</span>
+      <div className={`${styles.dais} ${polish.dais}`}>
+        <button
+          type="button"
+          className={`${styles.seal} ${polish.seal} ${systemPortal.sealButton}`}
+          aria-expanded={systemsOpen}
+          aria-controls="museum-systems-portal"
+          aria-label={systemsOpen ? "Close Council systems portal" : "Open Council systems portal"}
+          title="Council systems"
+          onClick={() => setSystemsOpen((current) => !current)}
+        >
+          ✦
+        </button>
+        <nav
+          id="museum-systems-portal"
+          className={`${systemPortal.menu} ${systemsOpen ? systemPortal.menuOpen : ""}`}
+          aria-label="Council systems"
+          aria-hidden={!systemsOpen}
+        >
+          <a href="/museum/agency" tabIndex={systemsOpen ? 0 : -1}>Agency</a>
+          <a href="/museum/cognition" tabIndex={systemsOpen ? 0 : -1}>Cognition</a>
+          <a href="/museum/intelligence" tabIndex={systemsOpen ? 0 : -1}>Intelligence</a>
+        </nav>
+        <p className={`${systemPortal.hint} ${systemsOpen ? systemPortal.hintOpen : ""}`}>{systemsOpen ? "Choose a Council system" : "Council systems"}</p>
       </div>
 
       <div className={styles.portalRing}>

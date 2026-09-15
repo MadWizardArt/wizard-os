@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import MobileNavigation from "./components/MobileNavigation";
 import MuseumPortalButton from "./components/MuseumPortalButton";
-import IntelligencePortalButton from "./components/IntelligencePortalButton";
 import "./globals.css";
 import "./mobile-cleanup.css";
 
@@ -34,7 +33,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <MobileNavigation />
         {children}
-        <IntelligencePortalButton />
         <MuseumPortalButton />
       </body>
     </html>
