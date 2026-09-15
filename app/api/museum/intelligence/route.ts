@@ -4,8 +4,10 @@ import { isMuseId } from "../../../../lib/museum";
 import type { ProposalCategory } from "../../../../lib/museum-proposal-storage";
 import {
   createIntelligenceQuest,
+  describeIntelligenceFailure,
   listIntelligenceQuests,
   readIntelligenceFuelUsage,
+  retryIntelligenceQuest,
   runIntelligenceQuest,
 } from "../../../../lib/museum-intelligence";
 import { ensureCanonicalNineMusesKnowledge } from "../../../../lib/museum-knowledge-seed";
@@ -37,33 +39,64 @@ function requireArtist(request: NextRequest) {
     : NextResponse.json({ error: "Artist session required." }, { status: 401 });
 }
 
-async function runWithGatewayCredential(id: string) {
-  const resolvedAuth = await resolveAiGatewayAuthToken();
-  if (!resolvedAuth) throw new Error("No AI Gateway credential is available to Wizard OS.");
+type GatewayStatus = {
+  state: "ready" | "empty" | "unavailable" | "unknown";
+  balance: number | null;
+  totalUsed: number | null;
+  modelListed: boolean | null;
+  checkedAt: string;
+};
 
-  if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN) {
-    return runIntelligenceQuest(prisma, id);
+async function readGatewayStatus(auth: string, model: string): Promise<GatewayStatus> {
+  const checkedAt = new Date().toISOString();
+  if (!auth) return { state: "unavailable", balance: null, totalUsed: null, modelListed: null, checkedAt };
+
+  try {
+    const [creditResponse, modelResponse] = await Promise.all([
+      fetch("https://ai-gateway.vercel.sh/v1/credits", {
+        headers: { Authorization: `Bearer ${auth}` },
+        cache: "no-store",
+      }),
+      fetch("https://ai-gateway.vercel.sh/v1/models", {
+        headers: { Authorization: `Bearer ${auth}` },
+        cache: "no-store",
+      }),
+    ]);
+
+    const creditPayload = await creditResponse.json().catch(() => ({}));
+    const modelPayload = await modelResponse.json().catch(() => ({}));
+    const parsedBalance = Number(creditPayload?.balance);
+    const parsedUsed = Number(creditPayload?.total_used);
+    const balance = Number.isFinite(parsedBalance) ? parsedBalance : null;
+    const totalUsed = Number.isFinite(parsedUsed) ? parsedUsed : null;
+    const models = Array.isArray(modelPayload?.data) ? modelPayload.data : null;
+    const modelListed = models ? models.some((entry: { id?: unknown }) => entry?.id === model) : null;
+
+    if (!creditResponse.ok) return { state: "unknown", balance, totalUsed, modelListed, checkedAt };
+    if (balance !== null && balance <= 0) return { state: "empty", balance, totalUsed, modelListed, checkedAt };
+    return { state: "ready", balance, totalUsed, modelListed, checkedAt };
+  } catch {
+    return { state: "unknown", balance: null, totalUsed: null, modelListed: null, checkedAt };
   }
-
-  // Stage III-E's runner captures the credential synchronously before its first await.
-  // Expose the request-scoped Vercel OIDC token only for that capture, then remove it.
-  process.env.VERCEL_OIDC_TOKEN = resolvedAuth;
-  const run = runIntelligenceQuest(prisma, id);
-  delete process.env.VERCEL_OIDC_TOKEN;
-  return run;
 }
 
 export async function GET(request: NextRequest) {
   const denied = requireArtist(request);
   if (denied) return denied;
   await prisma.$transaction(async (tx) => ensureCanonicalNineMusesKnowledge(tx));
-  const [quests, usage] = await Promise.all([
+
+  const model = process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol";
+  const gatewayAuth = await resolveAiGatewayAuthToken();
+  const [quests, usage, gateway] = await Promise.all([
     listIntelligenceQuests(prisma),
     readIntelligenceFuelUsage(prisma),
+    readGatewayStatus(gatewayAuth, model),
   ]);
+
   return NextResponse.json({
     enabled: intelligenceFuelEnabled(),
-    model: process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol",
+    model,
+    gateway,
     usage,
     quests,
   });
@@ -97,22 +130,30 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin intelligence execution is not accepted." }, { status: 403 });
+  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin intelligence actions are not accepted." }, { status: 403 });
   const denied = requireArtist(request);
   if (denied) return denied;
 
   const body = await request.json();
   const id = text(body.id, 120);
   const action = text(body.action, 40);
-  if (!id || action !== "run") return NextResponse.json({ error: "Choose a candidate quest to fuel." }, { status: 400 });
+  if (!id || !["run", "retry"].includes(action)) {
+    return NextResponse.json({ error: "Choose a quest action." }, { status: 400 });
+  }
 
   try {
-    const result = await runWithGatewayCredential(id);
+    if (action === "retry") {
+      const result = await prisma.$transaction(async (tx) => retryIntelligenceQuest(tx, id));
+      return NextResponse.json({ id: result.id, ...result.quest }, { status: 201 });
+    }
+
+    const gatewayAuth = await resolveAiGatewayAuthToken();
+    const result = await runIntelligenceQuest(prisma, id, gatewayAuth);
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Intelligence quest failed.";
-    const locked = message.includes("AI fuel is locked") || message.includes("credential") || message.includes("Artist access");
-    const limited = message.includes("Daily intelligence") || message.includes("daily token budget");
-    return NextResponse.json({ error: message }, { status: locked ? 503 : limited ? 429 : 400 });
+    const rawMessage = error instanceof Error ? error.message : "Intelligence quest failed.";
+    const failure = describeIntelligenceFailure(rawMessage);
+    const status = failure.code === "budget" ? 429 : failure.code === "gateway_auth" ? 503 : 400;
+    return NextResponse.json({ error: failure.message, code: failure.code, retryable: failure.retryable }, { status });
   }
 }
