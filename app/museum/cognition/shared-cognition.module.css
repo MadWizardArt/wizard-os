@@ -1,0 +1,38 @@
+.page { min-height: 100vh; background: radial-gradient(circle at 70% 0%, rgba(74, 105, 137, .18), transparent 34%), #0d0b12; color: #f4efe7; padding: 28px 18px 64px; }
+.shell { max-width: 1180px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; gap: 24px; padding: 16px 0 26px; border-bottom: 1px solid rgba(255,255,255,.10); }
+.header h1 { margin: 4px 0 10px; font-size: clamp(2.2rem, 7vw, 4.5rem); line-height: .96; font-weight: 500; letter-spacing: -.04em; }
+.header p { max-width: 760px; color: rgba(244,239,231,.66); line-height: 1.55; }
+.kicker { margin: 0; text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; color: rgba(244,239,231,.50); }
+.links { display: flex; gap: 8px; align-items: flex-start; }
+.links a { color: #f4efe7; text-decoration: none; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 9px 13px; }
+.principle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+.principle > div { border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.025); border-radius: 15px; padding: 16px; }
+.principle p { margin-bottom: 0; color: rgba(244,239,231,.58); line-height: 1.45; }
+.roster { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; margin-top: 28px; }
+.roster button { min-height: 88px; border: 1px solid rgba(255,255,255,.09); border-radius: 14px; background: rgba(255,255,255,.025); color: inherit; padding: 10px 6px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; cursor: pointer; }
+.roster button > span { font-size: 1.25rem; }
+.roster button small { color: rgba(244,239,231,.45); font-size: .64rem; text-align: center; }
+.roster .active { background: rgba(132,167,214,.11); border-color: rgba(132,167,214,.40); transform: translateY(-2px); }
+.section { margin-top: 34px; }
+.sectionHead { display: flex; justify-content: space-between; gap: 18px; align-items: flex-end; margin-bottom: 14px; }
+.sectionHead h2 { margin: 6px 0 0; font-weight: 500; letter-spacing: -.02em; }
+.sectionHead small { color: rgba(244,239,231,.42); }
+.grid, .patterns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.card, .pattern { border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.025); border-radius: 17px; padding: 17px; }
+.card h3, .pattern h3 { margin: 14px 0 8px; font-size: 1.08rem; font-weight: 520; }
+.card > p, .pattern > p { color: rgba(244,239,231,.63); line-height: 1.5; }
+.tags, .pattern > div { display: flex; gap: 6px; flex-wrap: wrap; }
+.tags span, .pattern > div span { border: 1px solid rgba(255,255,255,.10); border-radius: 999px; padding: 5px 8px; color: rgba(244,239,231,.58); font-size: .7rem; text-transform: capitalize; }
+.card small, .pattern small { color: rgba(208,183,134,.70); }
+.card details { margin-top: 12px; border-top: 1px solid rgba(255,255,255,.07); padding-top: 10px; }
+.card summary { cursor: pointer; color: rgba(244,239,231,.72); }
+.card details p { color: rgba(244,239,231,.52); line-height: 1.45; }
+.pattern[data-kind="convergence"] { border-color: rgba(127,190,147,.24); background: rgba(127,190,147,.035); }
+.pattern[data-kind="caution"] { border-color: rgba(201,132,132,.24); background: rgba(201,132,132,.035); }
+.empty { color: rgba(244,239,231,.45); padding: 20px 4px; }
+.emptyBox { border: 1px dashed rgba(255,255,255,.10); border-radius: 15px; padding: 20px; color: rgba(244,239,231,.58); }
+.emptyBox p { margin-bottom: 0; line-height: 1.5; }
+.error { border: 1px solid rgba(201,132,132,.28); background: rgba(201,132,132,.06); border-radius: 12px; padding: 12px; }
+@media (max-width: 900px) { .principle { grid-template-columns: 1fr; } .roster { grid-template-columns: repeat(3, 1fr); } .grid, .patterns { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .page { padding: 14px 12px 44px; } .header, .sectionHead { flex-direction: column; align-items: stretch; } .header h1 { font-size: 3rem; } .links { flex-wrap: wrap; } .roster { grid-template-columns: repeat(3, 1fr); } }
