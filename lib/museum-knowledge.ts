@@ -80,7 +80,7 @@ export async function recordCouncilKnowledge(db: KnowledgeDb, input: Omit<Stored
   if (!title || !content || !sourceRef) throw new Error("Knowledge requires title, content, and provenance.");
 
   const existing = await db.project.findMany({
-    where: { type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
+    where: { type: ProjectType.INTERNAL, archivedAt: null, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
     select: { id: true, notes: true },
     take: 240,
   });
@@ -107,9 +107,9 @@ export async function recordCouncilKnowledge(db: KnowledgeDb, input: Omit<Stored
     data: {
       title: `[Council Knowledge] ${knowledge.title}`,
       type: ProjectType.INTERNAL,
-      status: ProjectStatus.COMPLETE,
-      progress: 100,
-      nextAction: "Available to selective Muse intelligence",
+      status: knowledge.verifiedByArtist ? ProjectStatus.COMPLETE : ProjectStatus.WAITING,
+      progress: knowledge.verifiedByArtist ? 100 : 0,
+      nextAction: knowledge.verifiedByArtist ? "Available to selective Muse intelligence" : "Await Artist verification in Knowledge Inbox",
       notes: encodeCouncilKnowledge(knowledge),
     },
     select: { id: true },
@@ -120,7 +120,7 @@ export async function recordCouncilKnowledge(db: KnowledgeDb, input: Omit<Stored
 
 export async function listCouncilKnowledge(db: KnowledgeDb): Promise<CouncilKnowledgeRecord[]> {
   const rows = await db.project.findMany({
-    where: { type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
+    where: { type: ProjectType.INTERNAL, archivedAt: null, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
     select: { id: true, notes: true, createdAt: true },
     orderBy: { createdAt: "desc" },
     take: 240,
@@ -129,6 +129,47 @@ export async function listCouncilKnowledge(db: KnowledgeDb): Promise<CouncilKnow
     const decoded = decodeCouncilKnowledge(row.notes);
     return decoded ? { id: row.id, ...decoded } : null;
   }).filter((entry): entry is CouncilKnowledgeRecord => Boolean(entry));
+}
+
+export async function verifyCouncilKnowledge(db: KnowledgeDb, id: string) {
+  const row = await db.project.findFirst({
+    where: { id, type: ProjectType.INTERNAL, archivedAt: null, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
+    select: { id: true, notes: true },
+  });
+  const knowledge = row ? decodeCouncilKnowledge(row.notes) : null;
+  if (!row || !knowledge) throw new Error("Knowledge capsule not found.");
+  if (knowledge.verifiedByArtist) return { id, knowledge, changed: false };
+
+  const verified: StoredCouncilKnowledge = { ...knowledge, verifiedByArtist: true };
+  await db.project.update({
+    where: { id },
+    data: {
+      status: ProjectStatus.COMPLETE,
+      progress: 100,
+      nextAction: "Available to selective Muse intelligence",
+      notes: encodeCouncilKnowledge(verified),
+    },
+  });
+  return { id, knowledge: verified, changed: true };
+}
+
+export async function archiveCouncilKnowledge(db: KnowledgeDb, id: string) {
+  const row = await db.project.findFirst({
+    where: { id, type: ProjectType.INTERNAL, archivedAt: null, notes: { startsWith: MUSEUM_KNOWLEDGE_PREFIX } },
+    select: { id: true, notes: true },
+  });
+  const knowledge = row ? decodeCouncilKnowledge(row.notes) : null;
+  if (!row || !knowledge) throw new Error("Knowledge capsule not found.");
+  await db.project.update({
+    where: { id },
+    data: {
+      status: ProjectStatus.ARCHIVED,
+      progress: 0,
+      archivedAt: new Date(),
+      nextAction: "Archived by the Artist; excluded from Muse retrieval",
+    },
+  });
+  return { id, knowledge };
 }
 
 const KIND_WEIGHT: Record<KnowledgeKind, number> = {
@@ -142,13 +183,13 @@ const KIND_WEIGHT: Record<KnowledgeKind, number> = {
 export async function readRelevantCouncilKnowledge(db: KnowledgeDb, museId: MuseId, category: ProposalCategory, limit = 8) {
   const all = await listCouncilKnowledge(db);
   return all
+    .filter((entry) => entry.verifiedByArtist)
     .filter((entry) => entry.targetMuseIds.length === 0 || entry.targetMuseIds.includes(museId))
     .map((entry) => ({
       entry,
       score: KIND_WEIGHT[entry.kind]
         + (entry.category === category ? 6 : entry.category == null ? 2 : 0)
-        + (entry.targetMuseIds.includes(museId) ? 3 : 0)
-        + (entry.verifiedByArtist ? 2 : 0),
+        + (entry.targetMuseIds.includes(museId) ? 3 : 0),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
