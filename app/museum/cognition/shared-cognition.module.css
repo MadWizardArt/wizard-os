@@ -15,7 +15,7 @@
 .roster button small { color: rgba(244,239,231,.45); font-size: .64rem; text-align: center; }
 .roster .active { background: rgba(132,167,214,.11); border-color: rgba(132,167,214,.40); transform: translateY(-2px); }
 .section { margin-top: 34px; }
-.sectionHead { display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 14px; }
+.sectionHead { display: flex; justify-content: space-between; gap: 18px; align-items: flex-end; margin-bottom: 14px; }
 .sectionHead h2 { margin: 6px 0 0; font-weight: 500; letter-spacing: -.02em; }
 .sectionHead small { color: rgba(244,239,231,.42); }
 .grid, .patterns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
