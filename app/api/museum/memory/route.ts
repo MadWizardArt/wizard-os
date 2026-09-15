@@ -3,7 +3,7 @@ import { prisma } from "../../../../lib/prisma";
 import { isMuseId } from "../../../../lib/museum";
 import { recordMuseMemory } from "../../../../lib/museum-agent-memory";
 import { decodeMuseMemory, MUSEUM_MEMORY_PREFIX, type MuseOutcomeRating } from "../../../../lib/museum-memory-storage";
-import { decodeMuseProposal, MUSEUM_PROPOSAL_PREFIX } from "../../../../lib/museum-proposal-storage";
+import { decodeMuseProposal } from "../../../../lib/museum-proposal-storage";
 import { ProjectType } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -52,15 +52,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Choose a completed proposal and an outcome rating." }, { status: 400 });
   }
 
-  const record = await prisma.project.findFirst({
-    where: {
-      id: proposalId,
-      type: ProjectType.INTERNAL,
-      notes: { startsWith: MUSEUM_PROPOSAL_PREFIX },
-    },
-    select: { id: true, notes: true },
+  const record = await prisma.museumProposal.findUnique({
+    where: { id: proposalId },
+    select: { id: true, payload: true },
   });
-  const proposal = record ? decodeMuseProposal(record.notes) : null;
+  const proposal = record ? decodeMuseProposal(record.payload) : null;
   if (!record || !proposal) return NextResponse.json({ error: "Muse proposal not found." }, { status: 404 });
   if (proposal.status !== "completed") {
     return NextResponse.json({ error: "Record an outcome after execution is complete." }, { status: 409 });

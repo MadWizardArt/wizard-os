@@ -217,10 +217,30 @@ export default function SelectiveIntelligencePage() {
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "The quest could not be prepared for retry.");
-      setNotice("Fresh retry prepared. The original failed attempt remains in history.");
+      setNotice("Fresh retry prepared. You can keep or delete the original failed attempt.");
       await loadProtected();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The quest could not be prepared for retry.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deleteQuest = async (id: string) => {
+    if (!window.confirm("Delete this failed attempt from the Museum ledger?")) return;
+    setBusy(`delete:${id}`);
+    try {
+      const response = await fetch("/api/museum/intelligence", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "The failed quest could not be deleted.");
+      setNotice("Failed attempt deleted from the Museum ledger.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The failed quest could not be deleted.");
     } finally {
       setBusy(null);
     }
@@ -364,14 +384,17 @@ export default function SelectiveIntelligencePage() {
                   <h3>{quest.question}</h3>
                   <p className={styles.questReason}>{quest.reason}</p>
                   <small>Useful if · {quest.expectedValue}</small>
-                  {quest.retryOf && <p className={styles.retryNote}>Prepared from an earlier failed attempt; the original remains preserved below.</p>}
+                  {quest.retryOf && <p className={styles.retryNote}>Prepared from an earlier failed attempt.</p>}
 
                   {quest.status === "candidate" && <button className={styles.fuel} disabled={busy === quest.id || !payload.enabled || (usage?.remainingRuns ?? 0) <= 0} onClick={() => runQuest(quest.id)}>{busy === quest.id ? `${museName} is thinking…` : payload.enabled ? `✦ Ask ${museName}` : "AI fuel locked"}</button>}
                   {quest.status === "running" && <p className={styles.running}>✦ {museName} is synthesizing the current evidence.</p>}
                   {quest.status === "failed" && <div className={styles.failureBox}>
                     <strong>This attempt did not complete.</strong>
                     <p>{quest.error || "The quest stopped before a synthesis was returned."}</p>
-                    <button className={styles.secondary} disabled={busy === `retry:${quest.id}`} onClick={() => retryQuest(quest.id)}>{busy === `retry:${quest.id}` ? "Preparing retry…" : "Prepare retry"}</button>
+                    <div className={styles.reviewRow}>
+                      <button className={styles.secondary} disabled={busy === `retry:${quest.id}` || busy === `delete:${quest.id}`} onClick={() => retryQuest(quest.id)}>{busy === `retry:${quest.id}` ? "Preparing retry…" : "Prepare retry"}</button>
+                      <button className={styles.secondary} disabled={busy === `retry:${quest.id}` || busy === `delete:${quest.id}`} onClick={() => deleteQuest(quest.id)}>{busy === `delete:${quest.id}` ? "Deleting…" : "Delete failed attempt"}</button>
+                    </div>
                   </div>}
                   {quest.answer && <div className={styles.synthesis}>
                     <div className={styles.synthesisHead}><span>✦</span><div><small>{museName} returned</small><strong>Muse synthesis</strong></div></div>

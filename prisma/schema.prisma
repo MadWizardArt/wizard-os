@@ -94,6 +94,33 @@ model Project {
   @@index([dueDate])
 }
 
+model MuseumProposal {
+  id        String   @id @default(cuid())
+  payload   String
+  sourceKey String   @unique
+  museId    String
+  category  String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([museId, status])
+  @@index([category])
+}
+
+model MuseumIntelligenceQuest {
+  id        String   @id @default(cuid())
+  payload   String
+  museId    String
+  category  String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([museId, category])
+}
+
 model WorkflowTemplate {
   id          String      @id @default(cuid())
   name        String

@@ -4,6 +4,7 @@ import { isMuseId } from "../../../../lib/museum";
 import type { ProposalCategory } from "../../../../lib/museum-proposal-storage";
 import {
   createIntelligenceQuest,
+  deleteFailedIntelligenceQuest,
   describeIntelligenceFailure,
   listIntelligenceQuests,
   readIntelligenceFuelUsage,
@@ -155,5 +156,25 @@ export async function PATCH(request: NextRequest) {
     const failure = describeIntelligenceFailure(rawMessage);
     const status = failure.code === "budget" ? 429 : failure.code === "gateway_auth" ? 503 : 400;
     return NextResponse.json({ error: failure.message, code: failure.code, retryable: failure.retryable }, { status });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin intelligence deletion is not accepted." }, { status: 403 });
+  const denied = requireArtist(request);
+  if (denied) return denied;
+
+  const body = await request.json();
+  const id = text(body.id, 120);
+  if (!id) return NextResponse.json({ error: "Choose a failed quest to delete." }, { status: 400 });
+
+  try {
+    await prisma.$transaction(async (tx) => deleteFailedIntelligenceQuest(tx, id));
+    return NextResponse.json({ deleted: true, id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed quest could not be deleted.";
+    if (/not found/i.test(message)) return NextResponse.json({ error: message }, { status: 404 });
+    if (/only failed/i.test(message)) return NextResponse.json({ error: message }, { status: 409 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

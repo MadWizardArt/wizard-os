@@ -52,4 +52,11 @@ const questRetry = await request("/api/museum/intelligence", {
 });
 assert.equal(questRetry.response.status, 401, "Quest retry preparation must remain behind the Artist Gate.");
 
+const questDelete = await request("/api/museum/intelligence", {
+  method: "DELETE",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ id: "not-a-real-quest" }),
+});
+assert.equal(questDelete.response.status, 401, "Failed quest deletion must remain behind the Artist Gate.");
+
 console.log("Selective Intelligence Artist Gate security checks passed.");

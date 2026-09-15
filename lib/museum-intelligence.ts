@@ -1,4 +1,4 @@
-import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
+import { Prisma } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters";
@@ -51,7 +51,7 @@ export type IntelligenceFuelUsage = {
   maxOutputTokens: number;
 };
 
-type IntelligenceDb = Pick<Prisma.TransactionClient, "project" | "painting" | "artworkSale" | "campaign" | "venture">;
+type IntelligenceDb = Pick<Prisma.TransactionClient, "project" | "painting" | "artworkSale" | "campaign" | "venture" | "museumIntelligenceQuest">;
 
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -106,10 +106,10 @@ export function encodeIntelligenceQuest(quest: StoredIntelligenceQuest) {
   return `${MUSEUM_INTELLIGENCE_PREFIX}${JSON.stringify(quest)}`;
 }
 
-export function decodeIntelligenceQuest(notes: string | null): StoredIntelligenceQuest | null {
-  if (!notes?.startsWith(MUSEUM_INTELLIGENCE_PREFIX)) return null;
+export function decodeIntelligenceQuest(payload: string | null): StoredIntelligenceQuest | null {
+  if (!payload?.startsWith(MUSEUM_INTELLIGENCE_PREFIX)) return null;
   try {
-    const parsed = JSON.parse(notes.slice(MUSEUM_INTELLIGENCE_PREFIX.length)) as StoredIntelligenceQuest;
+    const parsed = JSON.parse(payload.slice(MUSEUM_INTELLIGENCE_PREFIX.length)) as StoredIntelligenceQuest;
     if (parsed.version !== 1 || !parsed.museId || !parsed.category || !parsed.question || !parsed.reason || !parsed.expectedValue) return null;
     return parsed;
   } catch {
@@ -152,14 +152,13 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
     executedAt: null,
   };
 
-  const record = await db.project.create({
+  const record = await db.museumIntelligenceQuest.create({
     data: {
-      title: `[Intelligence Quest] ${question.slice(0, 90)}`,
-      type: ProjectType.INTERNAL,
-      status: ProjectStatus.WAITING,
-      progress: 0,
-      nextAction: "Await Artist token-spend decision",
-      notes: encodeIntelligenceQuest(quest),
+      payload: encodeIntelligenceQuest(quest),
+      museId: quest.museId,
+      category: quest.category,
+      status: quest.status,
+      createdAt: new Date(quest.createdAt),
     },
     select: { id: true },
   });
@@ -167,11 +166,11 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
 }
 
 export async function retryIntelligenceQuest(db: IntelligenceDb, id: string) {
-  const row = await db.project.findFirst({
-    where: { id, type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
-    select: { notes: true },
+  const row = await db.museumIntelligenceQuest.findUnique({
+    where: { id },
+    select: { payload: true },
   });
-  const quest = row ? decodeIntelligenceQuest(row.notes) : null;
+  const quest = row ? decodeIntelligenceQuest(row.payload) : null;
   if (!quest) throw new Error("Intelligence quest not found.");
   if (quest.status !== "failed") throw new Error("Only failed intelligence quests can be retried.");
 
@@ -186,15 +185,26 @@ export async function retryIntelligenceQuest(db: IntelligenceDb, id: string) {
   });
 }
 
+export async function deleteFailedIntelligenceQuest(db: IntelligenceDb, id: string) {
+  const row = await db.museumIntelligenceQuest.findUnique({
+    where: { id },
+    select: { payload: true },
+  });
+  const quest = row ? decodeIntelligenceQuest(row.payload) : null;
+  if (!quest) throw new Error("Intelligence quest not found.");
+  if (quest.status !== "failed") throw new Error("Only failed intelligence quests can be deleted.");
+  await db.museumIntelligenceQuest.delete({ where: { id } });
+  return { id };
+}
+
 export async function listIntelligenceQuests(db: IntelligenceDb): Promise<IntelligenceQuestRecord[]> {
-  const rows = await db.project.findMany({
-    where: { type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
-    select: { id: true, notes: true, createdAt: true },
+  const rows = await db.museumIntelligenceQuest.findMany({
+    select: { id: true, payload: true },
     orderBy: { createdAt: "desc" },
     take: 80,
   });
   return rows.map((row) => {
-    const decoded = decodeIntelligenceQuest(row.notes);
+    const decoded = decodeIntelligenceQuest(row.payload);
     if (!decoded) return null;
     if (decoded.status === "failed" && decoded.error) {
       const failure = describeIntelligenceFailure(decoded.error);
@@ -240,13 +250,11 @@ function outputText(payload: any) {
 async function markFailed(db: IntelligenceDb, id: string, quest: StoredIntelligenceQuest, message: string) {
   const failure = describeIntelligenceFailure(message);
   const failed: StoredIntelligenceQuest = { ...quest, status: "failed", error: failure.message, errorCode: failure.code };
-  await db.project.update({
+  await db.museumIntelligenceQuest.update({
     where: { id },
     data: {
-      status: ProjectStatus.BLOCKED,
-      progress: 0,
-      nextAction: "Retry this quest after resolving the displayed issue",
-      notes: encodeIntelligenceQuest(failed),
+      payload: encodeIntelligenceQuest(failed),
+      status: failed.status,
     },
   });
 }
@@ -261,12 +269,12 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
   if (usage.remainingRuns <= 0) throw new Error(`Daily intelligence run limit reached (${usage.maxRuns}).`);
   if (usage.remainingTokens <= 0) throw new Error(`Daily intelligence token budget reached (${usage.dailyTokens.toLocaleString()}).`);
 
-  const row = await db.project.findFirst({
-    where: { id, type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
-    select: { id: true, notes: true },
+  const row = await db.museumIntelligenceQuest.findUnique({
+    where: { id },
+    select: { id: true, payload: true, status: true },
   });
-  const quest = row ? decodeIntelligenceQuest(row.notes) : null;
-  if (!row || !quest || !row.notes) throw new Error("Intelligence quest not found.");
+  const quest = row ? decodeIntelligenceQuest(row.payload) : null;
+  if (!row || !quest) throw new Error("Intelligence quest not found.");
   if (quest.status !== "candidate") throw new Error("Only candidate quests can be fueled.");
 
   const budget = intelligenceBudget();
@@ -282,13 +290,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
     maxOutputTokens,
     executedAt: new Date().toISOString(),
   };
-  const claim = await db.project.updateMany({
-    where: { id, notes: row.notes },
+  const claim = await db.museumIntelligenceQuest.updateMany({
+    where: { id, payload: row.payload, status: "candidate" },
     data: {
-      status: ProjectStatus.ACTIVE,
-      progress: 10,
-      nextAction: "Bounded Muse synthesis in progress",
-      notes: encodeIntelligenceQuest(running),
+      payload: encodeIntelligenceQuest(running),
+      status: running.status,
     },
   });
   if (claim.count !== 1) throw new Error("This intelligence quest was already claimed by another request.");
@@ -355,13 +361,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       ].slice(0, 24),
     };
 
-    await db.project.update({
+    await db.museumIntelligenceQuest.update({
       where: { id },
       data: {
-        status: ProjectStatus.COMPLETE,
-        progress: 100,
-        nextAction: "Bring synthesis to the Artist; no action is committed automatically",
-        notes: encodeIntelligenceQuest(completed),
+        payload: encodeIntelligenceQuest(completed),
+        status: completed.status,
       },
     });
 

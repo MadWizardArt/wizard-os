@@ -2,7 +2,7 @@ import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/clie
 import { prisma } from "./prisma";
 import { proposeMuseOpportunity } from "./museum-agent-proposals";
 
-type ObserverEventDb = Pick<Prisma.TransactionClient, "project">;
+type ObserverEventDb = Pick<Prisma.TransactionClient, "project" | "museumProposal">;
 
 type AureliaProductEvent = {
   projectId: string;

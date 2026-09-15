@@ -6,13 +6,11 @@ import { proposeMuseOpportunity } from "../../../../lib/museum-agent-proposals";
 import {
   decodeMuseProposal,
   encodeMuseProposal,
-  MUSEUM_PROPOSAL_PREFIX,
   type ProposalCategory,
   type ProposalConfidence,
   type ProposalEffort,
   type StoredMuseProposal,
 } from "../../../../lib/museum-proposal-storage";
-import { ProjectStatus, ProjectType } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,25 +28,22 @@ export async function GET(request: NextRequest) {
   const museId = museParam && isMuseId(museParam) ? museParam : null;
   const statusParam = request.nextUrl.searchParams.get("status");
 
-  const records = await prisma.project.findMany({
+  const records = await prisma.museumProposal.findMany({
     where: {
-      type: ProjectType.INTERNAL,
-      notes: { startsWith: MUSEUM_PROPOSAL_PREFIX },
+      ...(museId ? { museId } : {}),
+      ...(statusParam ? { status: statusParam } : {}),
     },
-    select: { id: true, notes: true, createdAt: true },
+    select: { id: true, payload: true },
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: museId ? 30 : 60,
   });
 
   const proposals = records
     .map((record) => {
-      const proposal = decodeMuseProposal(record.notes);
+      const proposal = decodeMuseProposal(record.payload);
       return proposal ? { id: record.id, ...proposal } : null;
     })
-    .filter((proposal): proposal is NonNullable<typeof proposal> => Boolean(proposal))
-    .filter((proposal) => !museId || proposal.museId === museId)
-    .filter((proposal) => !statusParam || proposal.status === statusParam)
-    .slice(0, museId ? 30 : 60);
+    .filter((proposal): proposal is NonNullable<typeof proposal> => Boolean(proposal));
 
   return NextResponse.json(proposals);
 }
@@ -94,15 +89,11 @@ export async function PATCH(request: NextRequest) {
   const decisionNote = text(body.decisionNote, 600) || null;
   if (!id || !action) return NextResponse.json({ error: "Choose a proposal and decision." }, { status: 400 });
 
-  const record = await prisma.project.findFirst({
-    where: {
-      id,
-      type: ProjectType.INTERNAL,
-      notes: { startsWith: MUSEUM_PROPOSAL_PREFIX },
-    },
-    select: { id: true, notes: true },
+  const record = await prisma.museumProposal.findUnique({
+    where: { id },
+    select: { id: true, payload: true },
   });
-  const proposal = record ? decodeMuseProposal(record.notes) : null;
+  const proposal = record ? decodeMuseProposal(record.payload) : null;
   if (!record || !proposal) return NextResponse.json({ error: "Muse proposal not found." }, { status: 404 });
 
   const now = new Date().toISOString();
@@ -115,17 +106,11 @@ export async function PATCH(request: NextRequest) {
   };
 
   await prisma.$transaction(async (tx) => {
-    await tx.project.update({
+    await tx.museumProposal.update({
       where: { id: record.id },
       data: {
-        notes: encodeMuseProposal(updated),
-        status: action === "approve" ? ProjectStatus.ACTIVE : action === "reject" ? ProjectStatus.ARCHIVED : ProjectStatus.COMPLETE,
-        progress: action === "complete" ? 100 : action === "approve" ? 15 : 0,
-        nextAction: action === "approve"
-          ? "Artist approved · route to owner for execution"
-          : action === "reject"
-            ? "Artist declined"
-            : "Completed and ready for outcome review",
+        payload: encodeMuseProposal(updated),
+        status: updated.status,
       },
     });
 
