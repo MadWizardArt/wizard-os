@@ -1,11 +1,16 @@
-export const campaignStatuses = [
+export type CampaignStatus =
+  | "Draft"
+  | "Preparing"
+  | "Live"
+  | "Fulfillment"
+  | "Closed";
+export const campaignStatuses: CampaignStatus[] = [
   "Draft",
   "Preparing",
   "Live",
   "Fulfillment",
   "Closed",
-] as const;
-export type CampaignStatus = (typeof campaignStatuses)[number];
+];
 export const activeCampaignStatuses: CampaignStatus[] = [
   "Preparing",
   "Live",
