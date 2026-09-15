@@ -1,11 +1,10 @@
-import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
+import { Prisma } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import { calibrateConfidence, readMuseMemoryCalibration } from "./museum-agent-memory";
 import { readSharedCategoryContext } from "./museum-agent-cognition";
 import {
   decodeMuseProposal,
   encodeMuseProposal,
-  MUSEUM_PROPOSAL_PREFIX,
   type ProposalCategory,
   type ProposalConfidence,
   type ProposalEffort,
@@ -26,22 +25,19 @@ export type MuseProposalInput = {
   createdAt?: Date;
 };
 
-type ProposalDb = Pick<Prisma.TransactionClient, "project">;
+type ProposalDb = Pick<Prisma.TransactionClient, "project" | "museumProposal">;
 
 export async function proposeMuseOpportunity(db: ProposalDb, input: MuseProposalInput) {
   const sourceKey = input.sourceKey.trim().slice(0, 240);
   if (!sourceKey) throw new Error("Muse proposal requires a source key.");
 
-  const existing = await db.project.findFirst({
-    where: {
-      type: ProjectType.INTERNAL,
-      notes: { startsWith: MUSEUM_PROPOSAL_PREFIX, contains: sourceKey },
-    },
-    select: { id: true, notes: true },
+  const existing = await db.museumProposal.findUnique({
+    where: { sourceKey },
+    select: { id: true, payload: true },
   });
 
   if (existing) {
-    const decoded = decodeMuseProposal(existing.notes);
+    const decoded = decodeMuseProposal(existing.payload);
     if (decoded?.sourceKey === sourceKey) return { id: existing.id, proposal: decoded, created: false };
   }
 
@@ -77,14 +73,14 @@ export async function proposeMuseOpportunity(db: ProposalDb, input: MuseProposal
     throw new Error("Muse proposal is missing required content.");
   }
 
-  const record = await db.project.create({
+  const record = await db.museumProposal.create({
     data: {
-      title: `[Muse Proposal] ${proposal.title}`,
-      type: ProjectType.INTERNAL,
-      status: ProjectStatus.WAITING,
-      progress: 0,
-      nextAction: "Await Artist decision",
-      notes: encodeMuseProposal(proposal),
+      payload: encodeMuseProposal(proposal),
+      sourceKey: proposal.sourceKey,
+      museId: proposal.museId,
+      category: proposal.category,
+      status: proposal.status,
+      createdAt: new Date(proposal.createdAt),
     },
     select: { id: true },
   });
