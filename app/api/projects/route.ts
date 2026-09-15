@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inProduction } from "../../../lib/artwork-lifecycle";
 import { prisma } from "../../../lib/prisma";
-import { MUSEUM_BRIEF_PREFIX } from "../../../lib/museum-brief-storage";
-import { MUSEUM_CHAMBER_PREFIX } from "../../../lib/museum-chamber-storage";
-import { MUSEUM_FOCUS_PREFIX } from "../../../lib/museum-focus-storage";
-import { MUSEUM_QUEST_PREFIX } from "../../../lib/museum-quest-storage";
-import { MUSEUM_SIGNAL_PREFIX } from "../../../lib/museum-signal-storage";
+import { isMuseumInfrastructureNotes } from "../../../lib/museum-project-hygiene";
 import { ProjectStatus, ProjectType } from "../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -36,13 +32,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     projects
-      .filter((project) =>
-        !project.notes?.startsWith(MUSEUM_QUEST_PREFIX)
-        && !project.notes?.startsWith(MUSEUM_CHAMBER_PREFIX)
-        && !project.notes?.startsWith(MUSEUM_BRIEF_PREFIX)
-        && !project.notes?.startsWith(MUSEUM_FOCUS_PREFIX)
-        && !project.notes?.startsWith(MUSEUM_SIGNAL_PREFIX)
-      )
+      .filter((project) => !isMuseumInfrastructureNotes(project.notes))
       .filter((project) =>
         includeCompleted || inProduction({
           type: project.type,
