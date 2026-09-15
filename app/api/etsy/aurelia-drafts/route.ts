@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { emitMuseSignal } from "../../../../lib/museum-signals";
+import { observeAureliaProductEntered } from "../../../../lib/museum-agent-observers";
 import { ProjectStatus, ProjectType } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
@@ -121,6 +122,13 @@ export async function POST(request: NextRequest) {
       visualState: isGated ? "waiting" : "working",
       relatedProjectId: created.id,
       sourceKey: `etsy-aurelia-draft:${created.id}`,
+    });
+
+    await observeAureliaProductEntered(tx, {
+      projectId: created.id,
+      title,
+      collection,
+      status,
     });
 
     return created;
