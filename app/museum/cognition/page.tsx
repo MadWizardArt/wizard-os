@@ -48,7 +48,7 @@ export default function SharedCognitionPage() {
             <h1>Shared Council Cognition</h1>
             <p>Relevant verified experience may cross Muse boundaries. Evidence is routed selectively; nothing is duplicated, committed, or executed here.</p>
           </div>
-          <div className={styles.links}><a href="/museum/agency">Agency</a><a href="/museum">Museum</a></div>
+          <div className={styles.links}><a href="/museum/intelligence">Intelligence</a><a href="/museum/agency">Agency</a><a href="/museum">Museum</a></div>
         </header>
 
         <section className={styles.principle}>
