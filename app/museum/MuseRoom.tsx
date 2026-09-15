@@ -15,9 +15,18 @@ import {
 import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
-  const [failed, setFailed] = useState(false);
   const room = MUSE_ROOMS[muse.id];
-  const artworkSrc = room.animatedImage ?? room.image;
+  const [artworkSrc, setArtworkSrc] = useState(room.animatedImage ?? room.image);
+  const [failed, setFailed] = useState(false);
+
+  const handleArtworkError = () => {
+    if (artworkSrc !== room.image) {
+      setArtworkSrc(room.image);
+      return;
+    }
+    setFailed(true);
+  };
+
   return failed ? (
     <div className={styles.artFallback} role="img" aria-label={`${muse.name} — room illustration unavailable`}>
       <span aria-hidden="true">{muse.symbol}</span><span>{room.name}</span>
@@ -25,7 +34,7 @@ export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntr
   ) : (
     <img className={compact ? styles.cardArt : styles.roomArt} src={artworkSrc}
       alt={`${muse.name} welcoming you into ${room.name}`} width={1536} height={1024}
-      loading={compact ? "lazy" : "eager"} decoding="async" onError={() => setFailed(true)} />
+      loading={compact ? "lazy" : "eager"} decoding="async" onError={handleArtworkError} />
   );
 }
 
