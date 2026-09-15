@@ -13,12 +13,7 @@ import signalStyles from "./MuseSignals.module.css";
 import { deriveDefaultPresence, PRESENCE_META, useMusePresence } from "./useMusePresence";
 import { SIGNAL_META, type MuseSignal, useMuseSignals } from "./useMuseSignals";
 
-type FocusPreview = { title: string; nextAction?: string };
-
 type CouncilChamberProps = {
-  focusByMuse: Map<MuseId, FocusPreview>;
-  loading: boolean;
-  loadFailed: boolean;
   onEnter: (id: MuseId) => void;
 };
 
@@ -52,13 +47,10 @@ const AGENCY_LINK_STYLE: CSSProperties = {
   backdropFilter: "blur(10px)",
 };
 
-function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }: {
+function MusePortal({ muse, index, signal, onEnter }: {
   muse: MuseDirectoryEntry;
   index: number;
-  focus?: FocusPreview;
   signal?: MuseSignal;
-  loading: boolean;
-  loadFailed: boolean;
   onEnter: (id: MuseId) => void;
 }) {
   const [x, y] = POSITIONS[index];
@@ -67,7 +59,7 @@ function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }
     "--portal-y": `${y}%`,
     "--portal-delay": `${index * -0.7}s`,
   } as CSSProperties;
-  const automaticPresence = signal?.visualState ?? deriveDefaultPresence(Boolean(focus));
+  const automaticPresence = signal?.visualState ?? deriveDefaultPresence(false);
   const { presence } = useMusePresence(muse.id, automaticPresence);
   const presenceMeta = PRESENCE_META[presence];
   const signalMeta = signal ? SIGNAL_META[signal.type] : null;
@@ -92,9 +84,6 @@ function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }
       <span className={styles.nameplate}>
         <strong>{muse.name}</strong>
         <small>{MUSE_ROOMS[muse.id].name}</small>
-        <em className={focus ? styles.active : styles.idle}>
-          {loading ? "…" : loadFailed ? "Unavailable" : focus?.title || "Open"}
-        </em>
         <span className={`${presenceStyles.portalBadge} ${presenceStyles[presence]}`}>{presenceMeta.label}</span>
         {signal && signalMeta && (
           <span className={`${signalStyles.doorSignal} ${signalStyles[signal.type]} ${signal.readAt ? "" : signalStyles.unread}`}>
@@ -106,7 +95,7 @@ function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }
   );
 }
 
-export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnter }: CouncilChamberProps) {
+export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
   const { active } = useMuseSignals();
   const signalByMuse = useMemo(() => {
     const map = new Map<MuseId, MuseSignal>();
@@ -133,10 +122,7 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
             key={muse.id}
             muse={muse}
             index={index}
-            focus={focusByMuse.get(muse.id)}
             signal={signalByMuse.get(muse.id)}
-            loading={loading}
-            loadFailed={loadFailed}
             onEnter={onEnter}
           />
         ))}
