@@ -5,6 +5,7 @@ import {
   createArtistSessionToken,
   intelligenceBudget,
   intelligenceFuelEnabled,
+  knowledgeIngestConfigured,
   setArtistSessionCookie,
   verifyArtistAccessKey,
   verifyArtistSession,
@@ -28,6 +29,7 @@ function state(request: NextRequest) {
     configured: artistAccessConfigured(),
     authenticated: verifyArtistSession(request),
     fuelEnabled: intelligenceFuelEnabled(),
+    knowledgeIntakeConfigured: knowledgeIngestConfigured(),
     model: process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol",
     budget: intelligenceBudget(),
   };

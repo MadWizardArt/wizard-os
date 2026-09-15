@@ -26,6 +26,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://wizard:wizard_test@localhost:5432/wizard_test
       DIRECT_URL: postgresql://wizard:wizard_test@localhost:5432/wizard_test
+      MUSE_KNOWLEDGE_INGEST_KEY: ci-only-knowledge-intake-key-2026
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +40,7 @@ jobs:
         run: npm install
 
       - name: Verify workflow rules
-        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs
+        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs tests/museum-knowledge.test.mjs
 
       - name: Apply migrations to isolated CI database
         run: npm run db:deploy
@@ -61,5 +62,6 @@ jobs:
           node tests/campaign-integration.mjs
           node tests/artwork-integration.mjs
           node tests/museum-intelligence-security.mjs
+          node tests/museum-knowledge-intake.mjs
           node tests/campaign-browser.mjs
           node tests/mobile-navigation.mjs

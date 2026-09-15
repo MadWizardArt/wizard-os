@@ -3,8 +3,10 @@ import { prisma } from "../../../../lib/prisma";
 import { MUSE_IDS, type MuseId } from "../../../../lib/museum";
 import type { ProposalCategory } from "../../../../lib/museum-proposal-storage";
 import {
+  archiveCouncilKnowledge,
   listCouncilKnowledge,
   recordCouncilKnowledge,
+  verifyCouncilKnowledge,
   type KnowledgeKind,
   type KnowledgeSource,
 } from "../../../../lib/museum-knowledge";
@@ -87,4 +89,29 @@ export async function POST(request: NextRequest) {
   }));
 
   return NextResponse.json({ id: result.id, ...result.knowledge }, { status: result.created ? 201 : 200 });
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin knowledge review is not accepted." }, { status: 403 });
+  const denied = requireArtist(request);
+  if (denied) return denied;
+
+  const body = await request.json().catch(() => ({}));
+  const id = text(body.id, 120);
+  const action = text(body.action, 30);
+  if (!id || !["verify", "archive"].includes(action)) {
+    return NextResponse.json({ error: "Choose a Knowledge Inbox capsule and review action." }, { status: 400 });
+  }
+
+  try {
+    if (action === "verify") {
+      const result = await prisma.$transaction(async (tx) => verifyCouncilKnowledge(tx, id));
+      return NextResponse.json({ id: result.id, ...result.knowledge, changed: result.changed });
+    }
+    const result = await prisma.$transaction(async (tx) => archiveCouncilKnowledge(tx, id));
+    return NextResponse.json({ id: result.id, archived: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Knowledge review failed.";
+    return NextResponse.json({ error: message }, { status: 404 });
+  }
 }

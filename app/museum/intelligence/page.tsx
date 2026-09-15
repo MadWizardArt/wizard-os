@@ -16,6 +16,7 @@ type ArtistSession = {
   configured: boolean;
   authenticated: boolean;
   fuelEnabled: boolean;
+  knowledgeIntakeConfigured: boolean;
   model: string;
   budget: { maxRuns: number; dailyTokens: number; maxOutputTokens: number };
 };
@@ -72,6 +73,7 @@ export default function SelectiveIntelligencePage() {
       if (!response.ok) throw new Error(json.error || "Artist Gate could not be read.");
       setSession(json);
       if (json.authenticated) await loadProtected();
+      else setLoading(false);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Artist Gate could not be read.");
       setLoading(false);
@@ -110,6 +112,8 @@ export default function SelectiveIntelligencePage() {
   };
 
   const completed = useMemo(() => payload.quests.filter((quest) => quest.status === "completed"), [payload.quests]);
+  const pendingKnowledge = useMemo(() => knowledge.filter((entry) => !entry.verifiedByArtist), [knowledge]);
+  const activeKnowledge = useMemo(() => knowledge.filter((entry) => entry.verifiedByArtist), [knowledge]);
   const totalTokens = completed.reduce((sum, quest) => sum + (quest.usage?.totalTokens ?? 0), 0);
 
   const createQuest = async () => {
@@ -152,6 +156,27 @@ export default function SelectiveIntelligencePage() {
     }
   };
 
+  const reviewKnowledge = async (id: string, action: "verify" | "archive") => {
+    setBusy(`knowledge:${id}`);
+    try {
+      const response = await fetch("/api/museum/knowledge", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Knowledge review failed.");
+      setNotice(action === "verify"
+        ? "Knowledge capsule verified by the Artist and admitted to future Muse retrieval."
+        : "Knowledge capsule archived and excluded from Muse retrieval.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Knowledge review failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const usage = payload.usage;
   const authenticated = Boolean(session?.authenticated);
 
@@ -189,17 +214,32 @@ export default function SelectiveIntelligencePage() {
           <div className={styles.sessionBar}><span>Artist session authenticated</span><button onClick={logout}>Lock</button></div>
 
           <section className={styles.stats}>
-            <article><strong>{knowledge.length}</strong><span>knowledge capsules</span></article>
+            <article><strong>{activeKnowledge.length}</strong><span>active knowledge</span></article>
+            <article><strong>{pendingKnowledge.length}</strong><span>knowledge inbox</span></article>
             <article><strong>{payload.quests.filter((quest) => quest.status === "candidate").length}</strong><span>waiting quests</span></article>
-            <article><strong>{completed.length}</strong><span>completed syntheses</span></article>
             <article><strong>{totalTokens.toLocaleString()}</strong><span>recorded tokens total</span></article>
           </section>
 
           <section className={styles.guardrail}>
             <div><strong>AI fuel</strong><p>{payload.enabled ? `Armed · ${payload.model}` : "Locked. Quests may be prepared, but no model call can fire."}</p></div>
             <div><strong>Today&apos;s allowance</strong><p>{usage ? `${usage.completedRuns + usage.activeRuns}/${usage.maxRuns} runs · ${usage.usedTokens.toLocaleString()}/${usage.dailyTokens.toLocaleString()} recorded tokens` : "Reading budget…"}</p></div>
-            <div><strong>Hard per-quest ceiling</strong><p>{usage ? `${usage.maxOutputTokens.toLocaleString()} output tokens maximum` : `${session?.budget.maxOutputTokens ?? 1000} output tokens maximum`}. Reasoning effort remains low.</p></div>
+            <div><strong>Project knowledge bridge</strong><p>{session?.knowledgeIntakeConfigured ? "Intake key configured. Incoming Nine Muses capsules enter the Inbox inert until you verify them." : "Bridge endpoint installed; intake key is not configured yet."}</p></div>
           </section>
+
+          {pendingKnowledge.length > 0 && <section className={styles.section}>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>KNOWLEDGE INBOX</p><h2>Project context awaiting the Artist</h2></div><small>{pendingKnowledge.length} inert capsule{pendingKnowledge.length === 1 ? "" : "s"}</small></div>
+            <p className={styles.explainer}>Inbox capsules are stored with provenance but cannot influence Intelligence Quests until you verify them.</p>
+            <div className={styles.knowledgeGrid}>
+              {pendingKnowledge.map((entry) => <article key={entry.id} className={`${styles.knowledge} ${styles.pendingKnowledge}`}>
+                <div className={styles.tags}><span>awaiting Artist</span><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}</div>
+                <h3>{entry.title}</h3><p>{entry.content}</p><small>{entry.sourceRef}</small>
+                <div className={styles.reviewRow}>
+                  <button className={styles.primary} disabled={busy === `knowledge:${entry.id}`} onClick={() => reviewKnowledge(entry.id, "verify")}>Verify for Muses</button>
+                  <button className={styles.secondary} disabled={busy === `knowledge:${entry.id}`} onClick={() => reviewKnowledge(entry.id, "archive")}>Archive</button>
+                </div>
+              </article>)}
+            </div>
+          </section>}
 
           <section className={styles.section}>
             <div className={styles.sectionHead}><div><p className={styles.kicker}>FETCH QUEST</p><h2>Prepare one question worth paying intelligence for</h2></div><small>No AI call on creation</small></div>
@@ -239,15 +279,15 @@ export default function SelectiveIntelligencePage() {
           </section>
 
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div><p className={styles.kicker}>COUNCIL KNOWLEDGE VAULT</p><h2>Project knowledge available to future quests</h2></div><small>Seeded from the canonical Nine Muses reference</small></div>
-            <p className={styles.explainer}>These are retrieval capsules, not model-weight training. Future project decisions can be distilled into additional capsules with provenance instead of dumping whole conversations into every prompt.</p>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>COUNCIL KNOWLEDGE VAULT</p><h2>Artist-verified context available to future quests</h2></div><small>{activeKnowledge.length} active capsules</small></div>
+            <p className={styles.explainer}>These are retrieval capsules, not model-weight training. Only Artist-verified capsules can enter Muse reasoning.</p>
             <div className={styles.knowledgeGrid}>
-              {knowledge.map((entry) => <article key={entry.id} className={styles.knowledge}>
-                <div className={styles.tags}><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}{entry.verifiedByArtist && <span>Artist verified</span>}</div>
+              {activeKnowledge.map((entry) => <article key={entry.id} className={styles.knowledge}>
+                <div className={styles.tags}><span>{entry.kind.replaceAll("_", " ")}</span>{entry.category && <span>{entry.category}</span>}<span>Artist verified</span></div>
                 <h3>{entry.title}</h3><p>{entry.content}</p><small>{entry.sourceRef}</small>
               </article>)}
             </div>
-            <details className={styles.importNote}><summary>How Nine Muses project knowledge enters Wizard OS</summary><p>Use a curated knowledge capsule: title, concise fact or directive, source reference, relevant Muse/category, and verification state. This keeps the Vault useful and auditable. Direct automatic access from an external Wizard OS deployment into a ChatGPT Project is not assumed.</p></details>
+            <details className={styles.importNote}><summary>How Nine Muses project knowledge enters Wizard OS</summary><p>A trusted intake endpoint accepts compact capsules from a future Project connector or other approved bridge. Every external capsule is forced into the Knowledge Inbox as unverified, even if the sender labels it as an Artist directive. You decide what becomes active Council memory.</p></details>
           </section>
         </>}
       </section>
