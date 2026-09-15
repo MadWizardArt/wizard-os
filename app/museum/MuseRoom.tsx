@@ -6,7 +6,6 @@ import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import styles from "./MuseRoom.module.css";
 import presenceStyles from "./MusePresence.module.css";
 import signalStyles from "./MuseSignals.module.css";
-import NovyPresence from "./NovyPresence";
 import {
   deriveDefaultPresence,
   PRESENCE_META,
@@ -18,12 +17,13 @@ import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
   const [failed, setFailed] = useState(false);
   const room = MUSE_ROOMS[muse.id];
+  const artworkSrc = room.animatedImage ?? room.image;
   return failed ? (
     <div className={styles.artFallback} role="img" aria-label={`${muse.name} — room illustration unavailable`}>
       <span aria-hidden="true">{muse.symbol}</span><span>{room.name}</span>
     </div>
   ) : (
-    <img className={compact ? styles.cardArt : styles.roomArt} src={room.image}
+    <img className={compact ? styles.cardArt : styles.roomArt} src={artworkSrc}
       alt={`${muse.name} welcoming you into ${room.name}`} width={1536} height={1024}
       loading={compact ? "lazy" : "eager"} decoding="async" onError={() => setFailed(true)} />
   );
@@ -69,7 +69,6 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
   return (
     <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} data-presence={presence} data-signal={latestActive?.type ?? "none"} aria-labelledby="muse-room-name">
       <RoomArtwork key={muse.id} muse={muse} />
-      {muse.id === "novy" && <NovyPresence presence={presence} />}
       <AmbientLayers muse={muse} />
       <div className={`${presenceStyles.roomAura} ${presenceStyles[presence]}`} aria-hidden="true" />
       {latestActive && <div className={`${signalStyles.signalAura} ${signalStyles[latestActive.type]}`} aria-hidden="true" />}
