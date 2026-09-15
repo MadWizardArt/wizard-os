@@ -35,3 +35,7 @@ Migration `20260915222000_archive_legacy_museum_chambers` archives obsolete `MUS
 Migration `20260915233800_archive_retired_museum_control_planes` archives obsolete `MUSEUM_QUEST_V1`, `MUSEUM_FOCUS_V1`, and `MUSEUM_BRIEF_V1` Project records before their retired routes and storage helpers are removed. Historical records are preserved as archived data rather than silently deleted.
 
 Selective Intelligence, Agency, Cognition, Memory, Knowledge, and Signals remain the supported Museum operating paths.
+
+## Cleanup Pass 1
+
+PR #54 retired the obsolete Quest, Focus, Brief, Chamber, and legacy Museum AI control planes. The release preserves historical records by archiving them, keeps current Stage III systems intact, and adds animation → static room art → symbolic placeholder fallback for Museum portraits.
