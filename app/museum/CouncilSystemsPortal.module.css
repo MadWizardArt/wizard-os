@@ -1,0 +1,86 @@
+.sealButton {
+  padding: 0;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.sealButton:hover,
+.sealButton:focus-visible,
+.sealButton[aria-expanded="true"] {
+  color: #f2dda4;
+  border-color: rgba(230, 198, 129, .68);
+  box-shadow: 0 0 60px rgba(203,166,90,.22), inset 0 0 28px rgba(0,0,0,.3);
+}
+
+.menu {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  max-height: 0;
+  margin-top: -6px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-8px) scale(.98);
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease, max-height 180ms ease, margin 180ms ease;
+}
+
+.menuOpen {
+  max-height: 52px;
+  margin-top: 0;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.menu a {
+  min-width: 76px;
+  padding: 8px 10px;
+  border: 1px solid rgba(225, 194, 128, .22);
+  border-radius: 999px;
+  background: rgba(11, 12, 17, .82);
+  color: rgba(238, 222, 187, .78);
+  text-decoration: none;
+  font: 700 8px/1 system-ui, sans-serif;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.menu a:hover,
+.menu a:focus-visible {
+  color: #f0dba7;
+  border-color: rgba(225, 194, 128, .55);
+  background: rgba(79, 60, 31, .30);
+  outline: none;
+}
+
+.hint {
+  margin-top: 8px !important;
+  opacity: .58;
+  transition: opacity 150ms ease;
+}
+
+.hintOpen { opacity: .9; }
+
+@media (max-width: 720px) {
+  .menu {
+    flex-wrap: wrap;
+    max-width: 310px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .menuOpen { max-height: 96px; }
+  .menu a { min-width: 82px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sealButton,
+  .menu,
+  .menu a,
+  .hint { transition: none; }
+}
