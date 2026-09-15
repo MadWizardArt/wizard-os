@@ -34,6 +34,24 @@ const POSITIONS = [
   [25, 18],
 ] as const;
 
+const AGENCY_LINK_STYLE: CSSProperties = {
+  position: "absolute",
+  top: "4%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 30,
+  padding: "8px 13px",
+  borderRadius: 999,
+  border: "1px solid rgba(230, 205, 151, .34)",
+  background: "rgba(13, 11, 18, .78)",
+  color: "rgba(247, 238, 218, .90)",
+  textDecoration: "none",
+  fontSize: ".72rem",
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  backdropFilter: "blur(10px)",
+};
+
 function MusePortal({ muse, index, focus, signal, loading, loadFailed, onEnter }: {
   muse: MuseDirectoryEntry;
   index: number;
@@ -102,6 +120,8 @@ export default function CouncilChamber({ focusByMuse, loading, loadFailed, onEnt
       <div className={styles.stars} aria-hidden="true" />
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
+
+      <a href="/museum/agency" style={AGENCY_LINK_STYLE}>Stage III · Agency</a>
 
       <div className={`${styles.dais} ${polish.dais}`} aria-hidden="true">
         <span className={`${styles.seal} ${polish.seal}`}>✦</span>
