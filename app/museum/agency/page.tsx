@@ -8,7 +8,6 @@ import type { ProposalStatus, StoredMuseProposal } from "../../../lib/museum-pro
 import styles from "./stage-three.module.css";
 
 type ProposalRecord = StoredMuseProposal & { id: string };
-
 type Decision = "approve" | "reject" | "complete";
 
 export default function AgencyConsolePage() {
@@ -16,6 +15,7 @@ export default function AgencyConsolePage() {
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);
   const [status, setStatus] = useState<ProposalStatus | "all">("proposed");
   const [loading, setLoading] = useState(true);
+  const [observing, setObserving] = useState(false);
   const [notice, setNotice] = useState("");
   const [decisionNote, setDecisionNote] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -44,6 +44,24 @@ export default function AgencyConsolePage() {
   useEffect(() => {
     void loadProposals();
   }, []);
+
+  const observeNow = async () => {
+    setObserving(true);
+    try {
+      const response = await fetch("/api/museum/observe", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "The Muses could not complete an observation pass.");
+      await loadProposals();
+      setStatus("proposed");
+      setNotice(payload.created > 0
+        ? `The Muses surfaced ${payload.created} new proposal${payload.created === 1 ? "" : "s"}. Nothing was committed.`
+        : `Observation complete. ${payload.existing ?? 0} known opportunit${payload.existing === 1 ? "y was" : "ies were"} already in the council record; nothing was duplicated.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The Muses could not complete an observation pass.");
+    } finally {
+      setObserving(false);
+    }
+  };
 
   const decide = async (proposal: ProposalRecord, action: Decision) => {
     setSavingId(proposal.id);
@@ -135,15 +153,18 @@ export default function AgencyConsolePage() {
         <section className={styles.proposalSection}>
           <div className={styles.sectionHeading}>
             <div><p className={styles.kicker}>ARTIST GATE</p><h2>Proposal Queue</h2></div>
-            <div className={styles.filters}>
-              {(["proposed", "approved", "completed", "rejected", "all"] as const).map((item) => (
-                <button key={item} className={status === item ? styles.activeFilter : ""} onClick={() => setStatus(item)}>{item}</button>
-              ))}
+            <div className={styles.queueControls}>
+              <button className={styles.observe} disabled={observing} onClick={observeNow}>{observing ? "Observing…" : "✦ Ask Muses to Observe"}</button>
+              <div className={styles.filters}>
+                {(["proposed", "approved", "completed", "rejected", "all"] as const).map((item) => (
+                  <button key={item} className={status === item ? styles.activeFilter : ""} onClick={() => setStatus(item)}>{item}</button>
+                ))}
+              </div>
             </div>
           </div>
 
           {loading && <p className={styles.empty}>Reading Muse proposals…</p>}
-          {!loading && filtered.length === 0 && <div className={styles.emptyState}><strong>No proposals in this view.</strong><p>That is expected at the foundation stage. Future Muse routines will write opportunities here instead of silently acting on them.</p></div>}
+          {!loading && filtered.length === 0 && <div className={styles.emptyState}><strong>No proposals in this view.</strong><p>The Muses now know how to inspect a bounded set of real operational signals. Run an observation pass when you want them to surface anything that currently deserves your attention.</p></div>}
 
           <div className={styles.proposals}>
             {filtered.map((proposal) => {
