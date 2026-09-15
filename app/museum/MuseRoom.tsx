@@ -50,11 +50,10 @@ function signalTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil }: { muse: MuseDirectoryEntry; assignment: string; onFocus: () => void; onChat: () => void; onCouncil: () => void; }) {
+export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry; onCouncil: () => void }) {
   const room = MUSE_ROOMS[muse.id];
-  const hasKnownFocus = assignment !== "No current focus recorded" && assignment !== "Reading focus…" && assignment !== "Focus unavailable";
   const { latestActive, markRead, acknowledge } = useMuseSignals(muse.id);
-  const automaticPresence = latestActive?.visualState ?? deriveDefaultPresence(hasKnownFocus);
+  const automaticPresence = latestActive?.visualState ?? deriveDefaultPresence(false);
   const { presence, overridden, setPresence } = useMusePresence(muse.id, automaticPresence);
   const presenceMeta = PRESENCE_META[presence];
   const signalMeta = latestActive ? SIGNAL_META[latestActive.type] : null;
@@ -79,10 +78,9 @@ export default function MuseRoom({ muse, assignment, onFocus, onChat, onCouncil 
       <div className={styles.roomCaption}><span aria-hidden="true">{muse.symbol}</span> {room.name}</div>
       <div className={styles.identity}>
         <p className={styles.eyebrow}>{muse.role}</p><h2 id="muse-room-name">{muse.name}</h2><p className={styles.description}>{room.description}</p><blockquote>“{muse.coreLine}”</blockquote>
-        <div className={styles.assignment}><span>Current Focus</span><strong>{assignment}</strong></div>
         {latestActive && signalMeta && <section className={`${signalStyles.signalCard} ${latestActive.readAt ? "" : signalStyles.unread}`} aria-label={`Latest signal for ${muse.name}`}><div className={signalStyles.signalHeader}><span className={signalStyles.signalType}><i aria-hidden="true">{signalMeta.symbol}</i>{signalMeta.label}</span><time className={signalStyles.signalTime} dateTime={latestActive.occurredAt}>{signalTime(latestActive.occurredAt)}</time></div><h4>{latestActive.title}</h4><p>{latestActive.summary}</p><span className={signalStyles.signalArea}>{latestActive.area}</span><div className={signalStyles.signalActions}>{!latestActive.readAt && <button onClick={() => void updateSignal("read")}>Mark seen</button>}<button onClick={() => void updateSignal("acknowledge")}>Acknowledge</button></div>{signalError && <p role="alert">{signalError}</p>}</section>}
         <div className={presenceStyles.control}><label><span>Presence</span><select aria-label={`${muse.name} visual presence`} value={overridden ? presence : "auto"} onChange={(event) => changePresence(event.target.value)}><option value="auto">Auto · {PRESENCE_META[automaticPresence].label}</option><option value="working">Working</option><option value="available">Available</option><option value="waiting">Waiting on Brandon</option><option value="council">In Council</option><option value="quiet">Quiet</option></select></label><small>Visual only. Manual presence overrides Wizard OS signals until returned to Auto.</small></div>
-        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><button onClick={onChat}>Visit <span>Prepare a consultation ↗</span></button><button onClick={onFocus}>Focus <span>View or update her attention</span></button><button onClick={onCouncil}>Council <span>Return to the council chamber</span></button><a href="/">Wizard OS <span>Open your workspace</span></a></nav>
+        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><button onClick={onCouncil}>Council <span>Return to the council chamber</span></button><a href="/museum/agency">Agency <span>Review Muse proposals</span></a><a href="/">Wizard OS <span>Open your workspace</span></a></nav>
       </div>
     </section>
   );
