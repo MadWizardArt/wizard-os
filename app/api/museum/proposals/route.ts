@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { isMuseId } from "../../../../lib/museum";
+import { recordMuseMemory } from "../../../../lib/museum-agent-memory";
 import { proposeMuseOpportunity } from "../../../../lib/museum-agent-proposals";
 import {
   decodeMuseProposal,
@@ -113,18 +114,39 @@ export async function PATCH(request: NextRequest) {
     decisionNote: decisionNote ?? proposal.decisionNote,
   };
 
-  await prisma.project.update({
-    where: { id: record.id },
-    data: {
-      notes: encodeMuseProposal(updated),
-      status: action === "approve" ? ProjectStatus.ACTIVE : action === "reject" ? ProjectStatus.ARCHIVED : ProjectStatus.COMPLETE,
-      progress: action === "complete" ? 100 : action === "approve" ? 15 : 0,
-      nextAction: action === "approve"
-        ? "Artist approved · route to owner for execution"
-        : action === "reject"
-          ? "Artist declined"
-          : "Completed and ready for learning review",
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id: record.id },
+      data: {
+        notes: encodeMuseProposal(updated),
+        status: action === "approve" ? ProjectStatus.ACTIVE : action === "reject" ? ProjectStatus.ARCHIVED : ProjectStatus.COMPLETE,
+        progress: action === "complete" ? 100 : action === "approve" ? 15 : 0,
+        nextAction: action === "approve"
+          ? "Artist approved · route to owner for execution"
+          : action === "reject"
+            ? "Artist declined"
+            : "Completed and ready for outcome review",
+      },
+    });
+
+    const actionLabel = action === "approve" ? "Approved" : action === "reject" ? "Declined" : "Execution complete";
+    const inferenceRule = action === "reject"
+      ? "This records the Artist's decision only; no negative performance lesson is inferred."
+      : action === "complete"
+        ? "Execution is complete; no performance lesson is inferred until the Artist records an outcome."
+        : "This records Artist commitment, not proof that the proposal will succeed.";
+    const note = decisionNote ? ` Artist note: ${decisionNote}` : "";
+
+    await recordMuseMemory(tx, {
+      museId: proposal.museId,
+      kind: "decision",
+      title: `${actionLabel} · ${proposal.title}`,
+      summary: `${actionLabel} by Brandon. ${inferenceRule}${note}`,
+      category: proposal.category,
+      sourceKey: `proposal:${id}:${action}`,
+      sourceProposalId: id,
+      verifiedBy: "artist",
+    });
   });
 
   return NextResponse.json({ id: record.id, ...updated });
