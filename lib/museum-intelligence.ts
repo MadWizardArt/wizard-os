@@ -4,10 +4,11 @@ import type { ProposalCategory } from "./museum-proposal-storage";
 import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters";
 import { readRelevantCouncilKnowledge } from "./museum-knowledge";
 import { readSharedCouncilCognition } from "./museum-agent-cognition";
+import { intelligenceBudget, intelligenceFuelEnabled } from "./museum-artist-auth";
 
 export const MUSEUM_INTELLIGENCE_PREFIX = "MUSEUM_INTELLIGENCE_V1:";
 
-export type IntelligenceQuestStatus = "candidate" | "completed" | "failed" | "declined";
+export type IntelligenceQuestStatus = "candidate" | "running" | "completed" | "failed" | "declined";
 
 export type StoredIntelligenceQuest = {
   version: 1;
@@ -20,6 +21,7 @@ export type StoredIntelligenceQuest = {
   model: string | null;
   maxOutputTokens: number;
   answer: string | null;
+  error?: string | null;
   usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null } | null;
   contextRefs: string[];
   createdAt: string;
@@ -27,6 +29,17 @@ export type StoredIntelligenceQuest = {
 };
 
 export type IntelligenceQuestRecord = StoredIntelligenceQuest & { id: string };
+export type IntelligenceFuelUsage = {
+  date: string;
+  completedRuns: number;
+  activeRuns: number;
+  usedTokens: number;
+  maxRuns: number;
+  dailyTokens: number;
+  remainingRuns: number;
+  remainingTokens: number;
+  maxOutputTokens: number;
+};
 
 type IntelligenceDb = Pick<Prisma.TransactionClient, "project">;
 
@@ -61,6 +74,7 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
   const reason = text(input.reason, 700);
   const expectedValue = text(input.expectedValue, 400);
   if (!question || !reason || !expectedValue) throw new Error("Intelligence quest requires a question, reason, and expected value.");
+  const budget = intelligenceBudget();
 
   const quest: StoredIntelligenceQuest = {
     version: 1,
@@ -71,8 +85,9 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
     expectedValue,
     status: "candidate",
     model: null,
-    maxOutputTokens: Math.min(Math.max(input.maxOutputTokens ?? 900, 300), 1600),
+    maxOutputTokens: Math.min(Math.max(input.maxOutputTokens ?? 900, 300), budget.maxOutputTokens),
     answer: null,
+    error: null,
     usage: null,
     contextRefs: [],
     createdAt: new Date().toISOString(),
@@ -106,6 +121,27 @@ export async function listIntelligenceQuests(db: IntelligenceDb): Promise<Intell
   }).filter((item): item is IntelligenceQuestRecord => Boolean(item));
 }
 
+export async function readIntelligenceFuelUsage(db: IntelligenceDb): Promise<IntelligenceFuelUsage> {
+  const budget = intelligenceBudget();
+  const quests = await listIntelligenceQuests(db);
+  const date = new Date().toISOString().slice(0, 10);
+  const today = quests.filter((quest) => quest.executedAt?.slice(0, 10) === date);
+  const completed = today.filter((quest) => quest.status === "completed");
+  const active = today.filter((quest) => quest.status === "running");
+  const usedTokens = completed.reduce((sum, quest) => sum + (quest.usage?.totalTokens ?? 0), 0);
+  return {
+    date,
+    completedRuns: completed.length,
+    activeRuns: active.length,
+    usedTokens,
+    maxRuns: budget.maxRuns,
+    dailyTokens: budget.dailyTokens,
+    remainingRuns: Math.max(0, budget.maxRuns - completed.length - active.length),
+    remainingTokens: Math.max(0, budget.dailyTokens - usedTokens),
+    maxOutputTokens: budget.maxOutputTokens,
+  };
+}
+
 function outputText(payload: any) {
   const items = Array.isArray(payload?.output) ? payload.output : [];
   const parts: string[] = [];
@@ -118,86 +154,133 @@ function outputText(payload: any) {
   return parts.join("\n").trim();
 }
 
+async function markFailed(db: IntelligenceDb, id: string, quest: StoredIntelligenceQuest, message: string) {
+  const failed: StoredIntelligenceQuest = { ...quest, status: "failed", error: text(message, 900) || "Intelligence quest failed." };
+  await db.project.update({
+    where: { id },
+    data: {
+      status: ProjectStatus.BLOCKED,
+      progress: 0,
+      nextAction: "Review intelligence failure before retrying or replacing this quest",
+      notes: encodeIntelligenceQuest(failed),
+    },
+  });
+}
+
 export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
-  if (process.env.MUSE_INTELLIGENCE_ENABLED !== "true") {
-    throw new Error("Selective Intelligence is installed but AI fuel is locked. Set MUSE_INTELLIGENCE_ENABLED=true after the Artist approves the spend gate.");
+  if (!intelligenceFuelEnabled()) {
+    throw new Error("AI fuel is locked. Artist access and MUSE_INTELLIGENCE_ENABLED=true are both required.");
   }
 
   const auth = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
   if (!auth) throw new Error("No AI Gateway credential is available to Wizard OS.");
+
+  const usage = await readIntelligenceFuelUsage(db);
+  if (usage.remainingRuns <= 0) throw new Error(`Daily intelligence run limit reached (${usage.maxRuns}).`);
+  if (usage.remainingTokens <= 0) throw new Error(`Daily intelligence token budget reached (${usage.dailyTokens.toLocaleString()}).`);
 
   const row = await db.project.findFirst({
     where: { id, type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
     select: { id: true, notes: true },
   });
   const quest = row ? decodeIntelligenceQuest(row.notes) : null;
-  if (!row || !quest) throw new Error("Intelligence quest not found.");
+  if (!row || !quest || !row.notes) throw new Error("Intelligence quest not found.");
   if (quest.status !== "candidate") throw new Error("Only candidate quests can be fueled.");
 
-  const charter = MUSE_AGENT_CHARTERS[quest.museId];
-  const knowledge = await readRelevantCouncilKnowledge(db, quest.museId, quest.category, 8);
-  const cognition = await readSharedCouncilCognition(db, quest.museId);
-  const relevantMemories = cognition.routedMemories.filter((item) => item.memory.category === quest.category).slice(0, 5);
-  const relevantPatterns = cognition.patterns.filter((item) => item.category === quest.category).slice(0, 3);
+  const budget = intelligenceBudget();
+  const maxOutputTokens = Math.min(quest.maxOutputTokens, budget.maxOutputTokens);
+  if (usage.remainingTokens < maxOutputTokens) throw new Error("Remaining daily token budget is smaller than this quest's output allowance.");
 
-  const knowledgeBlock = knowledge.length
-    ? knowledge.map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.title}: ${entry.content}\nSource: ${entry.sourceRef}`).join("\n\n")
-    : "No stored Council knowledge matched this quest.";
-  const memoryBlock = relevantMemories.length
-    ? relevantMemories.map((item, index) => `${index + 1}. ${item.sourceMuseId}: ${item.memory.summary}${item.memory.actualValue ? ` | Actual value: ${item.memory.actualValue}` : ""}`).join("\n")
-    : "No routed cross-Muse outcomes yet.";
-  const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
-
-  const model = process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol";
-  const system = `You are ${quest.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
-  const user = `INTELLIGENCE QUEST\nQuestion: ${quest.question}\nWhy this merits AI: ${quest.reason}\nExpected value: ${quest.expectedValue}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
-
-  const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth}` },
-    body: JSON.stringify({
-      model,
-      input: [
-        { type: "message", role: "system", content: system },
-        { type: "message", role: "user", content: user },
-      ],
-      max_output_tokens: quest.maxOutputTokens,
-      reasoning: { effort: "low" },
-    }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload?.error?.message || `AI Gateway returned ${response.status}.`);
-  const answer = outputText(payload);
-  if (!answer) throw new Error("The intelligence quest returned no readable synthesis.");
-
-  const completed: StoredIntelligenceQuest = {
+  const running: StoredIntelligenceQuest = {
     ...quest,
-    status: "completed",
-    model,
-    answer: answer.slice(0, 12000),
-    usage: {
-      inputTokens: typeof payload?.usage?.input_tokens === "number" ? payload.usage.input_tokens : null,
-      outputTokens: typeof payload?.usage?.output_tokens === "number" ? payload.usage.output_tokens : null,
-      totalTokens: typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null,
-    },
-    contextRefs: [
-      ...knowledge.map((entry) => entry.sourceRef),
-      ...relevantMemories.map((item) => `Muse memory:${item.id}`),
-      ...relevantPatterns.map((item) => `Council pattern:${item.category}:${item.kind}`),
-    ].slice(0, 18),
+    status: "running",
+    error: null,
+    model: process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol",
+    maxOutputTokens,
     executedAt: new Date().toISOString(),
   };
-
-  await db.project.update({
-    where: { id },
+  const claim = await db.project.updateMany({
+    where: { id, notes: row.notes },
     data: {
-      status: ProjectStatus.COMPLETE,
-      progress: 100,
-      nextAction: "Bring synthesis to the Artist; no action is committed automatically",
-      notes: encodeIntelligenceQuest(completed),
+      status: ProjectStatus.ACTIVE,
+      progress: 10,
+      nextAction: "Bounded Muse synthesis in progress",
+      notes: encodeIntelligenceQuest(running),
     },
   });
+  if (claim.count !== 1) throw new Error("This intelligence quest was already claimed by another request.");
 
-  return { id, ...completed };
+  try {
+    const charter = MUSE_AGENT_CHARTERS[running.museId];
+    const knowledge = await readRelevantCouncilKnowledge(db, running.museId, running.category, 8);
+    const cognition = await readSharedCouncilCognition(db, running.museId);
+    const relevantMemories = cognition.routedMemories.filter((item) => item.memory.category === running.category).slice(0, 5);
+    const relevantPatterns = cognition.patterns.filter((item) => item.category === running.category).slice(0, 3);
+
+    const knowledgeBlock = knowledge.length
+      ? knowledge.map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.title}: ${entry.content}\nSource: ${entry.sourceRef}`).join("\n\n")
+      : "No stored Council knowledge matched this quest.";
+    const memoryBlock = relevantMemories.length
+      ? relevantMemories.map((item, index) => `${index + 1}. ${item.sourceMuseId}: ${item.memory.summary}${item.memory.actualValue ? ` | Actual value: ${item.memory.actualValue}` : ""}`).join("\n")
+      : "No routed cross-Muse outcomes yet.";
+    const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
+
+    const model = running.model || "openai/gpt-5.6-sol";
+    const system = `You are ${running.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
+    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
+
+    const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth}` },
+      body: JSON.stringify({
+        model,
+        input: [
+          { type: "message", role: "system", content: system },
+          { type: "message", role: "user", content: user },
+        ],
+        max_output_tokens: maxOutputTokens,
+        reasoning: { effort: "low" },
+        providerOptions: { gateway: { user: "artist", tags: ["nine-muses", running.museId, running.category] } },
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.error?.message || `AI Gateway returned ${response.status}.`);
+    const answer = outputText(payload);
+    if (!answer) throw new Error("The intelligence quest returned no readable synthesis.");
+
+    const completed: StoredIntelligenceQuest = {
+      ...running,
+      status: "completed",
+      model,
+      answer: answer.slice(0, 12000),
+      error: null,
+      usage: {
+        inputTokens: typeof payload?.usage?.input_tokens === "number" ? payload.usage.input_tokens : null,
+        outputTokens: typeof payload?.usage?.output_tokens === "number" ? payload.usage.output_tokens : null,
+        totalTokens: typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null,
+      },
+      contextRefs: [
+        ...knowledge.map((entry) => entry.sourceRef),
+        ...relevantMemories.map((item) => `Muse memory:${item.id}`),
+        ...relevantPatterns.map((item) => `Council pattern:${item.category}:${item.kind}`),
+      ].slice(0, 18),
+    };
+
+    await db.project.update({
+      where: { id },
+      data: {
+        status: ProjectStatus.COMPLETE,
+        progress: 100,
+        nextAction: "Bring synthesis to the Artist; no action is committed automatically",
+        notes: encodeIntelligenceQuest(completed),
+      },
+    });
+
+    return { id, ...completed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Intelligence quest failed.";
+    await markFailed(db, id, running, message);
+    throw error;
+  }
 }
