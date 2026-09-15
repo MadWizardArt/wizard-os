@@ -10,6 +10,13 @@ import { buildIntelligenceContextPacket } from "./museum-intelligence-context";
 export const MUSEUM_INTELLIGENCE_PREFIX = "MUSEUM_INTELLIGENCE_V1:";
 
 export type IntelligenceQuestStatus = "candidate" | "running" | "completed" | "failed" | "declined";
+export type IntelligenceQuestErrorCode = "gateway_credit" | "gateway_auth" | "model_access" | "budget" | "gateway" | "unknown";
+
+export type IntelligenceFailure = {
+  code: IntelligenceQuestErrorCode;
+  message: string;
+  retryable: boolean;
+};
 
 export type StoredIntelligenceQuest = {
   version: 1;
@@ -23,6 +30,8 @@ export type StoredIntelligenceQuest = {
   maxOutputTokens: number;
   answer: string | null;
   error?: string | null;
+  errorCode?: IntelligenceQuestErrorCode | null;
+  retryOf?: string | null;
   usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null } | null;
   contextRefs: string[];
   createdAt: string;
@@ -48,6 +57,51 @@ function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+export function describeIntelligenceFailure(message: string): IntelligenceFailure {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("free tier users do not have access") || lower.includes("top-up") || lower.includes("paid credits") || lower.includes("insufficient credit")) {
+    return {
+      code: "gateway_credit",
+      message: "This model needs AI Gateway credits. Fund or refresh the Vercel Gateway balance, then retry this quest.",
+      retryable: true,
+    };
+  }
+  if (lower.includes("no ai gateway credential") || lower.includes("credential") || lower.includes("oidc")) {
+    return {
+      code: "gateway_auth",
+      message: "Wizard OS could not authenticate with AI Gateway. The quest was not completed; check Gateway authentication and retry.",
+      retryable: true,
+    };
+  }
+  if (lower.includes("restricted access to this model") || lower.includes("model access") || lower.includes("no providers available")) {
+    return {
+      code: "model_access",
+      message: "The selected model is not currently available to this Vercel team. Choose an available model or update Gateway access, then retry.",
+      retryable: true,
+    };
+  }
+  if (lower.includes("daily intelligence") || lower.includes("daily token budget") || lower.includes("run limit")) {
+    return {
+      code: "budget",
+      message: "Today’s Wizard OS intelligence allowance has been reached. No more powered quests can run until the allowance resets or the Artist changes the budget.",
+      retryable: true,
+    };
+  }
+  if (lower.includes("ai gateway returned") || lower.includes("gateway")) {
+    return {
+      code: "gateway",
+      message: "AI Gateway could not complete this quest. The failed attempt remains in history and can be retried safely.",
+      retryable: true,
+    };
+  }
+  return {
+    code: "unknown",
+    message: "This quest did not complete. Its failed attempt remains in history and can be retried after the issue is reviewed.",
+    retryable: true,
+  };
+}
+
 export function encodeIntelligenceQuest(quest: StoredIntelligenceQuest) {
   return `${MUSEUM_INTELLIGENCE_PREFIX}${JSON.stringify(quest)}`;
 }
@@ -70,6 +124,7 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
   reason: string;
   expectedValue: string;
   maxOutputTokens?: number;
+  retryOf?: string | null;
 }) {
   const question = text(input.question, 1200);
   const reason = text(input.reason, 700);
@@ -89,6 +144,8 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
     maxOutputTokens: Math.min(Math.max(input.maxOutputTokens ?? 900, 300), budget.maxOutputTokens),
     answer: null,
     error: null,
+    errorCode: null,
+    retryOf: input.retryOf ?? null,
     usage: null,
     contextRefs: [],
     createdAt: new Date().toISOString(),
@@ -109,6 +166,26 @@ export async function createIntelligenceQuest(db: IntelligenceDb, input: {
   return { id: record.id, quest };
 }
 
+export async function retryIntelligenceQuest(db: IntelligenceDb, id: string) {
+  const row = await db.project.findFirst({
+    where: { id, type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
+    select: { notes: true },
+  });
+  const quest = row ? decodeIntelligenceQuest(row.notes) : null;
+  if (!quest) throw new Error("Intelligence quest not found.");
+  if (quest.status !== "failed") throw new Error("Only failed intelligence quests can be retried.");
+
+  return createIntelligenceQuest(db, {
+    museId: quest.museId,
+    category: quest.category,
+    question: quest.question,
+    reason: quest.reason,
+    expectedValue: quest.expectedValue,
+    maxOutputTokens: quest.maxOutputTokens,
+    retryOf: id,
+  });
+}
+
 export async function listIntelligenceQuests(db: IntelligenceDb): Promise<IntelligenceQuestRecord[]> {
   const rows = await db.project.findMany({
     where: { type: ProjectType.INTERNAL, notes: { startsWith: MUSEUM_INTELLIGENCE_PREFIX } },
@@ -118,7 +195,12 @@ export async function listIntelligenceQuests(db: IntelligenceDb): Promise<Intell
   });
   return rows.map((row) => {
     const decoded = decodeIntelligenceQuest(row.notes);
-    return decoded ? { id: row.id, ...decoded } : null;
+    if (!decoded) return null;
+    if (decoded.status === "failed" && decoded.error) {
+      const failure = describeIntelligenceFailure(decoded.error);
+      return { id: row.id, ...decoded, error: failure.message, errorCode: decoded.errorCode ?? failure.code };
+    }
+    return { id: row.id, ...decoded };
   }).filter((item): item is IntelligenceQuestRecord => Boolean(item));
 }
 
@@ -156,25 +238,24 @@ function outputText(payload: any) {
 }
 
 async function markFailed(db: IntelligenceDb, id: string, quest: StoredIntelligenceQuest, message: string) {
-  const failed: StoredIntelligenceQuest = { ...quest, status: "failed", error: text(message, 900) || "Intelligence quest failed." };
+  const failure = describeIntelligenceFailure(message);
+  const failed: StoredIntelligenceQuest = { ...quest, status: "failed", error: failure.message, errorCode: failure.code };
   await db.project.update({
     where: { id },
     data: {
       status: ProjectStatus.BLOCKED,
       progress: 0,
-      nextAction: "Review intelligence failure before retrying or replacing this quest",
+      nextAction: "Retry this quest after resolving the displayed issue",
       notes: encodeIntelligenceQuest(failed),
     },
   });
 }
 
-export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
+export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth: string) {
   if (!intelligenceFuelEnabled()) {
     throw new Error("AI fuel is locked. Artist access and MUSE_INTELLIGENCE_ENABLED=true are both required.");
   }
-
-  const auth = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
-  if (!auth) throw new Error("No AI Gateway credential is available to Wizard OS.");
+  if (!auth.trim()) throw new Error("No AI Gateway credential is available to Wizard OS.");
 
   const usage = await readIntelligenceFuelUsage(db);
   if (usage.remainingRuns <= 0) throw new Error(`Daily intelligence run limit reached (${usage.maxRuns}).`);
@@ -196,6 +277,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
     ...quest,
     status: "running",
     error: null,
+    errorCode: null,
     model: process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol",
     maxOutputTokens,
     executedAt: new Date().toISOString(),
@@ -259,6 +341,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string) {
       model,
       answer: answer.slice(0, 12000),
       error: null,
+      errorCode: null,
       usage: {
         inputTokens: typeof payload?.usage?.input_tokens === "number" ? payload.usage.input_tokens : null,
         outputTokens: typeof payload?.usage?.output_tokens === "number" ? payload.usage.output_tokens : null,
