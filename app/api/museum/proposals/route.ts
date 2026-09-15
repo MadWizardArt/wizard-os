@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { isMuseId } from "../../../../lib/museum";
+import { proposeMuseOpportunity } from "../../../../lib/museum-agent-proposals";
 import {
   decodeMuseProposal,
   encodeMuseProposal,
@@ -69,20 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Title, summary, rationale, and expected value are required." }, { status: 400 });
   }
 
-  const existing = await prisma.project.findFirst({
-    where: {
-      type: ProjectType.INTERNAL,
-      notes: { contains: `\"sourceKey\":\"${sourceKey.replaceAll('"', "")}` },
-    },
-    select: { id: true, notes: true },
-  });
-  if (existing) {
-    const decoded = decodeMuseProposal(existing.notes);
-    if (decoded) return NextResponse.json({ id: existing.id, ...decoded }, { status: 200 });
-  }
-
-  const proposal: StoredMuseProposal = {
-    version: 1,
+  const result = await prisma.$transaction(async (tx) => proposeMuseOpportunity(tx, {
     museId: body.museId,
     title,
     summary,
@@ -93,25 +81,9 @@ export async function POST(request: NextRequest) {
     expectedValue,
     sourceKey,
     relatedProjectId,
-    status: "proposed",
-    createdAt: new Date().toISOString(),
-    decidedAt: null,
-    decisionNote: null,
-  };
+  }));
 
-  const record = await prisma.project.create({
-    data: {
-      title: `[Muse Proposal] ${title}`,
-      type: ProjectType.INTERNAL,
-      status: ProjectStatus.WAITING,
-      progress: 0,
-      nextAction: "Await Artist decision",
-      notes: encodeMuseProposal(proposal),
-    },
-    select: { id: true },
-  });
-
-  return NextResponse.json({ id: record.id, ...proposal }, { status: 201 });
+  return NextResponse.json({ id: result.id, ...result.proposal }, { status: result.created ? 201 : 200 });
 }
 
 export async function PATCH(request: NextRequest) {
