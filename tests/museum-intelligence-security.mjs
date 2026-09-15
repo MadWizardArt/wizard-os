@@ -45,4 +45,11 @@ const questRun = await request("/api/museum/intelligence", {
 });
 assert.equal(questRun.response.status, 401, "Quest fueling must reject anonymous requests before any model path can be reached.");
 
+const questRetry = await request("/api/museum/intelligence", {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ id: "not-a-real-quest", action: "retry" }),
+});
+assert.equal(questRetry.response.status, 401, "Quest retry preparation must remain behind the Artist Gate.");
+
 console.log("Selective Intelligence Artist Gate security checks passed.");
