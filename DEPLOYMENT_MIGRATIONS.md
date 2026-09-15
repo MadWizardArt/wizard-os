@@ -28,6 +28,10 @@ prisma migrate deploy
 
 before the Next.js build completes. A failed migration therefore prevents the release from becoming the current production deployment.
 
-## Current audit migration
+## Current audit migrations
 
-Migration `20260915222000_archive_legacy_museum_chambers` archives obsolete `MUSEUM_CHAMBER_V1` Project records so retired per-room AI chat state cannot appear as current operational workload. The legacy Chamber AI path is retired; Selective Intelligence is the supported powered-reasoning path.
+Migration `20260915222000_archive_legacy_museum_chambers` archives obsolete `MUSEUM_CHAMBER_V1` Project records so retired per-room AI chat state cannot appear as current operational workload.
+
+Migration `20260915233800_archive_retired_museum_control_planes` archives obsolete `MUSEUM_QUEST_V1`, `MUSEUM_FOCUS_V1`, and `MUSEUM_BRIEF_V1` Project records before their retired routes and storage helpers are removed. Historical records are preserved as archived data rather than silently deleted.
+
+Selective Intelligence, Agency, Cognition, Memory, Knowledge, and Signals remain the supported Museum operating paths.

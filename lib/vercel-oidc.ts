@@ -42,14 +42,3 @@ export async function resolveAiGatewayAuthToken(): Promise<string> {
   if (contextToken) return contextToken;
   return process.env.VERCEL_OIDC_TOKEN?.trim() ?? "";
 }
-
-/**
- * Resolve an AI Gateway credential for legacy/optional Museum AI.
- *
- * Museum 2.0 is zero-inference by default. Unless MUSEUM_AI_ENABLED=true,
- * this legacy helper returns no credential and therefore prevents any Gateway call.
- */
-export async function getAiGatewayAuthToken(): Promise<string> {
-  if (process.env.MUSEUM_AI_ENABLED?.trim().toLowerCase() !== "true") return "";
-  return resolveAiGatewayAuthToken();
-}
