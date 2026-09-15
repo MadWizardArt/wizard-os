@@ -1,0 +1,81 @@
+import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
+import type { MuseId } from "./museum";
+import {
+  decodeMuseProposal,
+  encodeMuseProposal,
+  MUSEUM_PROPOSAL_PREFIX,
+  type ProposalCategory,
+  type ProposalConfidence,
+  type ProposalEffort,
+  type StoredMuseProposal,
+} from "./museum-proposal-storage";
+
+export type MuseProposalInput = {
+  museId: MuseId;
+  title: string;
+  summary: string;
+  rationale: string;
+  category: ProposalCategory;
+  confidence?: ProposalConfidence;
+  effort?: ProposalEffort;
+  expectedValue: string;
+  sourceKey: string;
+  relatedProjectId?: string | null;
+  createdAt?: Date;
+};
+
+type ProposalDb = Pick<Prisma.TransactionClient, "project">;
+
+export async function proposeMuseOpportunity(db: ProposalDb, input: MuseProposalInput) {
+  const sourceKey = input.sourceKey.trim().slice(0, 240);
+  if (!sourceKey) throw new Error("Muse proposal requires a source key.");
+
+  const existing = await db.project.findFirst({
+    where: {
+      type: ProjectType.INTERNAL,
+      notes: { startsWith: MUSEUM_PROPOSAL_PREFIX, contains: sourceKey },
+    },
+    select: { id: true, notes: true },
+  });
+
+  if (existing) {
+    const decoded = decodeMuseProposal(existing.notes);
+    if (decoded?.sourceKey === sourceKey) return { id: existing.id, proposal: decoded, created: false };
+  }
+
+  const proposal: StoredMuseProposal = {
+    version: 1,
+    museId: input.museId,
+    title: input.title.trim().slice(0, 160),
+    summary: input.summary.trim().slice(0, 800),
+    rationale: input.rationale.trim().slice(0, 1200),
+    category: input.category,
+    confidence: input.confidence ?? "medium",
+    effort: input.effort ?? "medium",
+    expectedValue: input.expectedValue.trim().slice(0, 300),
+    sourceKey,
+    relatedProjectId: input.relatedProjectId?.trim().slice(0, 120) || null,
+    status: "proposed",
+    createdAt: (input.createdAt ?? new Date()).toISOString(),
+    decidedAt: null,
+    decisionNote: null,
+  };
+
+  if (!proposal.title || !proposal.summary || !proposal.rationale || !proposal.expectedValue) {
+    throw new Error("Muse proposal is missing required content.");
+  }
+
+  const record = await db.project.create({
+    data: {
+      title: `[Muse Proposal] ${proposal.title}`,
+      type: ProjectType.INTERNAL,
+      status: ProjectStatus.WAITING,
+      progress: 0,
+      nextAction: "Await Artist decision",
+      notes: encodeMuseProposal(proposal),
+    },
+    select: { id: true },
+  });
+
+  return { id: record.id, proposal, created: true };
+}
