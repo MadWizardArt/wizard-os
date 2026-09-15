@@ -10,6 +10,7 @@ import {
 } from "../../../../lib/museum-intelligence";
 import { ensureCanonicalNineMusesKnowledge } from "../../../../lib/museum-knowledge-seed";
 import { intelligenceFuelEnabled, verifyArtistSession } from "../../../../lib/museum-artist-auth";
+import { resolveAiGatewayAuthToken } from "../../../../lib/vercel-oidc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,22 @@ function requireArtist(request: NextRequest) {
   return verifyArtistSession(request)
     ? null
     : NextResponse.json({ error: "Artist session required." }, { status: 401 });
+}
+
+async function runWithGatewayCredential(id: string) {
+  const resolvedAuth = await resolveAiGatewayAuthToken();
+  if (!resolvedAuth) throw new Error("No AI Gateway credential is available to Wizard OS.");
+
+  if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN) {
+    return runIntelligenceQuest(prisma, id);
+  }
+
+  // Stage III-E's runner captures the credential synchronously before its first await.
+  // Expose the request-scoped Vercel OIDC token only for that capture, then remove it.
+  process.env.VERCEL_OIDC_TOKEN = resolvedAuth;
+  const run = runIntelligenceQuest(prisma, id);
+  delete process.env.VERCEL_OIDC_TOKEN;
+  return run;
 }
 
 export async function GET(request: NextRequest) {
@@ -90,7 +107,7 @@ export async function PATCH(request: NextRequest) {
   if (!id || action !== "run") return NextResponse.json({ error: "Choose a candidate quest to fuel." }, { status: 400 });
 
   try {
-    const result = await runIntelligenceQuest(prisma, id);
+    const result = await runWithGatewayCredential(id);
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Intelligence quest failed.";
