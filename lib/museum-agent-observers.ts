@@ -1,6 +1,7 @@
 import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
 import { prisma } from "./prisma";
 import { proposeMuseOpportunity } from "./museum-agent-proposals";
+import { activeCampaignStatuses } from "./campaign-rules";
 
 type ObserverEventDb = Pick<Prisma.TransactionClient, "project" | "museumProposal">;
 
@@ -188,7 +189,7 @@ export async function scanMuseObservers(): Promise<ScanResult> {
 
   const today = new Date().toISOString().slice(0, 10);
   const activeCampaigns = await prisma.campaign.findMany({
-    where: { status: "Active" },
+    where: { status: { in: activeCampaignStatuses } },
     include: { tasks: { where: { completed: false }, orderBy: { dueDate: "asc" } } },
     orderBy: { updatedAt: "desc" },
     take: 5,

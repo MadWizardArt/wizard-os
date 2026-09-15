@@ -1,10 +1,43 @@
-export const campaignStatuses = [
+export type CampaignStatus =
+  | "Draft"
+  | "Preparing"
+  | "Live"
+  | "Fulfillment"
+  | "Closed";
+export const campaignStatuses: CampaignStatus[] = [
   "Draft",
   "Preparing",
   "Live",
   "Fulfillment",
   "Closed",
 ];
+export const activeCampaignStatuses: CampaignStatus[] = [
+  "Preparing",
+  "Live",
+  "Fulfillment",
+];
+export const campaignStatusDescriptions: Record<CampaignStatus, string> = {
+  Draft: "Shape the offer, dates, target, artwork, tasks, and content before committing the campaign.",
+  Preparing: "Finish pricing, inventory, promotional assets, scheduling, and launch readiness.",
+  Live: "The campaign is selling. Track receipts, promotion, inventory, and time-sensitive tasks.",
+  Fulfillment: "The sales window is over or winding down. Complete delivery, costs, and reconciliation.",
+  Closed: "The campaign is complete. Preserve results and lessons without adding new execution work.",
+};
+export const campaignAdvanceLabels: Partial<Record<CampaignStatus, string>> = {
+  Draft: "Begin Preparing",
+  Preparing: "Go Live",
+  Live: "Begin Fulfillment",
+  Fulfillment: "Close Campaign",
+};
+export function isCampaignStatus(value: unknown): value is CampaignStatus {
+  return typeof value === "string" && campaignStatuses.includes(value as CampaignStatus);
+}
+export function nextCampaignStatus(status: CampaignStatus): CampaignStatus | null {
+  const index = campaignStatuses.indexOf(status);
+  return index >= 0 && index < campaignStatuses.length - 1
+    ? campaignStatuses[index + 1]
+    : null;
+}
 export const taskCategories = [
   "Painting",
   "Preparation",

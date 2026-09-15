@@ -1,6 +1,7 @@
 import { Prisma, ProjectStatus, ProjectType, VentureStatus } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
+import { activeCampaignStatuses } from "./campaign-rules";
 
 export type IntelligenceContextPacket = {
   generatedAt: string;
@@ -96,8 +97,8 @@ async function revenueContext(db: ContextDb, museId: MuseId, category: ProposalC
       take: 5,
     }),
     db.campaign.findMany({
-      where: { status: "Active" },
-      select: { id: true, title: true, targetCents: true, startDate: true, endDate: true, updatedAt: true },
+      where: { status: { in: activeCampaignStatuses } },
+      select: { id: true, title: true, status: true, targetCents: true, startDate: true, endDate: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: 4,
     }),
@@ -114,7 +115,7 @@ async function revenueContext(db: ContextDb, museId: MuseId, category: ProposalC
     refs.push(`sale:${sale.id}`, `painting:${sale.projectId}`);
   }
   for (const campaign of campaigns) {
-    lines.push(`Active campaign: ${campaign.title} · target ${money(campaign.targetCents)} · ${campaign.startDate} → ${campaign.endDate}`);
+    lines.push(`${campaign.status} campaign: ${campaign.title} · target ${money(campaign.targetCents)} · ${campaign.startDate} → ${campaign.endDate}`);
     refs.push(`campaign:${campaign.id}`);
   }
   return finalize(museId, category, lines, refs);
@@ -129,7 +130,7 @@ async function contentContext(db: ContextDb, museId: MuseId, category: ProposalC
       take: 8,
     }),
     db.campaign.findMany({
-      where: { status: { in: ["Active", "Draft"] } },
+      where: { status: { in: ["Draft", ...activeCampaignStatuses] } },
       include: { content: { orderBy: { postingDate: "asc" }, take: 5 } },
       orderBy: { updatedAt: "desc" },
       take: 4,
@@ -159,7 +160,7 @@ async function capacityContext(db: ContextDb, museId: MuseId, category: Proposal
       take: 10,
     }),
     db.campaign.findMany({
-      where: { status: "Active" },
+      where: { status: { in: activeCampaignStatuses } },
       include: { tasks: { where: { completed: false }, orderBy: { dueDate: "asc" } } },
       orderBy: { updatedAt: "desc" },
       take: 5,
@@ -198,7 +199,7 @@ async function riskContext(db: ContextDb, museId: MuseId, category: ProposalCate
       },
     }),
     db.campaign.findMany({
-      where: { status: "Active" },
+      where: { status: { in: activeCampaignStatuses } },
       include: { tasks: { where: { completed: false }, orderBy: { dueDate: "asc" } } },
       orderBy: { updatedAt: "desc" },
       take: 5,

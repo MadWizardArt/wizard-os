@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  campaignStatuses,
+  isCampaignStatus,
+  nextCampaignStatus,
   easternDate,
   overdue,
   goalReceived,
@@ -87,4 +90,19 @@ test("editable exclusions change the basis calculation", () => {
     }),
     12000,
   );
+});
+test("campaign lifecycle advances exactly one stage and stops at Closed", () => {
+  assert.deepEqual(campaignStatuses, [
+    "Draft",
+    "Preparing",
+    "Live",
+    "Fulfillment",
+    "Closed",
+  ]);
+  assert.equal(nextCampaignStatus("Draft"), "Preparing");
+  assert.equal(nextCampaignStatus("Preparing"), "Live");
+  assert.equal(nextCampaignStatus("Live"), "Fulfillment");
+  assert.equal(nextCampaignStatus("Fulfillment"), "Closed");
+  assert.equal(nextCampaignStatus("Closed"), null);
+  assert.equal(isCampaignStatus("Active"), false);
 });
