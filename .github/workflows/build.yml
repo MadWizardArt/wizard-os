@@ -60,6 +60,7 @@ jobs:
             sleep 1
           done
           node tests/campaign-integration.mjs
+          node tests/campaign-lifecycle-integration.mjs
           node tests/artwork-integration.mjs
           node tests/museum-intelligence-security.mjs
           node tests/museum-knowledge-intake.mjs
