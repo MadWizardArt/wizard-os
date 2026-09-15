@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { isMuseId } from "../../../../lib/museum";
 import type { ProposalCategory } from "../../../../lib/museum-proposal-storage";
-import { createIntelligenceQuest, listIntelligenceQuests, runIntelligenceQuest } from "../../../../lib/museum-intelligence";
+import {
+  createIntelligenceQuest,
+  listIntelligenceQuests,
+  readIntelligenceFuelUsage,
+  runIntelligenceQuest,
+} from "../../../../lib/museum-intelligence";
 import { ensureCanonicalNineMusesKnowledge } from "../../../../lib/museum-knowledge-seed";
+import { intelligenceFuelEnabled, verifyArtistSession } from "../../../../lib/museum-artist-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,18 +30,33 @@ function sameOrigin(request: NextRequest) {
   }
 }
 
-export async function GET() {
+function requireArtist(request: NextRequest) {
+  return verifyArtistSession(request)
+    ? null
+    : NextResponse.json({ error: "Artist session required." }, { status: 401 });
+}
+
+export async function GET(request: NextRequest) {
+  const denied = requireArtist(request);
+  if (denied) return denied;
   await prisma.$transaction(async (tx) => ensureCanonicalNineMusesKnowledge(tx));
-  const quests = await listIntelligenceQuests(prisma);
+  const [quests, usage] = await Promise.all([
+    listIntelligenceQuests(prisma),
+    readIntelligenceFuelUsage(prisma),
+  ]);
   return NextResponse.json({
-    enabled: process.env.MUSE_INTELLIGENCE_ENABLED === "true",
+    enabled: intelligenceFuelEnabled(),
     model: process.env.MUSE_INTELLIGENCE_MODEL || "openai/gpt-5.6-sol",
+    usage,
     quests,
   });
 }
 
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin quest creation is not accepted." }, { status: 403 });
+  const denied = requireArtist(request);
+  if (denied) return denied;
+
   const body = await request.json();
   if (!isMuseId(body.museId)) return NextResponse.json({ error: "Choose an accountable Muse." }, { status: 400 });
   if (!CATEGORIES.has(body.category as ProposalCategory)) return NextResponse.json({ error: "Choose a valid quest category." }, { status: 400 });
@@ -60,17 +81,21 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin intelligence execution is not accepted." }, { status: 403 });
+  const denied = requireArtist(request);
+  if (denied) return denied;
+
   const body = await request.json();
   const id = text(body.id, 120);
   const action = text(body.action, 40);
   if (!id || action !== "run") return NextResponse.json({ error: "Choose a candidate quest to fuel." }, { status: 400 });
 
   try {
-    const result = await prisma.$transaction(async (tx) => runIntelligenceQuest(tx, id));
+    const result = await runIntelligenceQuest(prisma, id);
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Intelligence quest failed.";
-    const locked = message.includes("AI fuel is locked") || message.includes("credential");
-    return NextResponse.json({ error: message }, { status: locked ? 503 : 400 });
+    const locked = message.includes("AI fuel is locked") || message.includes("credential") || message.includes("Artist access");
+    const limited = message.includes("Daily intelligence") || message.includes("daily token budget");
+    return NextResponse.json({ error: message }, { status: locked ? 503 : limited ? 429 : 400 });
   }
 }

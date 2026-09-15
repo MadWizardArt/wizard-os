@@ -9,6 +9,7 @@ import {
   type KnowledgeSource,
 } from "../../../../lib/museum-knowledge";
 import { ensureCanonicalNineMusesKnowledge } from "../../../../lib/museum-knowledge-seed";
+import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,15 @@ function sameOrigin(request: NextRequest) {
   }
 }
 
-export async function GET() {
+function requireArtist(request: NextRequest) {
+  return verifyArtistSession(request)
+    ? null
+    : NextResponse.json({ error: "Artist session required." }, { status: 401 });
+}
+
+export async function GET(request: NextRequest) {
+  const denied = requireArtist(request);
+  if (denied) return denied;
   await prisma.$transaction(async (tx) => ensureCanonicalNineMusesKnowledge(tx));
   const entries = await listCouncilKnowledge(prisma);
   return NextResponse.json(entries);
@@ -44,6 +53,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin knowledge writes are not accepted." }, { status: 403 });
+  const denied = requireArtist(request);
+  if (denied) return denied;
 
   const body = await request.json();
   const title = text(body.title, 180);

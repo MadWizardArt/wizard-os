@@ -50,7 +50,7 @@ jobs:
       - name: Install browser for persistence verification
         run: npx playwright install --with-deps chromium
 
-      - name: Verify campaign API and browser persistence
+      - name: Verify API, security, and browser persistence
         run: |
           npm run start -- --hostname 127.0.0.1 > /tmp/wizard-server.log 2>&1 &
           trap 'kill $!' EXIT
@@ -60,5 +60,6 @@ jobs:
           done
           node tests/campaign-integration.mjs
           node tests/artwork-integration.mjs
+          node tests/museum-intelligence-security.mjs
           node tests/campaign-browser.mjs
           node tests/mobile-navigation.mjs
