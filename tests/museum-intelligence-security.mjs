@@ -14,7 +14,9 @@ assert.equal(session.response.status, 200, "Artist session status must remain re
 assert.equal(session.body.configured, false, "CI must not have an Artist key configured.");
 assert.equal(session.body.authenticated, false, "Anonymous CI request must not be authenticated.");
 assert.equal(session.body.fuelEnabled, false, "AI fuel must remain disabled without Artist access configuration.");
+assert.equal(session.body.knowledgeIntakeConfigured, true, "CI should expose only that the test intake bridge is configured.");
 assert.equal(Object.hasOwn(session.body, "accessKey"), false, "Session status must never expose an Artist key.");
+assert.equal(Object.hasOwn(session.body, "ingestKey"), false, "Session status must never expose a Knowledge Intake key.");
 
 for (const path of ["/api/museum/knowledge", "/api/museum/intelligence"]) {
   const result = await request(path);
