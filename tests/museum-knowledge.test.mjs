@@ -22,14 +22,9 @@ test('verified knowledge still respects Muse targeting', () => {
   assert.equal(knowledgeEligibleForMuse(councilWide, 'cleo'), true);
 });
 
-test('canonical Council knowledge uses current Warlock and Stage IV directives', () => {
+test('canonical Council knowledge uses the current Warlock workflow without uncanonized Stage IV doctrine', () => {
   assert.match(canonicalSeedSource, /Warlock is the current Etsy execution path/);
   assert.doesNotMatch(canonicalSeedSource, /Brandon manually uploads Etsy images and customer files/);
-  assert.match(canonicalSeedSource, /title: "Edict of Harvest and Freedom"/);
-  assert.match(canonicalSeedSource, /go outward/);
-  assert.match(canonicalSeedSource, /Brandon remains the Artist and final authority/);
-  assert.match(canonicalSeedSource, /title: "Tessa Principle for automation"/);
-  assert.match(canonicalSeedSource, /must reduce Brandon's operational burden/);
-  assert.match(canonicalSeedSource, /babysit a system/);
-  assert.match(canonicalSeedSource, /targetMuseIds: \["novy", "tessa", "callista", "melina"\]/);
+  assert.doesNotMatch(canonicalSeedSource, /title: "Edict of Harvest and Freedom"/);
+  assert.doesNotMatch(canonicalSeedSource, /title: "Tessa Principle for automation"/);
 });
