@@ -18,7 +18,7 @@ try {
     timezoneId: "Asia/Tokyo",
   });
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (e) => errors.push({ url: page.url(), message: e.message }));
   const campaignState = await (
     await fetch("http://127.0.0.1:3000/api/campaigns")
   ).json();
