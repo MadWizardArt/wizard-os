@@ -39,6 +39,7 @@ export async function syncCompletedArtworkProject(
     where: {
       projectId,
       name: { in: ["Paint", "Prepare for sale"] },
+      completedAt: null,
     },
     data: {
       status: StageStatus.COMPLETE,
@@ -46,14 +47,31 @@ export async function syncCompletedArtworkProject(
       completedAt: now,
     },
   });
+  await db.projectStage.updateMany({
+    where: {
+      projectId,
+      name: { in: ["Paint", "Prepare for sale"] },
+    },
+    data: {
+      status: StageStatus.COMPLETE,
+      progress: 100,
+    },
+  });
 
   // Fulfillment belongs to ArtworkSale, not the generic creative workflow.
+  await db.projectStage.updateMany({
+    where: { projectId, name: "Fulfill", completedAt: null },
+    data: {
+      status: StageStatus.SKIPPED,
+      progress: 100,
+      completedAt: now,
+    },
+  });
   await db.projectStage.updateMany({
     where: { projectId, name: "Fulfill" },
     data: {
       status: StageStatus.SKIPPED,
       progress: 100,
-      completedAt: now,
     },
   });
 }
