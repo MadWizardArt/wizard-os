@@ -1,7 +1,8 @@
 import SoldPaintingsCounterClient from "./SoldPaintingsCounterClient";
 import { saleSummary } from "../../lib/artwork-lifecycle";
-import { MADWIZARD_SOLD_ARCHIVE_PREFIX } from "../../lib/madwizard-sold-archive";
 import { prisma } from "../../lib/prisma";
+
+const SOLD_ARCHIVE_PROJECT_PREFIX = "madwizard-sold-";
 
 const money = (cents: number) =>
   new Intl.NumberFormat("en-US", {
@@ -13,7 +14,7 @@ const money = (cents: number) =>
 export default async function SoldPaintingsCounter() {
   const paintings = await prisma.painting.findMany({
     where: {
-      projectId: { startsWith: MADWIZARD_SOLD_ARCHIVE_PREFIX },
+      projectId: { startsWith: SOLD_ARCHIVE_PROJECT_PREFIX },
       availability: "Sold",
     },
     include: {
