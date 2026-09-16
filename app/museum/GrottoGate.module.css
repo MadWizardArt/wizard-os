@@ -1,0 +1,63 @@
+.cluster {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.keyLink {
+  width: 31px;
+  height: 31px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(200, 170, 104, 0.18);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(200, 170, 104, 0.09), transparent 55%),
+    rgba(10, 13, 18, 0.72);
+  color: rgba(202, 178, 121, 0.64);
+  text-decoration: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.012);
+  transition: border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.keyLink:hover,
+.keyLink:focus-visible {
+  color: #d8bd7a;
+  border-color: rgba(200, 170, 104, 0.42);
+  box-shadow: 0 0 18px rgba(154, 116, 58, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.keyhole {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.86;
+}
+
+.keyhole::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 4px;
+  height: 9px;
+  border-radius: 1px 1px 3px 3px;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 760px) {
+  .cluster {
+    gap: 7px;
+  }
+
+  .keyLink {
+    width: 29px;
+    height: 29px;
+  }
+}
