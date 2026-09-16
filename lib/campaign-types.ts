@@ -96,10 +96,6 @@ export type SalesData = {
     campaignId: string | null;
   }[];
   goal: Goal;
-  /** Compatibility shim for the retired one-time campaign setup panel. Always true. */
-  initialized: boolean;
-  /** Compatibility shim for the retired one-time campaign setup panel. Always empty. */
-  priorWorkOrders: { id: string; title: string; notes: string | null }[];
 };
 
 export type ArtworkSale = {

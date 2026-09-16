@@ -631,28 +631,6 @@ export default function Campaigns({
         )}
         {data && (
           <>
-            {!data.initialized && (
-              <section className="panel">
-                <h3>2026 painting sales setup</h3>
-                <p>
-                  {data.priorWorkOrders.length
-                    ? `Found ${data.priorWorkOrders.length} matching prior work order(s). Setup will reuse the earliest record and preserve its notes and workflow.`
-                    : "No matching prior sales work order found in the database."}
-                </p>
-                <p>
-                  Create the September and Black Friday campaigns, the
-                  30-painting batch, six weekly painting tasks, and the separate
-                  $14,000 annual goal. No revenue or inventory is added.
-                </p>
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => mutate({ action: "initialize" })}
-                >
-                  Set up 2026 campaigns
-                </button>
-              </section>
-            )}
             {mode === "campaigns" && !c && (
               <>
                 <section className="panel salesGoal">
@@ -747,7 +725,7 @@ export default function Campaigns({
                   })}
                 </div>
                 {!data.campaigns.length && (
-                  <p>No campaigns yet. Create one or use the 2026 setup.</p>
+                  <p>No campaigns yet. Create one when there is something real to track.</p>
                 )}
               </>
             )}
