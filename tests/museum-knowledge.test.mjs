@@ -22,9 +22,12 @@ test('verified knowledge still respects Muse targeting', () => {
   assert.equal(knowledgeEligibleForMuse(councilWide, 'cleo'), true);
 });
 
-test('canonical Council knowledge uses the current Warlock workflow without uncanonized Stage IV doctrine', () => {
+test('canonical Council knowledge uses current Warlock workflow and perfected Nine Muses constitution', () => {
   assert.match(canonicalSeedSource, /Warlock is the current Etsy execution path/);
   assert.doesNotMatch(canonicalSeedSource, /Brandon manually uploads Etsy images and customer files/);
-  assert.doesNotMatch(canonicalSeedSource, /title: "Edict of Harvest and Freedom"/);
-  assert.doesNotMatch(canonicalSeedSource, /title: "Tessa Principle for automation"/);
+  assert.match(canonicalSeedSource, /title: "Nine Muses constitutional basis"/);
+  assert.match(canonicalSeedSource, /This document is the canonical specification for the Nine Muses Council/);
+  assert.match(canonicalSeedSource, /The Muses leave their Father Apollo to enlighten the World/);
+  assert.match(canonicalSeedSource, /title: "Edict of Harvest and Freedom"/);
+  assert.match(canonicalSeedSource, /title: "Tessa Principle for automation"/);
 });
