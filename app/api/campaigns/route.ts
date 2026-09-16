@@ -102,8 +102,6 @@ export async function GET() {
         projects,
         transactions,
         goal: { ...goal, receivedCents: goalReceived(transactions, goal) },
-        initialized: true,
-        priorWorkOrders: [],
       },
       { headers: { "Cache-Control": "no-store" } },
     );
