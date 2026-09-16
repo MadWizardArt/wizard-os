@@ -18,21 +18,36 @@ type GalleryItem = {
   src: string | null;
   alt: string;
   canonical?: boolean;
+  favorite?: boolean;
+  private?: boolean;
 };
 
-const GALLERY: GalleryItem[] = [
-  {
-    id: "tessa-canon",
-    src: "/museum/tessa.webp",
-    alt: "Tessa",
-    canonical: true,
-  },
-  ...Array.from({ length: 15 }, (_, index) => ({
-    id: `empty-${index + 1}`,
-    src: null,
-    alt: "",
-  })),
-];
+type GrottoStatus = {
+  configured: boolean;
+  authenticated: boolean;
+  generation: {
+    enabled: boolean;
+    provider: string;
+    providerConfigured: boolean;
+    museModelConfigured: boolean;
+    configured: boolean;
+  };
+};
+
+type StoredGalleryItem = {
+  id: string;
+  src: string;
+  favorite: boolean;
+  canonical: boolean;
+};
+
+const CANONICAL: GalleryItem = {
+  id: "tessa-canon",
+  src: "/museum/tessa.webp",
+  alt: "Tessa",
+  canonical: true,
+  favorite: true,
+};
 
 const OPTIONS: Record<ChoiceKey, string[]> = {
   mood: ["Soft", "Playful", "Mysterious", "Serene"],
@@ -71,10 +86,26 @@ function ChoiceRow({
   );
 }
 
+async function readJson(response: Response) {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload.error === "string" ? payload.error : "The Grotto request failed.");
+  }
+  return payload;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function GrottoPage() {
   const [view, setView] = useState<View>("gallery");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [favorite, setFavorite] = useState(false);
+  const [privateGallery, setPrivateGallery] = useState<StoredGalleryItem[]>([]);
+  const [status, setStatus] = useState<GrottoStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [note, setNote] = useState("");
   const [choices, setChoices] = useState<Choices>({
     mood: "Serene",
     setting: "Onsen",
@@ -82,12 +113,53 @@ export default function GrottoPage() {
     frame: "Portrait",
   });
 
+  const gallery = useMemo<GalleryItem[]>(() => {
+    const stored = privateGallery.slice(0, 15).map((item) => ({
+      id: item.id,
+      src: item.src,
+      alt: "Tessa",
+      canonical: item.canonical,
+      favorite: item.favorite,
+      private: true,
+    }));
+    const filled: GalleryItem[] = [CANONICAL, ...stored];
+    while (filled.length < 16) {
+      filled.push({ id: `empty-${filled.length}`, src: null, alt: "" });
+    }
+    return filled.slice(0, 16);
+  }, [privateGallery]);
+
   const visibleIndices = useMemo(
-    () => GALLERY.map((item, index) => (item.src ? index : -1)).filter((index) => index >= 0),
-    [],
+    () => gallery.map((item, index) => (item.src ? index : -1)).filter((index) => index >= 0),
+    [gallery],
   );
 
-  const current = activeIndex === null ? null : GALLERY[activeIndex];
+  const current = activeIndex === null ? null : gallery[activeIndex];
+
+  const loadGallery = async () => {
+    const response = await fetch("/api/grotto/images?museId=tessa&limit=15", { cache: "no-store" });
+    const payload = await readJson(response);
+    setPrivateGallery(Array.isArray(payload) ? payload : []);
+  };
+
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/grotto/status", { cache: "no-store" });
+        const payload = await readJson(response) as GrottoStatus;
+        if (!live) return;
+        setStatus(payload);
+        if (payload.authenticated) await loadGallery();
+      } catch (error) {
+        if (live) setNote(error instanceof Error ? error.message : "The Grotto could not be opened.");
+      } finally {
+        if (live) setStatusLoading(false);
+      }
+    };
+    void load();
+    return () => { live = false; };
+  }, []);
 
   const moveViewer = (direction: -1 | 1) => {
     if (activeIndex === null || visibleIndices.length < 2) return;
@@ -107,7 +179,7 @@ export default function GrottoPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeIndex]);
+  }, [activeIndex, visibleIndices]);
 
   const setChoice = (key: ChoiceKey, value: string) => {
     setChoices((currentChoices) => ({ ...currentChoices, [key]: value }));
@@ -122,6 +194,86 @@ export default function GrottoPage() {
     setChoices((currentChoices) => ({ ...currentChoices, ...preset }));
     setView("create");
   };
+
+  const toggleFavorite = async () => {
+    if (!current?.private) return;
+    try {
+      const response = await fetch(`/api/grotto/images/${current.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ favorite: !current.favorite }),
+      });
+      const payload = await readJson(response);
+      setPrivateGallery((items) => items.map((item) => item.id === current.id ? { ...item, favorite: Boolean(payload.favorite) } : item));
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "Favorite could not be changed.");
+    }
+  };
+
+  const deleteCurrent = async () => {
+    if (!current?.private || current.canonical) return;
+    if (!window.confirm("Remove this image from the Grotto?")) return;
+    try {
+      const response = await fetch(`/api/grotto/images/${current.id}`, { method: "DELETE" });
+      await readJson(response);
+      setActiveIndex(null);
+      await loadGallery();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "Image could not be removed.");
+    }
+  };
+
+  const generationQuery = (workflowId: string) => {
+    const params = new URLSearchParams({ workflowId, museId: "tessa", ...choices });
+    return `/api/grotto/generate?${params.toString()}`;
+  };
+
+  const generate = async () => {
+    if (!status?.generation.configured || generating) return;
+    setGenerating(true);
+    setNote("");
+
+    try {
+      const estimateResponse = await fetch("/api/grotto/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ museId: "tessa", choices, estimate: true }),
+      });
+      const estimate = await readJson(estimateResponse);
+      const cost = typeof estimate.costBuzz === "number" ? estimate.costBuzz : null;
+      const confirmed = window.confirm(cost === null ? "Generate with Civitai?" : `Generate for about ${cost} Buzz?`);
+      if (!confirmed) return;
+
+      const submitResponse = await fetch("/api/grotto/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ museId: "tessa", choices }),
+      });
+      const submitted = await readJson(submitResponse);
+      if (typeof submitted.workflowId !== "string") throw new Error("Civitai did not return a workflow.");
+
+      setNote("Creating…");
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        await sleep(attempt === 0 ? 900 : 2500);
+        const pollResponse = await fetch(generationQuery(submitted.workflowId), { cache: "no-store" });
+        const result = await readJson(pollResponse);
+        if (String(result.status).toLowerCase() === "succeeded" && Array.isArray(result.images) && result.images.length > 0) {
+          await loadGallery();
+          setView("gallery");
+          setNote("");
+          return;
+        }
+      }
+      throw new Error("Generation is still running. Try again in a moment.");
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : "Generation failed.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const locked = !statusLoading && status && !status.authenticated;
+  const generatorReady = Boolean(status?.generation.configured);
 
   return (
     <main className={styles.page}>
@@ -138,67 +290,82 @@ export default function GrottoPage() {
           <div className={styles.heroCopy}>
             <small>The Grotto</small>
             <h1>Tessa</h1>
-            <p>A quieter room beneath the Museum. Images first; everything else stays out of the way.</p>
+            <p>A quieter room beneath the Museum.</p>
           </div>
         </section>
 
-        <nav className={styles.tabs} aria-label="Tessa Grotto views">
-          {(["gallery", "create", "session"] as View[]).map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={view === item ? styles.active : ""}
-              onClick={() => setView(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-
-        {view === "gallery" && (
-          <section className={styles.gallery} aria-label="Tessa gallery">
-            {GALLERY.map((item, index) => item.src ? (
-              <button
-                className={styles.tile}
-                type="button"
-                key={item.id}
-                onClick={() => setActiveIndex(index)}
-                aria-label={`Open ${item.alt}`}
-              >
-                <img src={item.src} alt={item.alt} />
-                {item.canonical && <span className={styles.canon}>Canon</span>}
-              </button>
-            ) : (
-              <div className={styles.emptyTile} key={item.id} aria-hidden="true" />
-            ))}
-          </section>
-        )}
-
-        {view === "create" && (
-          <section className={styles.create} aria-label="Create with Tessa">
+        {locked ? (
+          <section className={styles.create} aria-label="Grotto locked">
             <div className={styles.createInner}>
-              <ChoiceRow label="Mood" value={choices.mood} options={OPTIONS.mood} onChange={(value) => setChoice("mood", value)} />
-              <ChoiceRow label="Setting" value={choices.setting} options={OPTIONS.setting} onChange={(value) => setChoice("setting", value)} />
-              <ChoiceRow label="Pose" value={choices.pose} options={OPTIONS.pose} onChange={(value) => setChoice("pose", value)} />
-              <ChoiceRow label="Frame" value={choices.frame} options={OPTIONS.frame} onChange={(value) => setChoice("frame", value)} />
-              <button className={styles.generate} type="button" disabled>Generate</button>
-              <p className={styles.connectionNote}>Generator connection comes next.</p>
+              <p className={styles.connectionNote}>The door remains locked. Enter through the Artist Gate in the Museum.</p>
             </div>
           </section>
+        ) : (
+          <>
+            <nav className={styles.tabs} aria-label="Tessa Grotto views">
+              {(["gallery", "create", "session"] as View[]).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={view === item ? styles.active : ""}
+                  onClick={() => setView(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </nav>
+
+            {view === "gallery" && (
+              <section className={styles.gallery} aria-label="Tessa gallery">
+                {gallery.map((item, index) => item.src ? (
+                  <button
+                    className={styles.tile}
+                    type="button"
+                    key={item.id}
+                    onClick={() => setActiveIndex(index)}
+                    aria-label={`Open ${item.alt}`}
+                  >
+                    <img src={item.src} alt={item.alt} />
+                    {item.canonical && <span className={styles.canon}>Canon</span>}
+                  </button>
+                ) : (
+                  <div className={styles.emptyTile} key={item.id} aria-hidden="true" />
+                ))}
+              </section>
+            )}
+
+            {view === "create" && (
+              <section className={styles.create} aria-label="Create with Tessa">
+                <div className={styles.createInner}>
+                  <ChoiceRow label="Mood" value={choices.mood} options={OPTIONS.mood} onChange={(value) => setChoice("mood", value)} />
+                  <ChoiceRow label="Setting" value={choices.setting} options={OPTIONS.setting} onChange={(value) => setChoice("setting", value)} />
+                  <ChoiceRow label="Pose" value={choices.pose} options={OPTIONS.pose} onChange={(value) => setChoice("pose", value)} />
+                  <ChoiceRow label="Frame" value={choices.frame} options={OPTIONS.frame} onChange={(value) => setChoice("frame", value)} />
+                  <button className={styles.generate} type="button" disabled={!generatorReady || generating} onClick={() => void generate()}>
+                    {generating ? "Creating…" : "Generate"}
+                  </button>
+                  {!generatorReady && <p className={styles.connectionNote}>Civitai is not connected yet.</p>}
+                  {note && <p className={styles.connectionNote}>{note}</p>}
+                </div>
+              </section>
+            )}
+
+            {view === "session" && (
+              <section className={styles.session} aria-label="Tessa session">
+                <div className={styles.sessionFrame}>
+                  <img className={styles.sessionPortrait} src="/museum/tessa.webp" alt="Tessa" />
+                  <div className={styles.sessionActions}>
+                    <button type="button" onClick={() => sessionToCreate({ frame: "Close" })}>Closer</button>
+                    <button type="button" onClick={() => sessionToCreate({ pose: "Surprise me" })}>New pose</button>
+                    <button type="button" onClick={() => sessionToCreate({ mood: "Playful", pose: "Surprise me" })}>Surprise me</button>
+                  </div>
+                </div>
+              </section>
+            )}
+          </>
         )}
 
-        {view === "session" && (
-          <section className={styles.session} aria-label="Tessa session">
-            <div className={styles.sessionFrame}>
-              <img className={styles.sessionPortrait} src="/museum/tessa.webp" alt="Tessa" />
-              <div className={styles.sessionActions}>
-                <button type="button" onClick={() => sessionToCreate({ frame: "Close" })}>Closer</button>
-                <button type="button" onClick={() => sessionToCreate({ pose: "Surprise me" })}>New pose</button>
-                <button type="button" onClick={() => sessionToCreate({ mood: "Playful", pose: "Surprise me" })}>Surprise me</button>
-              </div>
-            </div>
-          </section>
-        )}
+        {view !== "create" && note && <p className={styles.connectionNote}>{note}</p>}
       </section>
 
       {current?.src && (
@@ -208,9 +375,13 @@ export default function GrottoPage() {
           <img className={styles.lightboxImage} src={current.src} alt={current.alt} />
           {visibleIndices.length > 1 && <button className={styles.next} type="button" onClick={() => moveViewer(1)} aria-label="Next image">›</button>}
           <div className={styles.viewerActions}>
-            <button type="button" onClick={() => setFavorite((value) => !value)}>{favorite ? "Favorited" : "Favorite"}</button>
+            {current.private ? (
+              <button type="button" onClick={() => void toggleFavorite()}>{current.favorite ? "Favorited" : "Favorite"}</button>
+            ) : (
+              <button type="button" disabled>Canon</button>
+            )}
             <button type="button" onClick={beginRemix}>Remix</button>
-            <button type="button" disabled={current.canonical} title={current.canonical ? "Canon stays protected" : undefined}>Delete</button>
+            <button type="button" onClick={() => void deleteCurrent()} disabled={!current.private || current.canonical} title={current.canonical ? "Canon stays protected" : undefined}>Delete</button>
           </div>
         </div>
       )}
