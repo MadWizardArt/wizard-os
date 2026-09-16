@@ -10,8 +10,6 @@ import {
 } from "../../../lib/campaign-rules";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const priorTitle =
-  "2026 Painting Sales — September + Black Friday — $14000 Goal";
 const defaultGoal = {
   id: "painting-2026",
   targetCents: 1400000,
@@ -64,40 +62,30 @@ function windowDates(start: unknown, end: unknown) {
 
 export async function GET() {
   try {
-    const [
-      campaigns,
-      paintings,
-      projects,
-      transactions,
-      savedGoal,
-      priorWorkOrders,
-    ] = await Promise.all([
-      prisma.campaign.findMany({ include, orderBy: { startDate: "asc" } }),
-      prisma.painting.findMany({
-        include: {
-          project: true,
-          sales: {
-            include: { transactions: true },
-            orderBy: { createdAt: "desc" },
+    const [campaigns, paintings, projects, transactions, savedGoal] =
+      await Promise.all([
+        prisma.campaign.findMany({ include, orderBy: { startDate: "asc" } }),
+        prisma.painting.findMany({
+          include: {
+            project: true,
+            sales: {
+              include: { transactions: true },
+              orderBy: { createdAt: "desc" },
+            },
+            history: { orderBy: { createdAt: "desc" } },
           },
-          history: { orderBy: { createdAt: "desc" } },
-        },
-      }),
-      prisma.project.findMany({
-        where: { type: "ARTWORK", archivedAt: null },
-        include: { stages: true, artwork: true },
-      }),
-      prisma.transaction.findMany({
-        where: { type: { in: ["INCOME", "REFUND"] } },
-        include: { project: { select: { type: true, title: true } } },
-        orderBy: { receivedAt: "desc" },
-      }),
-      prisma.salesGoal.findUnique({ where: { id: defaultGoal.id } }),
-      prisma.project.findMany({
-        where: { title: { equals: priorTitle, mode: "insensitive" } },
-        include: { stages: true },
-      }),
-    ]);
+        }),
+        prisma.project.findMany({
+          where: { type: "ARTWORK", archivedAt: null },
+          include: { stages: true, artwork: true },
+        }),
+        prisma.transaction.findMany({
+          where: { type: { in: ["INCOME", "REFUND"] } },
+          include: { project: { select: { type: true, title: true } } },
+          orderBy: { receivedAt: "desc" },
+        }),
+        prisma.salesGoal.findUnique({ where: { id: defaultGoal.id } }),
+      ]);
     const goal = savedGoal ?? defaultGoal;
     return NextResponse.json(
       {
@@ -114,21 +102,8 @@ export async function GET() {
         projects,
         transactions,
         goal: { ...goal, receivedCents: goalReceived(transactions, goal) },
-        priorWorkOrders,
-        initialized:
-          !!savedGoal &&
-          campaigns.some(
-            (c) =>
-              c.id === "studio-september-2026" ||
-              (c.title === "End-of-September Studio Sale" &&
-                c.startDate === "2026-09-25"),
-          ) &&
-          campaigns.some(
-            (c) =>
-              c.id === "winter-black-friday-2026" ||
-              (c.title === "Black Friday Winter Art Sale" &&
-                c.startDate === "2026-11-27"),
-          ),
+        initialized: true,
+        priorWorkOrders: [],
       },
       { headers: { "Cache-Control": "no-store" } },
     );
@@ -149,105 +124,6 @@ export async function POST(request: NextRequest) {
     const b = await request.json();
     let result: unknown;
     switch (b.action) {
-      case "initialize": {
-        result = await prisma.$transaction(async (tx) => {
-          // Serialize repeat requests. The exact prior title is checked, including archived projects, before creating anything.
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(2026092501)`;
-          const prior = await tx.project.findMany({
-            where: { title: { equals: priorTitle, mode: "insensitive" } },
-            orderBy: { createdAt: "asc" },
-          });
-          const parent =
-            prior[0] ??
-            (await tx.project.create({
-              data: {
-                title: priorTitle,
-                type: "INTERNAL",
-                notes:
-                  "Painting sales plan. Annual target is separate from qualifying monthly income.",
-                dueDate: new Date("2026-12-31T17:00:00Z"),
-              },
-            }));
-          const definitions = [
-            {
-              id: "studio-september-2026",
-              title: "End-of-September Studio Sale",
-              startDate: "2026-09-25",
-              endDate: "2026-09-30",
-              targetCents: 400000,
-            },
-            {
-              id: "winter-black-friday-2026",
-              title: "Black Friday Winter Art Sale",
-              startDate: "2026-11-27",
-              endDate: "2026-11-30",
-              targetCents: 600000,
-            },
-          ];
-          for (const c of definitions) {
-            const existing = await tx.campaign.findFirst({
-              where: {
-                OR: [{ id: c.id }, { title: c.title, startDate: c.startDate }],
-              },
-            });
-            if (!existing)
-              await tx.campaign.create({
-                data: { ...c, projectId: parent.id, notes: parent.notes ?? "" },
-              });
-          }
-          const winter = await tx.campaign.findFirstOrThrow({
-            where: {
-              OR: [
-                { id: definitions[1].id },
-                {
-                  title: definitions[1].title,
-                  startDate: definitions[1].startDate,
-                },
-              ],
-            },
-          });
-          await tx.productionBatch.upsert({
-            where: { id: "winter-small-2026" },
-            update: {},
-            create: {
-              id: "winter-small-2026",
-              campaignId: winter.id,
-              title: "Small framed winter paintings",
-              plannedQuantity: 30,
-              weeklyQuantity: 5,
-              unitPriceCents: 10000,
-              startDate: "2026-10-05",
-              completionDate: "2026-11-13",
-            },
-          });
-          for (let i = 0; i < 6; i++) {
-            const due = new Date("2026-10-09T12:00:00Z");
-            due.setUTCDate(due.getUTCDate() + i * 7);
-            await tx.campaignTask.upsert({
-              where: { id: `winter-week-${i + 1}-2026` },
-              update: {},
-              create: {
-                id: `winter-week-${i + 1}-2026`,
-                campaignId: winter.id,
-                title: `Paint five winter paintings · week ${i + 1}`,
-                category: "Painting",
-                dueDate: due.toISOString().slice(0, 10),
-              },
-            });
-          }
-          await tx.salesGoal.upsert({
-            where: { id: defaultGoal.id },
-            update: {},
-            create: defaultGoal,
-          });
-          return {
-            reusedWorkOrder: prior.length > 0,
-            workOrderId: parent.id,
-            matchingWorkOrders: prior.length,
-          };
-        });
-        break;
-      }
       case "campaign": {
         const data = {
           title: required(b.title, "Title"),
@@ -390,7 +266,13 @@ export async function POST(request: NextRequest) {
           });
           if (p.type !== "ARTWORK")
             throw new Error("Choose an artwork project.");
-          if(p.artwork?.availability === "Not ready" || (!p.artwork && p.status !== "COMPLETE")) throw Error("Complete the painting before adding it to a sale campaign.");
+          if (
+            p.artwork?.availability === "Not ready" ||
+            (!p.artwork && p.status !== "COMPLETE")
+          )
+            throw Error(
+              "Complete the painting before adding it to a sale campaign.",
+            );
           if (!p.artwork) {
             const fields = p.stages.map((s) => {
               try {

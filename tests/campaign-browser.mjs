@@ -19,6 +19,14 @@ try {
   });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  const campaignState = await (
+    await fetch("http://127.0.0.1:3000/api/campaigns")
+  ).json();
+  const studioCampaign = campaignState.campaigns.find(
+    (campaign) => campaign.title === "End-of-September Studio Sale",
+  );
+  assert.ok(studioCampaign?.id, "Campaign browser test requires the disposable studio campaign fixture.");
+
   await page.goto("http://127.0.0.1:3000/campaigns");
   await page
     .getByRole("heading", { name: "End-of-September Studio Sale", exact: true })
@@ -98,7 +106,7 @@ try {
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.goto(
-    "http://127.0.0.1:3000/campaigns?campaign=studio-september-2026",
+    `http://127.0.0.1:3000/campaigns?campaign=${encodeURIComponent(studioCampaign.id)}`,
   );
   await page.getByRole("tab", { name: "Tasks", exact: true }).click();
   await page
@@ -159,8 +167,8 @@ try {
   await page.reload();
   await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
   await page.goto('http://127.0.0.1:3000/');
-  await page.locator('.projectGrid').getByText('2026 Painting Sales — September + Black Friday — $14000 Goal',{exact:true}).waitFor();
-  assert.equal(await page.locator('.projectGrid').getByText('Direct completed browser painting',{exact:true}).count(),0);
+  await page.locator('.projectPanel').waitFor();
+  assert.equal(await page.locator('.projectPanel').getByText('Direct completed browser painting',{exact:true}).count(),0);
   await page.goto('http://127.0.0.1:3000/inventory');
   const card=page.locator('article').filter({has:page.getByRole('heading',{name:'Direct completed browser painting',exact:true})});
   await card.getByRole('button',{name:'Record Sale',exact:true}).click();
