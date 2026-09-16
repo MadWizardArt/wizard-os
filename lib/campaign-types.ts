@@ -96,8 +96,6 @@ export type SalesData = {
     campaignId: string | null;
   }[];
   goal: Goal;
-  initialized: boolean;
-  priorWorkOrders: { id: string; title: string; notes: string | null }[];
 };
 
 export type ArtworkSale = {
