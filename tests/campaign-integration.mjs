@@ -16,15 +16,73 @@ async function save(body) {
 }
 let s = await state();
 assert.equal(s.transactions.length, 0);
-await save({ action: "initialize" });
-await save({ action: "initialize" });
+assert.equal(s.campaigns.length, 0);
+
+const c = await save({
+  action: "campaign",
+  title: "End-of-September Studio Sale",
+  status: "Preparing",
+  startDate: "2026-09-25",
+  endDate: "2026-09-30",
+  targetCents: 400000,
+  notes: "Disposable CI campaign fixture",
+});
+const winter = await save({
+  action: "campaign",
+  title: "Black Friday Winter Art Sale",
+  status: "Draft",
+  startDate: "2026-11-27",
+  endDate: "2026-11-30",
+  targetCents: 600000,
+  notes: "Disposable CI campaign fixture",
+});
+for (let i = 0; i < 6; i++) {
+  const due = new Date("2026-10-09T12:00:00Z");
+  due.setUTCDate(due.getUTCDate() + i * 7);
+  await save({
+    action: "task",
+    campaignId: winter.id,
+    title: `Paint five winter paintings · week ${i + 1}`,
+    dueDate: due.toISOString().slice(0, 10),
+    dueTime: "",
+    category: "Painting",
+    completed: false,
+  });
+}
+await save({
+  action: "batch",
+  campaignId: winter.id,
+  title: "Small framed winter paintings",
+  plannedQuantity: 30,
+  weeklyQuantity: 5,
+  unitPriceCents: 10000,
+  startDate: "2026-10-05",
+  completionDate: "2026-11-13",
+});
+await save({
+  action: "goal",
+  targetCents: 1400000,
+  startDate: "2026-01-01",
+  dueDate: "2026-12-31",
+  basis: "Gross artwork receipts",
+  excludeSalesTax: true,
+  excludeShipping: true,
+});
+
+const retiredBootstrap = await fetch(base + "/api/campaigns", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ action: "initialize" }),
+});
+assert.equal(retiredBootstrap.status, 400, "Retired campaign bootstrap must stay unavailable.");
+
 s = await state();
 assert.equal(s.campaigns.length, 2);
-assert.equal(s.campaigns.flatMap((c) => c.tasks).length, 6);
-assert.equal(s.priorWorkOrders.length, 1);
+assert.equal(s.campaigns.flatMap((campaign) => campaign.tasks).length, 6);
+assert.equal(s.campaigns.find((campaign) => campaign.id === winter.id).batches.length, 1);
+assert.equal(s.goal.targetCents, 1400000);
 assert.equal(s.goal.receivedCents, 0);
-const c = s.campaigns[0],
-  winter = s.campaigns[1];
+
 const task = await save({
   action: "task",
   campaignId: c.id,
@@ -58,15 +116,18 @@ await save({
 });
 s = await state();
 assert.equal(
-  s.campaigns[0].tasks.find((t) => t.id === task.id).dueTime,
+  s.campaigns.find((campaign) => campaign.id === c.id).tasks.find((t) => t.id === task.id).dueTime,
   "17:30",
 );
 assert.equal(s.paintings[0].regularPriceCents, 20000);
-assert.equal(s.campaigns[0].artwork[0].salePriceCents, 15000);
+assert.equal(
+  s.campaigns.find((campaign) => campaign.id === c.id).artwork[0].salePriceCents,
+  15000,
+);
 await save({ action: "task", ...task, dueDate: "2026-09-23", completed: true });
 s = await state();
 assert.equal(
-  s.campaigns[0].tasks.find((t) => t.id === task.id).completed,
+  s.campaigns.find((campaign) => campaign.id === c.id).tasks.find((t) => t.id === task.id).completed,
   true,
 );
 const receipt = {
@@ -96,9 +157,12 @@ await save({
 s = await state();
 assert.equal(s.transactions.length, 2);
 assert.equal(s.goal.receivedCents, 10000);
-assert.equal(s.campaigns[0].receivedCents, 10000);
+assert.equal(
+  s.campaigns.find((campaign) => campaign.id === c.id).receivedCents,
+  10000,
+);
 assert.ok(
-  s.campaigns.every((c) => c.artwork[0].painting.availability === "Sold"),
+  s.campaigns.every((campaign) => campaign.artwork[0].painting.availability === "Sold"),
 );
 assert.equal(s.paintings[0].regularPriceCents, 20000);
 const m = await (
@@ -106,5 +170,5 @@ const m = await (
 ).json();
 assert.equal(m.qualifyingCents, 0);
 console.log(
-  "PASS: setup reuse, persistence reads, shared tasks, prices, cross-campaign sold availability, idempotent receipts, refunds, monthly goal isolation",
+  "PASS: ordinary API fixtures, retired bootstrap, persistence reads, shared tasks, prices, cross-campaign sold availability, idempotent receipts, refunds, monthly goal isolation",
 );
