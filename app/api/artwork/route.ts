@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { validDate } from "../../../lib/campaign-rules";
 import { emitMuseSignal } from "../../../lib/museum-signals";
+import { syncCompletedArtworkProject } from "../../../lib/artwork-project-state";
 export const runtime = "nodejs";
 function amount(v: unknown, nullable = false): number | null {
   if (nullable && (v == null || v === "")) return null;
@@ -100,10 +101,12 @@ export async function POST(req: NextRequest) {
               sourceKey: `artwork-history:${history.id}`,
             });
           }
-          return tx.painting.update({
+          const updated = await tx.painting.update({
             where: { projectId: project.id },
             data: { availability: next },
           });
+          await syncCompletedArtworkProject(tx, project.id, next);
+          return updated;
         }
         if (b.action === "costs")
           return tx.painting.update({
@@ -185,6 +188,7 @@ export async function POST(req: NextRequest) {
               framingCostCents: amount(b.framingCostCents, true),
             },
           });
+          await syncCompletedArtworkProject(tx, project.id, "Sold");
           if (b.existingTransactionId) {
             const t = await tx.transaction.findUniqueOrThrow({
               where: { id: b.existingTransactionId },

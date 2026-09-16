@@ -81,12 +81,14 @@ export default function SoldPaintingsCounterClient({
     }
   }
 
+  const headlineValue = fullyDocumented ? profitLabel : listedValueLabel;
+
   return (
     <>
       <aside
         ref={counterRef}
         className={`soldPaintingsCounter${dragging ? " isDragging" : ""}`}
-        aria-label="MadWizardArt sold painting profit counter"
+        aria-label="MadWizardArt sold painting archive value counter"
         style={top == null ? undefined : { top, bottom: "auto" }}
       >
         <button
@@ -105,15 +107,15 @@ export default function SoldPaintingsCounterClient({
           <p className="eyebrow soldCounterEyebrow">
             MadWizardArt.com · Sold paintings only
           </p>
-          <h3 className="soldCounterAmount">{profitLabel}</h3>
+          <h3 className="soldCounterAmount">{headlineValue}</h3>
           <p className="soldCounterSummary">
-            <strong>{fullyDocumented ? "Profit" : "Provisional profit"}</strong> ·{" "}
+            <strong>{fullyDocumented ? "Profit" : "Historical listed value"}</strong> ·{" "}
             {paintingCount} archived painting{paintingCount === 1 ? "" : "s"}
           </p>
           <small className="soldCounterDetails">
-            Listed sold value {listedValueLabel}. This counter excludes every
-            non-imported artwork. Until historical sale terms and costs are entered,
-            listed price minus known materials/framing costs is used provisionally.
+            {fullyDocumented
+              ? `Listed sold value ${listedValueLabel}. Profit uses recorded sale terms and known costs.`
+              : "Historical sale terms and costs are incomplete, so profit is intentionally not estimated. Enter confirmed sale prices, fees, shipping, materials, and framing costs to calculate profit."}
           </small>
         </div>
       </aside>

@@ -1,6 +1,7 @@
 import { saleSummary } from "../../../lib/artwork-lifecycle";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import { syncCompletedArtworkProject } from "../../../lib/artwork-project-state";
 import {
   campaignStatuses,
   taskCategories,
@@ -244,11 +245,13 @@ export async function POST(request: NextRequest) {
             });
             projectId = p.id;
           }
-          return tx.painting.upsert({
+          const painting = await tx.painting.upsert({
             where: { projectId },
             update: data,
             create: { projectId, ...data },
           });
+          await syncCompletedArtworkProject(tx, projectId, painting.availability);
+          return painting;
         });
         break;
       }
@@ -271,6 +274,7 @@ export async function POST(request: NextRequest) {
             throw Error(
               "Complete the painting before adding it to a sale campaign.",
             );
+          let availability = p.artwork?.availability ?? "Available";
           if (!p.artwork) {
             const fields = p.stages.map((s) => {
               try {
@@ -282,6 +286,7 @@ export async function POST(request: NextRequest) {
             const pick = (key: string) =>
               fields.find((f) => f[key] != null)?.[key];
             const price = pick("price");
+            availability = pick("sold") === true ? "Sold" : "Available";
             await tx.painting.create({
               data: {
                 projectId,
@@ -289,12 +294,13 @@ export async function POST(request: NextRequest) {
                   price && Number.isFinite(Number(price))
                     ? Math.round(Number(price) * 100)
                     : p.valueCents,
-                availability: pick("sold") === true ? "Sold" : "Available",
+                availability,
                 dimensions: String(pick("dimensions") ?? ""),
                 medium: String(pick("medium") ?? ""),
               },
             });
           }
+          await syncCompletedArtworkProject(tx, projectId, availability);
           return tx.campaignPainting.upsert({
             where: { campaignId_projectId: { campaignId, projectId } },
             update: { salePriceCents },
@@ -442,11 +448,13 @@ export async function POST(request: NextRequest) {
                 notes: typeof b.notes === "string" ? b.notes : null,
               },
             });
-            if (b.projectId && b.markSold && type === "INCOME")
+            if (b.projectId && b.markSold && type === "INCOME") {
               await tx.painting.update({
                 where: { projectId: b.projectId },
                 data: { availability: "Sold" },
               });
+              await syncCompletedArtworkProject(tx, b.projectId, "Sold");
+            }
             return t;
           },
           { isolationLevel: "Serializable" },
