@@ -1,12 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
+import { normalizePgSslMode } from "./database-url";
 
 function requireDatabaseUrl() {
   const value = process.env.DATABASE_URL;
   if (!value) {
     throw new Error("Missing required environment variable: DATABASE_URL");
   }
-  return value;
+  return normalizePgSslMode(value);
 }
 
 const adapter = new PrismaPg({
