@@ -62,6 +62,10 @@ function studioCheckpointAir() {
   return process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR?.trim() || "";
 }
 
+function isCivitaiCheckpointAir(value: string) {
+  return /^urn:air:[^:]+:checkpoint:civitai:\d+@\d+$/.test(value);
+}
+
 function studioDefaultNegative() {
   return process.env.CIVITAI_STUDIO_DEFAULT_NEGATIVE?.trim()
     || "low quality, bad anatomy, extra fingers, extra limbs, text, watermark";
@@ -70,13 +74,13 @@ function studioDefaultNegative() {
 function studioSteps() {
   const value = Number(process.env.CIVITAI_STUDIO_DEFAULT_STEPS ?? 28);
   if (!Number.isFinite(value)) return 28;
-  return Math.min(Math.max(Math.round(value), 1), 100);
+  return Math.min(Math.max(Math.round(value), 1), 50);
 }
 
 function studioCfg() {
   const value = Number(process.env.CIVITAI_STUDIO_DEFAULT_CFG ?? 5);
   if (!Number.isFinite(value)) return 5;
-  return Math.min(Math.max(value, 0), 30);
+  return Math.min(Math.max(value, 1), 30);
 }
 
 function studioMaxImages() {
@@ -206,6 +210,13 @@ export function buildTessaWorkflow(choices: GrottoChoices) {
 
 export function buildStudioWorkflow(input: StudioGenerationInput) {
   const { width, height } = studioDimensions(input.format);
+  const model = studioCheckpointAir();
+  if (!isCivitaiCheckpointAir(model)) {
+    throw new Error(
+      "CIVITAI_STUDIO_PONY_DIFFUSER_AIR must be a Civitai checkpoint AIR, for example urn:air:sdxl:checkpoint:civitai:101055@128078.",
+    );
+  }
+
   return {
     prompt: input.prompt.trim(),
     body: {
@@ -216,7 +227,7 @@ export function buildStudioWorkflow(input: StudioGenerationInput) {
           name: "studio",
           timeout: "00:20:00",
           input: {
-            model: studioCheckpointAir(),
+            model,
             prompt: input.prompt.trim(),
             negativePrompt: input.negativePrompt.trim(),
             quantity: input.quantity,
@@ -229,6 +240,35 @@ export function buildStudioWorkflow(input: StudioGenerationInput) {
       ],
     },
   };
+}
+
+function describeCivitaiError(payload: unknown, status: number) {
+  if (!payload || typeof payload !== "object") return `Civitai request failed (${status}).`;
+  const record = payload as Record<string, unknown>;
+
+  if (typeof record.message === "string" && record.message.trim()) {
+    return `Civitai: ${record.message.trim()}`;
+  }
+  if (typeof record.detail === "string" && record.detail.trim()) {
+    return `Civitai: ${record.detail.trim()}`;
+  }
+
+  const errors = record.errors;
+  if (errors && typeof errors === "object") {
+    const details = Object.entries(errors as Record<string, unknown>)
+      .flatMap(([field, value]) => {
+        const messages = Array.isArray(value) ? value : [value];
+        return messages
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .map((item) => `${field}: ${item.trim()}`);
+      });
+    if (details.length > 0) return `Civitai ${status}: ${details.slice(0, 3).join("; ")}`;
+  }
+
+  if (typeof record.title === "string" && record.title.trim()) {
+    return `Civitai ${status}: ${record.title.trim()}`;
+  }
+  return `Civitai request failed (${status}).`;
 }
 
 async function callOrchestrator(path: string, init: RequestInit = {}) {
@@ -254,10 +294,7 @@ async function callOrchestrator(path: string, init: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    const message = typeof payload === "object" && payload && "message" in payload
-      ? String((payload as { message?: unknown }).message || "Civitai request failed.")
-      : `Civitai request failed (${response.status}).`;
-    throw new Error(message);
+    throw new Error(describeCivitaiError(payload, response.status));
   }
 
   return payload as WorkflowSnapshot;
