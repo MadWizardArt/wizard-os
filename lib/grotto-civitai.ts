@@ -268,6 +268,19 @@ export function civitaiOutputHeaders() {
   };
 }
 
+export function authenticatedCivitaiOutputUrl(raw: string) {
+  const url = new URL(raw);
+  if (url.protocol !== "https:") throw new Error("Civitai returned an invalid image URL.");
+  if (url.hostname !== "civitai.com" && !url.hostname.endsWith(".civitai.com")) {
+    throw new Error("Civitai returned an unexpected image host.");
+  }
+  // Civitai's authenticated blob route rejects a signed query combined with
+  // bearer authentication. Its official clients strip sig/exp and GET the
+  // same blob path with the consumer token instead.
+  url.search = "";
+  return url.toString();
+}
+
 function describeCivitaiError(payload: unknown, status: number) {
   if (!payload || typeof payload !== "object") return `Civitai request failed (${status}).`;
   const record = payload as Record<string, unknown>;
