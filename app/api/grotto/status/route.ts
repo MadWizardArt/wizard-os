@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
           provider: "civitai",
           providerConfigured: false,
           checkpointConfigured: false,
+          checkpointLabel: "",
           configured: false,
           defaultNegative: "",
           maxImages: 1,
