@@ -9,6 +9,7 @@ import transitions from "./MuseumTransitions.module.css";
 import MuseRoom from "./MuseRoom";
 import CouncilChamber from "./CouncilChamber";
 import MuseumGatewayStatus from "./MuseumGatewayStatus";
+import GrottoGate from "./GrottoGate";
 
 type SharedProject = {
   id: string;
@@ -113,7 +114,10 @@ export default function MuseumPage() {
             <h1>The Museum</h1>
             <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
           </div>
-          <MuseumGatewayStatus />
+          <div>
+            <MuseumGatewayStatus />
+            <GrottoGate />
+          </div>
         </header>
 
         <nav className={`${styles.museumNav} ${polish.museumNav}`} aria-label="Museum rooms">

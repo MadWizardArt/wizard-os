@@ -108,3 +108,7 @@ Inventory has lifecycle tabs and search, direct completion, campaign linking, co
 Profit uses the actual discounted artwork price plus shipping income, less refunds (excluding tax), materials, framing, selling fees and shipping expense. The discount field documents the discount already reflected in the selling price; it is not deducted again. Null costs remain unknown, and profit is provisional until all four cost categories are recorded. Profit from unpaid sale terms is distinct from cash received. Returned/voided sales use net payments retained instead of canceled unpaid sale value. No archive-wide profit total is presented because production costs belong to the artwork, including when it is resold.
 
 Status corrections preserve artwork IDs, production stages, images, campaign links, past sales and receipts. Returning/voiding a sale does not invent a refund: record the actual refund separately. Corrections are recorded in artwork history, and a subsequent resale gets a new sale event on the same painting. The migration adds no sales, payments or assumed costs to live records.
+
+### The Grotto
+
+The Grotto is a separate, quiet image-first space beneath the Museum. Its first implementation is Tessa-first and uses the existing Artist Gate for access. Generated gallery images are stored privately through authenticated application routes rather than committed to the public repository. Civitai generation remains feature-gated until the private orchestration token and Tessa LoRA AIR are configured in the deployment environment.

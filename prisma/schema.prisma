@@ -359,3 +359,25 @@ model ArtworkHistory {
   note String
   createdAt DateTime @default(now())
 }
+
+model GrottoImage {
+  id                 String   @id @default(cuid())
+  museId             String
+  contentType        String
+  imageData          Bytes
+  byteSize           Int
+  provider           String   @default("manual")
+  providerWorkflowId String?
+  providerImageId    String?  @unique
+  prompt             String   @default("")
+  recipeJson         String   @default("{}")
+  favorite           Boolean  @default(false)
+  canonical          Boolean  @default(false)
+  deletedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([museId, deletedAt, createdAt])
+  @@index([museId, favorite])
+  @@index([providerWorkflowId])
+}
