@@ -4,7 +4,7 @@ import {
   grottoModelEnvironmentAir,
   grottoModelEnvironmentList,
   type GrottoModelEnvironmentId,
-} from "./grotto-model-environments";
+} from "./grotto-model-environments.ts";
 
 const ORCHESTRATION_BASE_URL = "https://orchestration.civitai.com";
 const DEFAULT_FLUX1_DIFFUSER_AIR = "urn:air:flux1:diffuser:civitai:618692@691639";
@@ -60,8 +60,9 @@ export function buildTessaWorkflow(choices:GrottoChoices){ const {width,height}=
 
 export function buildStudioWorkflow(input:StudioGenerationInput,sourceImage?:string){
   const {width,height}=studioDimensions(input.format);
-  const environment=grottoModelEnvironment(input.environmentId);
-  const model=grottoModelEnvironmentAir(input.environmentId);
+  const environmentId=input.environmentId ?? DEFAULT_GROTTO_MODEL_ENVIRONMENT;
+  const environment=grottoModelEnvironment(environmentId);
+  const model=grottoModelEnvironmentAir(environmentId);
   if(!isCivitaiCheckpointAir(model)) throw new Error(`${environment.label} is not configured with a valid Civitai checkpoint AIR.`);
   return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, prompt:input.prompt.trim(), body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt:input.prompt.trim(),negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
 }
