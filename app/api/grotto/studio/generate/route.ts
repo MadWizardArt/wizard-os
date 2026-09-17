@@ -11,6 +11,7 @@ import {
   type StudioGenerationInput,
 } from "../../../../../lib/grotto-civitai";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
+import { referenceUrl } from "../../../../../lib/grotto-reference";
 import { prisma } from "../../../../../lib/prisma";
 
 export const runtime = "nodejs";
@@ -29,7 +30,7 @@ function sameOrigin(request: NextRequest) {
 }
 
 function safeError(error: unknown) {
-  return error instanceof Error ? error.message : "Studio generation failed.";
+  return error instanceof Error ? error.message : "Atelier generation failed.";
 }
 
 function readInput(value: unknown): StudioGenerationInput | null {
@@ -48,7 +49,11 @@ function readInput(value: unknown): StudioGenerationInput | null {
   const status = grottoStudioStatus();
   if (quantity > status.maxImages) return null;
 
-  return { prompt, negativePrompt, format, quantity };
+  const referenceId = typeof raw.referenceId === "string" ? raw.referenceId.trim() : undefined;
+  if (referenceId && !/^[a-zA-Z0-9_-]{1,100}$/.test(referenceId)) return null;
+  const strength = raw.strength === undefined ? 0.35 : Number(raw.strength);
+  if (!Number.isFinite(strength) || strength < 0.05 || strength > 0.9) return null;
+  return { prompt, negativePrompt, format, quantity, ...(referenceId ? { referenceId, strength } : {}) };
 }
 
 function ensureCivitaiImageUrl(raw: string) {
@@ -122,12 +127,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Artist session required." }, { status: 401 });
   }
   if (!sameOrigin(request)) {
-    return NextResponse.json({ error: "Cross-origin Studio generation is not accepted." }, { status: 403 });
+    return NextResponse.json({ error: "Cross-origin Atelier generation is not accepted." }, { status: 403 });
   }
 
   const status = grottoStudioStatus();
   if (!status.configured) {
-    return NextResponse.json({ error: "Pony Studio is not connected yet.", studio: status }, { status: 503 });
+    return NextResponse.json({ error: "The Atelier is not connected yet.", studio: status }, { status: 503 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -137,8 +142,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    let sourceImage: string | undefined;
+    if (input.referenceId && !body.workflowId) {
+      const reference = await prisma.grottoImage.findFirst({ where: { id: input.referenceId, deletedAt: null }, select: { id: true } });
+      if (!reference) return NextResponse.json({ error: "Reference no longer exists. Choose another image." }, { status: 400 });
+      sourceImage = referenceUrl(reference.id);
+    }
     if (body.estimate === true) {
-      const estimate = await estimateStudioGeneration(input);
+      const estimate = await estimateStudioGeneration(input, sourceImage);
       return NextResponse.json({ costBuzz: estimate.cost?.total ?? null });
     }
 
@@ -161,7 +172,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ workflowId, status: workflow.status, images });
     }
 
-    const workflow = await submitStudioGeneration(input);
+    const workflow = await submitStudioGeneration(input, sourceImage);
     return NextResponse.json({ workflowId: workflow.id, status: workflow.status });
   } catch (error) {
     return NextResponse.json({ error: safeError(error) }, { status: 502 });

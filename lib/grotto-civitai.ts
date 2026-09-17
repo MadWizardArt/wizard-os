@@ -15,6 +15,8 @@ export type StudioGenerationInput = {
   negativePrompt: string;
   format: StudioFormat;
   quantity: 1 | 4;
+  referenceId?: string;
+  strength?: number;
 };
 
 type CivitaiImage = {
@@ -208,7 +210,7 @@ export function buildTessaWorkflow(choices: GrottoChoices) {
   };
 }
 
-export function buildStudioWorkflow(input: StudioGenerationInput) {
+export function buildStudioWorkflow(input: StudioGenerationInput, sourceImage?: string) {
   const { width, height } = studioDimensions(input.format);
   const model = studioCheckpointAir();
   if (!isCivitaiCheckpointAir(model)) {
@@ -228,6 +230,7 @@ export function buildStudioWorkflow(input: StudioGenerationInput) {
           timeout: "00:20:00",
           input: {
             model,
+            ...(sourceImage ? { sourceImage, sourceImageDenoiseStrenght: input.strength ?? 0.35 } : {}),
             prompt: input.prompt.trim(),
             negativePrompt: input.negativePrompt.trim(),
             quantity: input.quantity,
@@ -316,16 +319,16 @@ export function submitTessaGeneration(choices: GrottoChoices) {
   });
 }
 
-export function estimateStudioGeneration(input: StudioGenerationInput) {
-  const { body } = buildStudioWorkflow(input);
+export function estimateStudioGeneration(input: StudioGenerationInput, sourceImage?: string) {
+  const { body } = buildStudioWorkflow(input, sourceImage);
   return callOrchestrator("/v2/consumer/workflows?whatif=true", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function submitStudioGeneration(input: StudioGenerationInput) {
-  const { body } = buildStudioWorkflow(input);
+export function submitStudioGeneration(input: StudioGenerationInput, sourceImage?: string) {
+  const { body } = buildStudioWorkflow(input, sourceImage);
   return callOrchestrator("/v2/consumer/workflows", {
     method: "POST",
     body: JSON.stringify(body),

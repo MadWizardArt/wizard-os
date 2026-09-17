@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./grotto.module.css";
 
 type Space = "tessa" | "studio";
@@ -13,6 +13,8 @@ type StudioInput = {
   negativePrompt: string;
   format: StudioFormat;
   quantity: 1 | 4;
+  referenceId?: string;
+  strength?: number;
 };
 type GalleryItem = {
   id: string;
@@ -111,8 +113,10 @@ function sleep(ms: number) {
 }
 
 export default function GrottoPage() {
-  const [space, setSpace] = useState<Space>("tessa");
-  const [view, setView] = useState<View>("gallery");
+  const galleryRequest = useRef(0);
+  const viewer = useRef<HTMLDivElement>(null);
+  const [space, setSpace] = useState<Space>("studio");
+  const [view, setView] = useState<View>("create");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [privateGallery, setPrivateGallery] = useState<StoredGalleryItem[]>([]);
   const [status, setStatus] = useState<GrottoStatus | null>(null);
@@ -125,6 +129,12 @@ export default function GrottoPage() {
     pose: "Seated",
     frame: "Portrait",
   });
+  const [reference, setReference] = useState<{ id: string; src: string } | null>(null);
+  const [strength, setStrength] = useState(0.35);
+  const [uploading, setUploading] = useState(false);
+  const [galleryPage, setGalleryPage] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [accessKey, setAccessKey] = useState("");
   const [studioPrompt, setStudioPrompt] = useState("");
   const [studioNegative, setStudioNegative] = useState("");
   const [studioFormat, setStudioFormat] = useState<StudioFormat>("Portrait");
@@ -133,7 +143,7 @@ export default function GrottoPage() {
   const gallery = useMemo<GalleryItem[]>(() => {
     const stored = privateGallery.slice(0, space === "tessa" ? 15 : 16).map((item) => ({
       ...item,
-      alt: space === "tessa" ? "Tessa" : "Studio generation",
+      alt: space === "tessa" ? "Tessa" : "Atelier image",
       private: true,
     }));
 
@@ -151,10 +161,14 @@ export default function GrottoPage() {
 
   const current = activeIndex === null ? null : gallery[activeIndex];
 
-  const loadGallery = async (target: Space) => {
+  const loadGallery = async (target: Space, page = 0) => {
+    const requestId = ++galleryRequest.current;
     const limit = target === "tessa" ? 15 : 16;
-    const payload = await readJson(await fetch(`/api/grotto/images?museId=${target}&limit=${limit}`, { cache: "no-store" }));
-    setPrivateGallery(Array.isArray(payload) ? payload : []);
+    const payload = await readJson(await fetch(`/api/grotto/images?museId=${target}&limit=${limit + 1}&offset=${page * limit}`, { cache: "no-store" }));
+    if (requestId !== galleryRequest.current) return;
+    setPrivateGallery(Array.isArray(payload) ? payload.slice(0, limit) : []);
+    setHasNext(Array.isArray(payload) && payload.length > limit);
+    setGalleryPage(page);
   };
 
   useEffect(() => {
@@ -166,12 +180,7 @@ export default function GrottoPage() {
         setStatus(payload);
         setStudioNegative((currentValue) => currentValue || payload.studio.defaultNegative || "");
 
-        const saved = localStorage.getItem("wizard-os-grotto-space") as Space | null;
-        const initialSpace: Space = saved === "tessa" || saved === "studio"
-          ? saved
-          : payload.studio.configured && !payload.generation.configured
-            ? "studio"
-            : "tessa";
+        const initialSpace: Space = "studio";
         setSpace(initialSpace);
         setView(initialSpace === "studio" ? "create" : "gallery");
         if (payload.authenticated) await loadGallery(initialSpace);
@@ -185,6 +194,8 @@ export default function GrottoPage() {
   }, []);
 
   const selectSpace = async (next: Space) => {
+    if (generating || uploading) return;
+    setPrivateGallery([]);
     setSpace(next);
     localStorage.setItem("wizard-os-grotto-space", next);
     setActiveIndex(null);
@@ -207,13 +218,25 @@ export default function GrottoPage() {
 
   useEffect(() => {
     if (activeIndex === null) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    viewer.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const elements = viewer.current?.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]");
+        if (elements?.length) {
+          const first = elements[0], last = elements[elements.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+      }
       if (event.key === "Escape") setActiveIndex(null);
       if (event.key === "ArrowLeft") moveViewer(-1);
       if (event.key === "ArrowRight") moveViewer(1);
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
   }, [activeIndex, visibleIndices]);
 
   const setChoice = (key: ChoiceKey, value: string) => {
@@ -252,8 +275,12 @@ export default function GrottoPage() {
     }
   };
 
-  const beginRemix = () => {
-    if (!current) return;
+  const beginRemix = (useImage = true) => {
+    if (!current || generating) return;
+    if (useImage && current.private && current.src) setReference({ id: current.id, src: current.src });
+    else setReference(null);
+    if (space !== "studio") { setPrivateGallery([]); void loadGallery("studio").catch(() => setNote("Gallery could not be loaded.")); }
+    setSpace("studio");
     if (space === "studio") {
       const recipe = current.studioInput;
       if (recipe) {
@@ -265,6 +292,7 @@ export default function GrottoPage() {
         setStudioPrompt(current.prompt);
       }
     }
+    setNote("");
     setActiveIndex(null);
     setView("create");
   };
@@ -319,6 +347,7 @@ export default function GrottoPage() {
     negativePrompt: studioNegative.trim(),
     format: studioFormat,
     quantity: studioQuantity,
+    ...(reference ? { referenceId: reference.id, strength } : {}),
   });
 
   const generateStudio = async () => {
@@ -339,7 +368,7 @@ export default function GrottoPage() {
       }));
       const cost = typeof estimate.costBuzz === "number" ? estimate.costBuzz : null;
       const label = input.quantity === 4 ? "4 images" : "1 image";
-      if (!window.confirm(cost === null ? `Generate ${label} with Pony?` : `Generate ${label} for about ${cost} Buzz?`)) return;
+      if (!window.confirm(cost === null ? `Generate ${label} with Pony?${reference ? " Your reference will be sent to Civitai." : ""}` : `Generate ${label} for about ${cost} Buzz?${reference ? " Your reference will be sent to Civitai." : ""}`)) return;
 
       const submitted = await readJson(await fetch("/api/grotto/studio/generate", {
         method: "POST",
@@ -358,17 +387,42 @@ export default function GrottoPage() {
         }));
         if (String(result.status).toLowerCase() === "succeeded" && Array.isArray(result.images) && result.images.length > 0) {
           await loadGallery("studio");
-          setView("gallery");
-          setNote("");
+          setNote("Saved to your gallery.");
           return;
         }
       }
-      throw new Error("Generation is still running. Try again in a moment.");
+      throw new Error("Generation is still running. Keep the workflow ID for recovery: " + submitted.workflowId);
     } catch (error) {
-      setNote(error instanceof Error ? error.message : "Studio generation failed.");
+      setNote(error instanceof Error ? error.message : "Atelier generation failed.");
     } finally {
       setGenerating(false);
     }
+  };
+
+  const uploadReference = async (file?: File) => {
+    if (!file || generating) return;
+    setUploading(true); setNote("");
+    try {
+      if (file.size > 3 * 1024 * 1024) throw new Error("Choose a JPG, PNG, or WebP under 3 MB.");
+      const form = new FormData(); form.append("image", file);
+      const saved = await readJson(await fetch("/api/grotto/images", { method: "POST", body: form }));
+      setReference({ id: saved.id, src: saved.src });
+      await loadGallery("studio");
+    } catch (error) { setNote(error instanceof Error ? error.message : "Upload failed."); }
+    finally { setUploading(false); }
+  };
+  const changePage = async (page: number) => {
+    try { await loadGallery(space, page); }
+    catch (error) { setNote(error instanceof Error ? error.message : "Gallery could not be loaded."); }
+  };
+  const unlock = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await readJson(await fetch("/api/museum/artist-session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accessKey }) }));
+      setAccessKey("");
+      const nextStatus = await readJson(await fetch("/api/grotto/status", { cache: "no-store" }));
+      setStatus(nextStatus); setNote(""); await loadGallery(space);
+    } catch (error) { setNote(error instanceof Error ? error.message : "Unable to unlock."); }
   };
 
   const locked = !statusLoading && status && !status.authenticated;
@@ -377,76 +431,93 @@ export default function GrottoPage() {
   const studioCountOptions = status?.studio.maxImages && status.studio.maxImages < 4 ? ["1"] : ["1", "4"];
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} aria-busy={statusLoading}>
       <section className={styles.shell}>
         <header className={styles.topbar}>
           <a className={styles.back} href="/museum">← Museum</a>
           <span className={styles.mark} aria-hidden="true">◇</span>
           <div className={styles.spaceSwitch} aria-label="Grotto spaces">
-            <button type="button" className={space === "tessa" ? styles.spaceActive : ""} onClick={() => void selectSpace("tessa")}>Tessa</button>
-            <button type="button" className={space === "studio" ? styles.spaceActive : ""} onClick={() => void selectSpace("studio")}>Studio</button>
+            <button disabled={generating || uploading} type="button" className={space === "tessa" ? styles.spaceActive : ""} onClick={() => void selectSpace("tessa")}>Tessa</button>
+            <button disabled={generating || uploading} type="button" className={space === "studio" ? styles.spaceActive : ""} onClick={() => void selectSpace("studio")}>The Atelier</button>
           </div>
         </header>
 
-        <section className={`${styles.hero} ${space === "studio" ? styles.studioHero : ""}`} aria-label={space === "studio" ? "Grotto Studio" : "Tessa's Grotto chamber"}>
+        <section className={`${styles.hero} ${space === "studio" ? styles.studioHero : ""}`} aria-label={space === "studio" ? "The Atelier" : "Tessa's Grotto chamber"}>
           {space === "tessa" && <img className={styles.heroImage} src="/museum/tessa.webp" alt="" />}
           <div className={styles.heroVeil} />
           <div className={styles.heroCopy}>
             <small>The Grotto</small>
-            <h1>{space === "studio" ? "Studio" : "Tessa"}</h1>
-            <p>{space === "studio" ? "Freestyle Pony. Nothing belongs to a Muse unless you choose it." : "A quieter room beneath the Museum."}</p>
+            <h1>{space === "studio" ? "The Atelier" : "Tessa"}</h1>
+
           </div>
         </section>
 
-        {locked ? (
+        {statusLoading ? <p className={styles.connectionNote}>Opening the Grotto…</p> : locked ? (
           <section className={styles.create}>
             <div className={styles.createInner}>
-              <p className={styles.connectionNote}>The door remains locked. Enter through the Artist Gate in the Museum.</p>
+              <form onSubmit={unlock} className={styles.unlock}>
+                <label className={styles.studioField}><span>Artist key</span><input type="password" autoComplete="current-password" value={accessKey} onChange={(event) => setAccessKey(event.target.value)} required /></label>
+                <button className={styles.generate}>Unlock the Grotto</button>
+                <p role="status" className={styles.connectionNote}>{note}</p>
+              </form>
             </div>
           </section>
         ) : space === "studio" ? (
           <>
-            <nav className={styles.tabs} aria-label="Studio views">
-              <button type="button" className={view === "create" ? styles.active : ""} onClick={() => setView("create")}>Create</button>
-              <button type="button" className={view === "gallery" ? styles.active : ""} onClick={() => setView("gallery")}>Gallery</button>
-            </nav>
-
-            {view === "create" && (
-              <section className={styles.create} aria-label="Freestyle Pony Studio">
+            <div className={styles.atelierLayout}>
+              <section className={styles.composer} aria-label="Create in The Atelier">
                 <div className={styles.createInner}>
+                  <div className={styles.sectionHeading}><h2>Create</h2><span>Pony Realism</span></div>
+                  <fieldset disabled={generating || uploading} className={styles.controls}>
+                  <div className={styles.reference}>
+                    {reference ? <>
+                      <img src={reference.src} alt="Selected remix reference" />
+                      <button type="button" onClick={() => setReference(null)}>Remove reference</button>
+                      <label className={styles.strength}>Variation · {Math.round(strength * 100)}%<input type="range" min="0.05" max="0.9" step="0.05" value={strength} onChange={(event) => setStrength(Number(event.target.value))} /></label>
+                      <small>Lower keeps more of the original.</small>
+                    </> : <label className={styles.upload}>+ Add reference<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void uploadReference(event.target.files?.[0]); event.target.value = ""; }} /><small>One JPG, PNG or WebP · up to 3 MB</small></label>}
+                  </div>
                   <label className={styles.studioField}>
                     <span>Prompt</span>
                     <textarea
                       value={studioPrompt}
                       onChange={(event) => setStudioPrompt(event.target.value)}
-                      placeholder="1girl, adult woman, long hair, candlelight, cinematic..."
-                      autoFocus
+                      placeholder={reference ? "Describe the image you want to create…" : "Describe a scene, or enter your Pony tags…"}
                     />
                   </label>
+                  <details className={styles.advanced}><summary>Negative prompt</summary>
                   <label className={`${styles.studioField} ${styles.studioFieldSecondary}`}>
                     <span>Negative</span>
                     <textarea value={studioNegative} onChange={(event) => setStudioNegative(event.target.value)} />
                   </label>
+                  </details>
                   <ChoiceRow label="Format" value={studioFormat} options={["Portrait", "Square", "Landscape"]} onChange={(value) => setStudioFormat(value as StudioFormat)} />
                   <ChoiceRow label="Count" value={String(studioQuantity)} options={studioCountOptions} onChange={(value) => setStudioQuantity(value === "4" ? 4 : 1)} />
-                  <button className={styles.generate} type="button" disabled={!studioReady || generating || !studioPrompt.trim()} onClick={() => void generateStudio()}>
-                    {generating ? "Creating…" : `Generate ${studioQuantity}`}
+                  <button className={styles.generate} type="button" disabled={!studioReady || generating || uploading || !studioPrompt.trim()} onClick={() => void generateStudio()}>
+                    {generating ? "Creating…" : uploading ? "Uploading…" : `${reference ? "Remix" : "Generate"} ${studioQuantity}`}
                   </button>
-                  {!studioReady && <p className={styles.connectionNote}>Pony Studio is not connected yet.</p>}
-                  {note && <p className={styles.connectionNote}>{note}</p>}
+                  </fieldset>
+                  {!studioReady && <p className={styles.connectionNote}>The Atelier is not connected yet.</p>}
+                  {note && <p role="status" className={styles.connectionNote}>{note}</p>}
                 </div>
               </section>
-            )}
-
-            {view === "gallery" && (
-              <section className={styles.gallery} aria-label="Studio gallery">
-                {gallery.map((item, index) => item.src ? (
-                  <button className={styles.tile} type="button" key={item.id} onClick={() => setActiveIndex(index)}>
-                    <img src={item.src} alt={item.alt} />
+              <section className={styles.collection} aria-label="Atelier gallery">
+                <div className={styles.sectionHeading}><h2>Your collection</h2><span>Page {galleryPage + 1}</span></div>
+                <div className={styles.gallery}>
+                {gallery.filter((item) => item.src).map((item) => (
+                  <button className={styles.tile} type="button" key={item.id} onClick={() => setActiveIndex(gallery.findIndex((entry) => entry.id === item.id))}>
+                    <img src={item.src!} alt={item.alt} loading="lazy" />
+                    {item.favorite && <span className={styles.canon}>♥</span>}
                   </button>
-                ) : <div className={styles.emptyTile} key={item.id} />)}
+                ))}
+                </div>
+                {!visibleIndices.length && <div className={styles.emptyCollection}><span>◇</span><p>Your next image begins here.</p><small>Generate a scene or add a reference.</small></div>}
+                <div className={styles.pagination}>
+                  <button type="button" disabled={galleryPage === 0 || generating || uploading} onClick={() => void changePage(galleryPage - 1)}>← Previous</button>
+                  <button type="button" disabled={!hasNext || generating || uploading} onClick={() => void changePage(galleryPage + 1)}>Next →</button>
+                </div>
               </section>
-            )}
+            </div>
           </>
         ) : (
           <>
@@ -476,7 +547,7 @@ export default function GrottoPage() {
                   <ChoiceRow label="Frame" value={choices.frame} options={OPTIONS.frame} onChange={(value) => setChoice("frame", value)} />
                   <button className={styles.generate} type="button" disabled={!tessaReady || generating} onClick={() => void generateTessa()}>{generating ? "Creating…" : "Generate"}</button>
                   {!tessaReady && <p className={styles.connectionNote}>Tessa waits for her LoRA.</p>}
-                  {note && <p className={styles.connectionNote}>{note}</p>}
+                  {note && <p role="status" className={styles.connectionNote}>{note}</p>}
                 </div>
               </section>
             )}
@@ -500,7 +571,7 @@ export default function GrottoPage() {
       </section>
 
       {current?.src && (
-        <div className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Gallery viewer">
+        <div ref={viewer} className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Gallery viewer">
           <button className={styles.close} type="button" onClick={() => setActiveIndex(null)} aria-label="Close">×</button>
           {visibleIndices.length > 1 && <button className={styles.prev} type="button" onClick={() => moveViewer(-1)} aria-label="Previous">‹</button>}
           <img className={styles.lightboxImage} src={current.src} alt={current.alt} />
@@ -509,8 +580,10 @@ export default function GrottoPage() {
             {current.private ? (
               <button type="button" onClick={() => void toggleFavorite()}>{current.favorite ? "Favorited" : "Favorite"}</button>
             ) : <button type="button" disabled>Canon</button>}
-            <button type="button" onClick={beginRemix}>Remix</button>
-            <button type="button" onClick={() => void deleteCurrent()} disabled={!current.private || current.canonical}>Delete</button>
+            {current.private && <button type="button" disabled={generating} onClick={() => beginRemix(true)}>Remix image</button>}
+            {current.prompt && <button type="button" disabled={generating} onClick={() => beginRemix(false)}>Reuse prompt</button>}
+            <a href={current.src} download={`atelier-${current.id}`}>Download</a>
+            <button type="button" onClick={() => void deleteCurrent()} disabled={generating || !current.private || current.canonical}>Delete</button>
           </div>
         </div>
       )}
