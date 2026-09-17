@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 export default function MuseumPortalButton() {
   const pathname = usePathname();
 
-  if (pathname.startsWith("/museum")) return null;
+  if (pathname?.startsWith("/museum")) return null;
 
   return (
     <>
