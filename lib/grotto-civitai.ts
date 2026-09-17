@@ -1,6 +1,7 @@
 import {
   DEFAULT_GROTTO_MODEL_ENVIRONMENT,
   grottoModelEnvironment,
+  grottoModelEnvironmentAir,
   grottoModelEnvironmentList,
   type GrottoModelEnvironmentId,
 } from "./grotto-model-environments";
@@ -27,12 +28,6 @@ function diffuserAir() { return process.env.CIVITAI_FLUX1_DIFFUSER_AIR?.trim() |
 function tessaLoraAir() { return process.env.CIVITAI_TESSA_LORA_AIR?.trim() || ""; }
 function tessaTrigger() { return process.env.CIVITAI_TESSA_TRIGGER?.trim() || "TESSA_MUSE"; }
 function tessaLoraStrength() { const value = Number(process.env.CIVITAI_TESSA_LORA_STRENGTH ?? 0.9); return Number.isFinite(value) ? Math.min(Math.max(value, 0), 2) : 0.9; }
-
-function environmentAir(id: GrottoModelEnvironmentId) {
-  const legacy = process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR?.trim() || "";
-  if (id === "pony-v6") return process.env.CIVITAI_STUDIO_PONY_V6_AIR?.trim() || legacy || grottoModelEnvironment(id).air;
-  return process.env.CIVITAI_STUDIO_PONY_REALISM_AIR?.trim() || grottoModelEnvironment(id).air;
-}
 function isCivitaiCheckpointAir(value: string) { return /^urn:air:[^:]+:checkpoint:civitai:\d+@\d+$/.test(value); }
 function studioDefaultNegative() { return process.env.CIVITAI_STUDIO_DEFAULT_NEGATIVE?.trim() || "low quality, bad anatomy, extra fingers, extra limbs, text, watermark"; }
 function studioSteps() { const value = Number(process.env.CIVITAI_STUDIO_DEFAULT_STEPS ?? 28); return Number.isFinite(value) ? Math.min(Math.max(Math.round(value), 1), 50) : 28; }
@@ -48,7 +43,7 @@ export function grottoGenerationStatus() {
 export function grottoStudioStatus() {
   const enabled = process.env.GROTTO_GENERATION_ENABLED === "true";
   const providerConfigured = token().length > 0;
-  const environments = grottoModelEnvironmentList().map((environment) => ({ ...environment, configured: isCivitaiCheckpointAir(environmentAir(environment.id)) }));
+  const environments = grottoModelEnvironmentList().map((environment) => ({ ...environment, configured: isCivitaiCheckpointAir(grottoModelEnvironmentAir(environment.id)) }));
   const checkpointConfigured = environments.some((environment) => environment.configured);
   return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, environments, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
 }
@@ -66,7 +61,7 @@ export function buildTessaWorkflow(choices:GrottoChoices){ const {width,height}=
 export function buildStudioWorkflow(input:StudioGenerationInput,sourceImage?:string){
   const {width,height}=studioDimensions(input.format);
   const environment=grottoModelEnvironment(input.environmentId);
-  const model=environmentAir(input.environmentId);
+  const model=grottoModelEnvironmentAir(input.environmentId);
   if(!isCivitaiCheckpointAir(model)) throw new Error(`${environment.label} is not configured with a valid Civitai checkpoint AIR.`);
   return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, prompt:input.prompt.trim(), body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt:input.prompt.trim(),negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
 }
