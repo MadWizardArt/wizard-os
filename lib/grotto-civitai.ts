@@ -8,15 +8,25 @@ export type GrottoChoices = {
   frame: string;
 };
 
+export type StudioFormat = "Portrait" | "Square" | "Landscape";
+
+export type StudioGenerationInput = {
+  prompt: string;
+  negativePrompt: string;
+  format: StudioFormat;
+  quantity: 1 | 4;
+};
+
 type CivitaiImage = {
   id?: string;
   url: string;
 };
 
-type WorkflowSnapshot = {
+export type WorkflowSnapshot = {
   id: string;
   status: string;
   cost?: { total?: number };
+  transactions?: Array<{ amount?: number; quantity?: number }>;
   steps?: Array<{
     output?: {
       images?: Array<{ id?: string; url?: string; available?: boolean }>;
@@ -48,6 +58,33 @@ function tessaLoraStrength() {
   return Math.min(Math.max(value, 0), 2);
 }
 
+function studioCheckpointAir() {
+  return process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR?.trim() || "";
+}
+
+function studioDefaultNegative() {
+  return process.env.CIVITAI_STUDIO_DEFAULT_NEGATIVE?.trim()
+    || "low quality, bad anatomy, extra fingers, extra limbs, text, watermark";
+}
+
+function studioSteps() {
+  const value = Number(process.env.CIVITAI_STUDIO_DEFAULT_STEPS ?? 28);
+  if (!Number.isFinite(value)) return 28;
+  return Math.min(Math.max(Math.round(value), 1), 100);
+}
+
+function studioCfg() {
+  const value = Number(process.env.CIVITAI_STUDIO_DEFAULT_CFG ?? 5);
+  if (!Number.isFinite(value)) return 5;
+  return Math.min(Math.max(value, 0), 30);
+}
+
+function studioMaxImages() {
+  const value = Number(process.env.CIVITAI_STUDIO_MAX_IMAGES ?? 4);
+  if (!Number.isFinite(value)) return 4;
+  return Math.min(Math.max(Math.round(value), 1), 4);
+}
+
 export function grottoGenerationStatus() {
   const enabled = process.env.GROTTO_GENERATION_ENABLED === "true";
   const providerConfigured = token().length > 0;
@@ -58,6 +95,21 @@ export function grottoGenerationStatus() {
     providerConfigured,
     museModelConfigured,
     configured: enabled && providerConfigured && museModelConfigured,
+  };
+}
+
+export function grottoStudioStatus() {
+  const enabled = process.env.GROTTO_GENERATION_ENABLED === "true";
+  const providerConfigured = token().length > 0;
+  const checkpointConfigured = studioCheckpointAir().length > 0;
+  return {
+    enabled,
+    provider: "civitai",
+    providerConfigured,
+    checkpointConfigured,
+    configured: enabled && providerConfigured && checkpointConfigured,
+    defaultNegative: studioDefaultNegative(),
+    maxImages: studioMaxImages(),
   };
 }
 
@@ -86,6 +138,12 @@ function dimensions(frame: string) {
   if (frame === "Wide") return { width: 1216, height: 832 };
   if (frame === "Close") return { width: 1024, height: 1024 };
   return { width: 896, height: 1152 };
+}
+
+function studioDimensions(format: StudioFormat) {
+  if (format === "Landscape") return { width: 1216, height: 832 };
+  if (format === "Square") return { width: 1024, height: 1024 };
+  return { width: 832, height: 1216 };
 }
 
 function framePhrase(frame: string) {
@@ -146,6 +204,33 @@ export function buildTessaWorkflow(choices: GrottoChoices) {
   };
 }
 
+export function buildStudioWorkflow(input: StudioGenerationInput) {
+  const { width, height } = studioDimensions(input.format);
+  return {
+    prompt: input.prompt.trim(),
+    body: {
+      tags: ["wizard-os", "grotto", "studio", "pony"],
+      steps: [
+        {
+          $type: "textToImage",
+          name: "studio",
+          timeout: "00:20:00",
+          input: {
+            model: studioCheckpointAir(),
+            prompt: input.prompt.trim(),
+            negativePrompt: input.negativePrompt.trim(),
+            quantity: input.quantity,
+            width,
+            height,
+            steps: studioSteps(),
+            cfgScale: studioCfg(),
+          },
+        },
+      ],
+    },
+  };
+}
+
 async function callOrchestrator(path: string, init: RequestInit = {}) {
   const accessToken = token();
   if (!accessToken) throw new Error("Civitai is not configured.");
@@ -194,7 +279,23 @@ export function submitTessaGeneration(choices: GrottoChoices) {
   });
 }
 
-export function getTessaGeneration(workflowId: string, waitSeconds = 0) {
+export function estimateStudioGeneration(input: StudioGenerationInput) {
+  const { body } = buildStudioWorkflow(input);
+  return callOrchestrator("/v2/consumer/workflows?whatif=true", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function submitStudioGeneration(input: StudioGenerationInput) {
+  const { body } = buildStudioWorkflow(input);
+  return callOrchestrator("/v2/consumer/workflows", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getGeneration(workflowId: string, waitSeconds = 0) {
   const wait = Math.min(Math.max(Math.floor(waitSeconds), 0), 30);
   const suffix = wait ? `?wait=${wait}` : "";
   return callOrchestrator(`/v2/consumer/workflows/${encodeURIComponent(workflowId)}${suffix}`, {
@@ -202,8 +303,12 @@ export function getTessaGeneration(workflowId: string, waitSeconds = 0) {
   });
 }
 
+export function getTessaGeneration(workflowId: string, waitSeconds = 0) {
+  return getGeneration(workflowId, waitSeconds);
+}
+
 export function isTerminalWorkflow(status: string) {
-  return ["succeeded", "failed", "expired", "canceled"].includes(status.toLowerCase());
+  return ["succeeded", "failed", "expired", "canceled", "cancelled"].includes(status.toLowerCase());
 }
 
 export function extractWorkflowImages(snapshot: WorkflowSnapshot): CivitaiImage[] {
