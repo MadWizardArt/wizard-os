@@ -29,7 +29,7 @@ export type WorkflowSnapshot = {
   transactions?: Array<{ amount?: number; quantity?: number }>;
   steps?: Array<{
     output?: {
-      images?: Array<{ id?: string; url?: string; available?: boolean }>;
+      images?: Array<{ id?: string; url: string; available?: boolean }>;
       blobs?: Array<{ url?: string; type?: string; mimeType?: string }>;
     };
   }>;
@@ -235,6 +235,8 @@ export function buildStudioWorkflow(input: StudioGenerationInput) {
             height,
             steps: studioSteps(),
             cfgScale: studioCfg(),
+            scheduler: "EulerA",
+            clipSkip: 2,
           },
         },
       ],
