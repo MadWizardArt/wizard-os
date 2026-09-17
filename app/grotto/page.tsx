@@ -49,6 +49,7 @@ type GrottoStatus = {
     provider: string;
     providerConfigured: boolean;
     checkpointConfigured: boolean;
+    checkpointLabel: string;
     configured: boolean;
     defaultNegative: string;
     maxImages: number;
@@ -467,7 +468,7 @@ export default function GrottoPage() {
             <div className={styles.atelierLayout}>
               <section className={styles.composer} aria-label="Create in The Atelier">
                 <div className={styles.createInner}>
-                  <div className={styles.sectionHeading}><h2>Create</h2><span>Pony Realism</span></div>
+                  <div className={styles.sectionHeading}><h2>Create</h2><span>{status?.studio.checkpointLabel || "Pony checkpoint"}</span></div>
                   <fieldset disabled={generating || uploading} className={styles.controls}>
                   <div className={styles.reference}>
                     {reference ? <>
