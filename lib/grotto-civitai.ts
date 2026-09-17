@@ -1,5 +1,9 @@
 const ORCHESTRATION_BASE_URL = "https://orchestration.civitai.com";
 const DEFAULT_FLUX1_DIFFUSER_AIR = "urn:air:flux1:diffuser:civitai:618692@691639";
+const STUDIO_CHECKPOINT_LABELS: Record<string, string> = {
+  "urn:air:sdxl:checkpoint:civitai:257749@290640": "Pony Diffusion V6 XL",
+  "urn:air:sdxl:checkpoint:civitai:372465@914390": "Pony Realism",
+};
 
 export type GrottoChoices = {
   mood: string;
@@ -31,7 +35,7 @@ export type WorkflowSnapshot = {
   transactions?: Array<{ amount?: number; quantity?: number }>;
   steps?: Array<{
     output?: {
-      images?: Array<{ id?: string; url: string; available?: boolean }>;
+      images?: Array<{ id?: string; url?: string; available?: boolean }>;
       blobs?: Array<{ url?: string; type?: string; mimeType?: string }>;
     };
   }>;
@@ -62,6 +66,13 @@ function tessaLoraStrength() {
 
 function studioCheckpointAir() {
   return process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR?.trim() || "";
+}
+
+function studioCheckpointLabel() {
+  const air = studioCheckpointAir();
+  return process.env.CIVITAI_STUDIO_PONY_LABEL?.trim()
+    || STUDIO_CHECKPOINT_LABELS[air]
+    || "Pony checkpoint";
 }
 
 function isCivitaiCheckpointAir(value: string) {
@@ -113,6 +124,7 @@ export function grottoStudioStatus() {
     provider: "civitai",
     providerConfigured,
     checkpointConfigured,
+    checkpointLabel: studioCheckpointLabel(),
     configured: enabled && providerConfigured && checkpointConfigured,
     defaultNegative: studioDefaultNegative(),
     maxImages: studioMaxImages(),
@@ -244,6 +256,15 @@ export function buildStudioWorkflow(input: StudioGenerationInput, sourceImage?: 
         },
       ],
     },
+  };
+}
+
+export function civitaiOutputHeaders() {
+  const accessToken = token();
+  if (!accessToken) throw new Error("Civitai is not configured.");
+  return {
+    Accept: "image/*",
+    Authorization: `Bearer ${accessToken}`,
   };
 }
 
