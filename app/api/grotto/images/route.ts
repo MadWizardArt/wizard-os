@@ -7,6 +7,15 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_GALLERIES = new Set(["tessa", "studio"]);
 
+function studioInputFromRecipe(recipeJson: string) {
+  try {
+    const parsed = JSON.parse(recipeJson) as { studio?: unknown };
+    return parsed.studio ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyArtistSession(request)) {
     return NextResponse.json({ error: "Artist session required." }, { status: 401 });
@@ -30,12 +39,21 @@ export async function GET(request: NextRequest) {
       favorite: true,
       canonical: true,
       provider: true,
+      prompt: true,
+      recipeJson: true,
       createdAt: true,
     },
   });
 
   return NextResponse.json(images.map((image) => ({
-    ...image,
+    id: image.id,
+    museId: image.museId,
+    favorite: image.favorite,
+    canonical: image.canonical,
+    provider: image.provider,
+    prompt: image.prompt,
+    studioInput: image.museId === "studio" ? studioInputFromRecipe(image.recipeJson) : null,
+    createdAt: image.createdAt,
     src: `/api/grotto/images/${image.id}/file`,
   })));
 }
