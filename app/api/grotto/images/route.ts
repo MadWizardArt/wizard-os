@@ -5,22 +5,24 @@ import { prisma } from "../../../../lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const ALLOWED_GALLERIES = new Set(["tessa", "studio"]);
+
 export async function GET(request: NextRequest) {
   if (!verifyArtistSession(request)) {
     return NextResponse.json({ error: "Artist session required." }, { status: 401 });
   }
 
   const museId = request.nextUrl.searchParams.get("museId")?.trim().toLowerCase() || "tessa";
-  if (museId !== "tessa") {
-    return NextResponse.json({ error: "That Grotto chamber is not available yet." }, { status: 400 });
+  if (!ALLOWED_GALLERIES.has(museId)) {
+    return NextResponse.json({ error: "That Grotto gallery is not available yet." }, { status: 400 });
   }
 
-  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") || 15);
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 15, 1), 48);
+  const requestedLimit = Number(request.nextUrl.searchParams.get("limit") || 16);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 16, 1), 48);
 
   const images = await prisma.grottoImage.findMany({
     where: { museId, deletedAt: null },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ favorite: "desc" }, { createdAt: "desc" }],
     take: limit,
     select: {
       id: true,
