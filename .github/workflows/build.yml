@@ -40,7 +40,7 @@ jobs:
         run: npm install
 
       - name: Verify workflow rules
-        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs tests/museum-knowledge.test.mjs tests/audit-pass6.test.mjs tests/database-url.test.mjs
+        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs tests/museum-knowledge.test.mjs tests/audit-pass6.test.mjs tests/database-url.test.mjs tests/grotto-reference.test.mjs
 
       - name: Apply migrations to isolated CI database
         run: npm run db:deploy
