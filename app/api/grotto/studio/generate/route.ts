@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  authenticatedCivitaiOutputUrl,
   buildStudioWorkflow,
   civitaiOutputHeaders,
   estimateStudioGeneration,
@@ -57,15 +58,6 @@ function readInput(value: unknown): StudioGenerationInput | null {
   return { prompt, negativePrompt, format, quantity, ...(referenceId ? { referenceId, strength } : {}) };
 }
 
-function ensureCivitaiImageUrl(raw: string) {
-  const url = new URL(raw);
-  if (url.protocol !== "https:") throw new Error("Civitai returned an invalid image URL.");
-  if (url.hostname !== "civitai.com" && !url.hostname.endsWith(".civitai.com")) {
-    throw new Error("Civitai returned an unexpected image host.");
-  }
-  return url.toString();
-}
-
 async function persistWorkflowImages(
   workflowId: string,
   input: StudioGenerationInput,
@@ -88,10 +80,11 @@ async function persistWorkflowImages(
       continue;
     }
 
-    const sourceUrl = ensureCivitaiImageUrl(output.url);
+    const sourceUrl = authenticatedCivitaiOutputUrl(output.url);
     const response = await fetch(sourceUrl, {
       headers: civitaiOutputHeaders(),
       cache: "no-store",
+      redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
