@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { referenceUrl, verifyReference } from '../lib/grotto-reference.ts';
-import { buildStudioWorkflow } from '../lib/grotto-civitai.ts';
+import { buildStudioWorkflow, civitaiOutputHeaders, grottoStudioStatus } from '../lib/grotto-civitai.ts';
 process.env.MUSE_ARTIST_SESSION_SECRET = 'isolated-test-secret-at-least-16';
 process.env.VERCEL_PROJECT_PRODUCTION_URL = 'example.test';
-process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR = 'urn:air:sdxl:checkpoint:civitai:372465@914390';
+process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR = 'urn:air:sdxl:checkpoint:civitai:257749@290640';
+process.env.CIVITAI_ORCHESTRATION_TOKEN = 'test-token';
 test('reference links are scoped to one image and expire', () => {
  const url = new URL(referenceUrl('image-one'));
  const expires = url.searchParams.get('expires'), signature = url.searchParams.get('signature');
@@ -22,4 +23,11 @@ test('Pony remix uses the documented source-image field and denoise wire spellin
  const plain = buildStudioWorkflow(input).body.steps[0].input;
  assert.equal('sourceImage' in plain, false);
  assert.equal('sourceImageDenoiseStrenght' in plain, false);
+});
+test('Atelier reports the active checkpoint and authorizes output retrieval', () => {
+ assert.equal(grottoStudioStatus().checkpointLabel, 'Pony Diffusion V6 XL');
+ assert.deepEqual(civitaiOutputHeaders(), {
+  Accept: 'image/*',
+  Authorization: 'Bearer test-token',
+ });
 });

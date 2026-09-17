@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildStudioWorkflow,
+  civitaiOutputHeaders,
   estimateStudioGeneration,
   extractWorkflowImages,
   getGeneration,
@@ -89,10 +90,18 @@ async function persistWorkflowImages(
 
     const sourceUrl = ensureCivitaiImageUrl(output.url);
     const response = await fetch(sourceUrl, {
+      headers: civitaiOutputHeaders(),
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) throw new Error(`Generated image could not be retrieved (${response.status}).`);
+    if (!response.ok) {
+      console.error("[grotto:atelier] Civitai output retrieval failed", {
+        workflowId,
+        status: response.status,
+        host: new URL(sourceUrl).hostname,
+      });
+      throw new Error(`Generated image could not be retrieved (${response.status}).`);
+    }
 
     const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "";
     if (!contentType.startsWith("image/")) throw new Error("Generated output was not an image.");
@@ -175,6 +184,9 @@ export async function POST(request: NextRequest) {
     const workflow = await submitStudioGeneration(input, sourceImage);
     return NextResponse.json({ workflowId: workflow.id, status: workflow.status });
   } catch (error) {
+    console.error("[grotto:atelier] generation request failed", {
+      message: safeError(error),
+    });
     return NextResponse.json({ error: safeError(error) }, { status: 502 });
   }
 }
