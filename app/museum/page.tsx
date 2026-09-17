@@ -6,7 +6,6 @@ import type { MuseId } from "../../lib/museum";
 import styles from "./museum.module.css";
 import polish from "./MuseumPolish.module.css";
 import transitions from "./MuseumTransitions.module.css";
-import gateStyles from "./GrottoGate.module.css";
 import MuseRoom from "./MuseRoom";
 import CouncilChamber from "./CouncilChamber";
 import MuseumGatewayStatus from "./MuseumGatewayStatus";
@@ -115,7 +114,7 @@ export default function MuseumPage() {
             <h1>The Museum</h1>
             <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
           </div>
-          <div className={gateStyles.cluster}>
+          <div>
             <MuseumGatewayStatus />
             <GrottoGate />
           </div>
