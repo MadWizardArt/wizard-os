@@ -146,9 +146,17 @@ export async function POST(request: NextRequest) {
   try {
     let sourceImage: string | undefined;
     if (input.referenceId && !body.workflowId) {
-      const reference = await prisma.grottoImage.findFirst({ where: { id: input.referenceId, deletedAt: null }, select: { id: true } });
-      if (!reference) return NextResponse.json({ error: "Reference no longer exists. Choose another image." }, { status: 400 });
-      sourceImage = referenceUrl(reference.id);
+      if (input.referenceId.startsWith("canon-")) {
+        const museId = input.referenceId.slice(6);
+        const allowedMuses = new Set(["novy", "aurelia", "callista", "cleo", "lyra", "melina", "seraphine", "tessa", "thalia"]);
+        const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+        if (!allowedMuses.has(museId) || !host) return NextResponse.json({ error: "That canonical reference is unavailable." }, { status: 400 });
+        sourceImage = `https://${host}/museum/${museId}.webp`;
+      } else {
+        const reference = await prisma.grottoImage.findFirst({ where: { id: input.referenceId, deletedAt: null }, select: { id: true } });
+        if (!reference) return NextResponse.json({ error: "Reference no longer exists. Choose another image." }, { status: 400 });
+        sourceImage = referenceUrl(reference.id);
+      }
     }
     if (body.estimate === true) {
       const estimate = await estimateStudioGeneration(input, sourceImage);
