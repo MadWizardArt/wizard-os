@@ -44,6 +44,33 @@
   font: 400 16px/1 Georgia, serif;
 }
 
+.spaceSwitch {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.spaceSwitch button {
+  padding: 6px 7px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: rgba(239,232,220,.25);
+  cursor: pointer;
+  font: 700 8px/1 system-ui, sans-serif;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.spaceSwitch button:hover,
+.spaceSwitch button:focus-visible,
+.spaceSwitch button.spaceActive {
+  color: rgba(239,232,220,.68);
+  border-bottom-color: rgba(185,154,102,.36);
+  outline: none;
+}
+
 .hero {
   position: relative;
   min-height: 42vh;
@@ -53,6 +80,24 @@
   border-radius: 18px;
   background: #111016;
   box-shadow: 0 28px 80px rgba(0, 0, 0, .38);
+}
+
+.studioHero {
+  background:
+    radial-gradient(circle at 62% 30%, rgba(128, 86, 109, .24), transparent 23rem),
+    radial-gradient(circle at 34% 72%, rgba(75, 66, 111, .16), transparent 25rem),
+    linear-gradient(145deg, #111016, #09080b 72%);
+}
+
+.studioHero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .24;
+  background:
+    linear-gradient(90deg, transparent 0 49.8%, rgba(239,232,220,.025) 50%, transparent 50.2%),
+    linear-gradient(0deg, transparent 0 49.8%, rgba(239,232,220,.018) 50%, transparent 50.2%);
+  background-size: 120px 120px;
 }
 
 .heroImage {
@@ -214,6 +259,47 @@
   margin: 0 auto;
 }
 
+.studioField {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.studioField > span {
+  color: rgba(239,232,220,.34);
+  font: 700 8px/1 system-ui, sans-serif;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.studioField textarea {
+  width: 100%;
+  min-height: 132px;
+  box-sizing: border-box;
+  padding: 14px 15px;
+  resize: vertical;
+  border: 1px solid rgba(237,222,202,.085);
+  border-radius: 12px;
+  background: rgba(255,255,255,.018);
+  color: rgba(239,232,220,.82);
+  outline: none;
+  font: 400 12px/1.65 system-ui, sans-serif;
+}
+
+.studioField textarea:focus {
+  border-color: rgba(185,154,102,.3);
+  background: rgba(255,255,255,.025);
+}
+
+.studioField textarea::placeholder {
+  color: rgba(239,232,220,.18);
+}
+
+.studioFieldSecondary textarea {
+  min-height: 78px;
+  color: rgba(239,232,220,.52);
+}
+
 .choiceGroup {
   display: grid;
   grid-template-columns: 90px 1fr;
@@ -260,19 +346,28 @@
   border: 1px solid rgba(185,154,102,.22);
   border-radius: 999px;
   background: rgba(185,154,102,.06);
-  color: rgba(239,232,220,.42);
+  color: rgba(239,232,220,.62);
+  cursor: pointer;
   font: 700 8px/1 system-ui, sans-serif;
   letter-spacing: .15em;
   text-transform: uppercase;
 }
 
+.generate:hover:not(:disabled),
+.generate:focus-visible:not(:disabled) {
+  border-color: rgba(185,154,102,.42);
+  background: rgba(185,154,102,.1);
+  outline: none;
+}
+
 .generate:disabled {
+  opacity: .38;
   cursor: default;
 }
 
 .connectionNote {
   margin: 9px 0 0;
-  color: rgba(239,232,220,.22);
+  color: rgba(239,232,220,.28);
   font: 500 8px/1.4 system-ui, sans-serif;
   letter-spacing: .04em;
   text-align: center;
@@ -413,6 +508,19 @@
     grid-template-columns: 1fr;
     gap: 7px;
     padding: 12px 0;
+  }
+
+  .studioField textarea {
+    min-height: 118px;
+  }
+
+  .studioFieldSecondary textarea {
+    min-height: 72px;
+  }
+
+  .spaceSwitch button {
+    padding-inline: 5px;
+    font-size: 7px;
   }
 
   .prev { left: 8px; }
