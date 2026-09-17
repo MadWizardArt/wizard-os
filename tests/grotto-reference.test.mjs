@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { referenceUrl, verifyReference } from '../lib/grotto-reference.ts';
-import { buildStudioWorkflow, civitaiOutputHeaders, grottoStudioStatus } from '../lib/grotto-civitai.ts';
+import { authenticatedCivitaiOutputUrl, buildStudioWorkflow, civitaiOutputHeaders, grottoStudioStatus } from '../lib/grotto-civitai.ts';
 process.env.MUSE_ARTIST_SESSION_SECRET = 'isolated-test-secret-at-least-16';
 process.env.VERCEL_PROJECT_PRODUCTION_URL = 'example.test';
 process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR = 'urn:air:sdxl:checkpoint:civitai:257749@290640';
@@ -30,4 +30,8 @@ test('Atelier reports the active checkpoint and authorizes output retrieval', ()
   Accept: 'image/*',
   Authorization: 'Bearer test-token',
  });
+ assert.equal(
+  authenticatedCivitaiOutputUrl('https://orchestration-new.civitai.com/v2/consumer/blobs/output.jpeg?sig=signed&exp=soon'),
+  'https://orchestration-new.civitai.com/v2/consumer/blobs/output.jpeg',
+ );
 });
