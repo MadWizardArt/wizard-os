@@ -2,6 +2,7 @@ export const GROTTO_MODEL_ENVIRONMENTS = {
   "pony-v6": {
     id: "pony-v6",
     label: "Pony Diffusion V6 XL",
+    air: "urn:air:sdxl:checkpoint:civitai:257749@290640",
     defaultAir: "urn:air:sdxl:checkpoint:civitai:257749@290640",
     envKey: "CIVITAI_STUDIO_PONY_V6_AIR",
     family: "pony-sdxl",
@@ -10,6 +11,7 @@ export const GROTTO_MODEL_ENVIRONMENTS = {
   "pony-realism": {
     id: "pony-realism",
     label: "Pony Realism",
+    air: "urn:air:sdxl:checkpoint:civitai:372465@914390",
     defaultAir: "urn:air:sdxl:checkpoint:civitai:372465@914390",
     envKey: "CIVITAI_STUDIO_PONY_REALISM_AIR",
     family: "pony-sdxl",
@@ -34,13 +36,10 @@ export function grottoModelEnvironmentAir(id: GrottoModelEnvironmentId) {
   const environment = grottoModelEnvironment(id);
   const configured = process.env[environment.envKey]?.trim();
   if (configured) return configured;
-
-  // Preserve the original Studio variable as a migration-safe Pony V6 override.
   if (id === "pony-v6") {
     const legacy = process.env.CIVITAI_STUDIO_PONY_DIFFUSER_AIR?.trim();
     if (legacy) return legacy;
   }
-
   return environment.defaultAir;
 }
 
@@ -48,9 +47,6 @@ export function grottoModelEnvironmentList() {
   return Object.values(GROTTO_MODEL_ENVIRONMENTS).map(({ id, label, family }) => ({ id, label, family }));
 }
 
-export function loraSupportsEnvironment(
-  compatibility: GrottoLoraCompatibility,
-  environmentId: GrottoModelEnvironmentId,
-) {
+export function loraSupportsEnvironment(compatibility: GrottoLoraCompatibility, environmentId: GrottoModelEnvironmentId) {
   return compatibility === "both" || compatibility === environmentId;
 }
