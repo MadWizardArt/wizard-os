@@ -100,3 +100,10 @@ test("Intelligence Chamber exposes Novy continuity through the existing mind-sta
   assert.match(source, /action: "graduate"/);
   assert.match(source, /Graduate lesson/);
 });
+
+
+test("powered Novy reasoning records the Artist relationship contract as context", () => {
+  const source = readFileSync(new URL("../lib/museum-intelligence.ts", import.meta.url), "utf8");
+  assert.match(source, /Artist relationship:/);
+  assert.match(source, /mindKernel\.relationships\.artist\.version/);
+});
