@@ -2,6 +2,7 @@ import { Prisma } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters";
+import { buildMuseMindSystemPrompt, getMuseMindKernel } from "./museum-mind-kernel";
 import { readRelevantCouncilKnowledge } from "./museum-knowledge";
 import { readSharedCouncilCognition } from "./museum-agent-cognition";
 import { intelligenceBudget, intelligenceFuelEnabled } from "./museum-artist-auth";
@@ -301,6 +302,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
 
   try {
     const charter = MUSE_AGENT_CHARTERS[running.museId];
+    const mindKernel = getMuseMindKernel(running.museId);
     const [knowledge, cognition, liveContext] = await Promise.all([
       readRelevantCouncilKnowledge(db, running.museId, running.category, 8),
       readSharedCouncilCognition(db, running.museId),
@@ -318,7 +320,10 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
     const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
 
     const model = running.model || "openai/gpt-5.6-sol";
-    const system = `You are ${running.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
+    const legacySystem = `You are ${running.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
+    const system = mindKernel
+      ? `${buildMuseMindSystemPrompt(mindKernel)}\nCOUNCIL POLICY: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}`
+      : legacySystem;
     const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
@@ -354,6 +359,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
         totalTokens: typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null,
       },
       contextRefs: [
+        ...(mindKernel ? [`Muse mind:${mindKernel.museId}:v${mindKernel.version}`] : []),
         ...liveContext.refs.map((ref) => `Live state:${ref}`),
         ...knowledge.map((entry) => entry.sourceRef),
         ...relevantMemories.map((item) => `Muse memory:${item.id}`),
