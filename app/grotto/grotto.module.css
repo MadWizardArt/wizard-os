@@ -753,3 +753,15 @@
   width: 100%;
   accent-color: #d4b78a;
 }
+
+.scrollSentinel {
+  width: 100%;
+  height: 2px;
+  margin-top: 28px;
+}
+.scrollStatus {
+  margin: 12px 0 4px;
+  color: #9f919a;
+  font: 12px/1.5 system-ui, sans-serif;
+  text-align: center;
+}
