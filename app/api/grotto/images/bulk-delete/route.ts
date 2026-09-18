@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../../lib/prisma";
+import { deleteGrottoImages } from "../../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   if (!ids.length) return NextResponse.json({ error: "Select at least one image." }, { status: 400 });
   const protectedCount = await prisma.grottoImage.count({ where: { id: { in: ids }, canonical: true, deletedAt: null } });
   if (protectedCount) return NextResponse.json({ error: "Canon stays protected." }, { status: 409 });
+  const images = await prisma.grottoImage.findMany({ where: { id: { in: ids }, deletedAt: null, canonical: false }, select: { blobUrl: true } });
   const result = await prisma.grottoImage.updateMany({ where: { id: { in: ids }, deletedAt: null, canonical: false }, data: { deletedAt: new Date() } });
+  await deleteGrottoImages(images.map((image) => image.blobUrl)).catch(() => undefined);
   return NextResponse.json({ deleted: result.count });
 }

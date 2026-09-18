@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../../lib/prisma";
+import { deleteGrottoImages, storeGrottoImage } from "../../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,9 +41,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const contentType = detectedType(bytes);
   if (!contentType) return NextResponse.json({ error: "Choose a JPG, PNG, WebP, or GIF." }, { status: 400 });
-  const image = await prisma.$transaction(async (tx) => {
-    await tx.grottoImage.updateMany({ where: { museId, provider: "header", deletedAt: null }, data: { deletedAt: new Date() } });
-    return tx.grottoImage.create({ data: { museId, provider: "header", contentType, imageData: bytes, byteSize: bytes.length }, select: { id: true } });
-  });
+  const previous = await prisma.grottoImage.findMany({ where: { museId, provider: "header", deletedAt: null }, select: { blobUrl: true } });
+  const blob = await storeGrottoImage(museId, bytes, contentType);
+  let image;
+  try {
+    image = await prisma.$transaction(async (tx) => {
+      await tx.grottoImage.updateMany({ where: { museId, provider: "header", deletedAt: null }, data: { deletedAt: new Date() } });
+      return tx.grottoImage.create({ data: { museId, provider: "header", contentType, blobUrl: blob.url, byteSize: bytes.length }, select: { id: true } });
+    });
+  } catch (error) {
+    await deleteGrottoImages([blob.url]).catch(() => undefined);
+    throw error;
+  }
+  await deleteGrottoImages(previous.map((item) => item.blobUrl)).catch(() => undefined);
   return NextResponse.json({ id: image.id, src: `/api/grotto/images/${image.id}/file` }, { status: 201 });
 }

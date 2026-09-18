@@ -364,7 +364,8 @@ model GrottoImage {
   id                 String   @id @default(cuid())
   museId             String
   contentType        String
-  imageData          Bytes
+  imageData          Bytes?
+  blobUrl            String?  @unique
   byteSize           Int
   provider           String   @default("manual")
   providerWorkflowId String?

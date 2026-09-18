@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../../lib/prisma";
+import { deleteGrottoImages } from "../../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     where: { id },
     data: { deletedAt: new Date() },
   });
+  await deleteGrottoImages([existing.blobUrl]).catch(() => undefined);
 
   return NextResponse.json({ deleted: true });
 }
