@@ -765,3 +765,16 @@
   font: 12px/1.5 system-ui, sans-serif;
   text-align: center;
 }
+
+.prev:disabled,
+.next:disabled {
+  opacity: .18;
+  cursor: default;
+}
+.prev:not(:disabled):hover,
+.next:not(:disabled):hover,
+.prev:not(:disabled):focus-visible,
+.next:not(:disabled):focus-visible {
+  color: #f1ddbf;
+  outline: none;
+}
