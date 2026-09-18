@@ -64,10 +64,20 @@ type MindMemory = {
   createdAt: string;
 };
 
+type ArtistRelationshipContract = {
+  version: 1;
+  authority: string;
+  challengeDoctrine: string[];
+  continuationDoctrine: string[];
+  handoffDoctrine: string[];
+  trustRules: string[];
+};
+
 type MindContinuityPayload = {
   museId: MuseId;
   workingStates: Array<{ id: string; state: MindWorkingState }>;
   durableMemories: Array<{ id: string; memory: MindMemory }>;
+  relationship: ArtistRelationshipContract | null;
 };
 
 const EMPTY_QUEST: QuestDraft = {
@@ -459,6 +469,19 @@ export default function SelectiveIntelligencePage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}><div><p className={styles.kicker}>NOVY MIND · REFERENCE ORGANISM</p><h2>Working continuity and durable memory</h2></div><small>{mind ? `${mind.workingStates.length} states · ${mind.durableMemories.length} memories` : "Reading mind…"}</small></div>
             <p className={styles.explainer}>Working state is temporary and may change. Durable memory only appears after completion, evidence, verification, and explicit graduation. This panel uses the same continuity ledger that fuels Novy&apos;s future reasoning.</p>
+            {mind?.relationship && <article className={styles.relationshipCard}>
+              <div className={styles.relationshipHead}>
+                <div><p className={styles.kicker}>ARTIST RELATIONSHIP V{mind.relationship.version}</p><h3>Our working contract</h3></div>
+                <span>Canonical · inspectable · not scored</span>
+              </div>
+              <p className={styles.relationshipAuthority}>{mind.relationship.authority}</p>
+              <div className={styles.relationshipGrid}>
+                <div><strong>Challenge</strong>{mind.relationship.challengeDoctrine.map((item) => <p key={item}>{item}</p>)}</div>
+                <div><strong>Continue</strong>{mind.relationship.continuationDoctrine.map((item) => <p key={item}>{item}</p>)}</div>
+                <div><strong>Handoff</strong>{mind.relationship.handoffDoctrine.map((item) => <p key={item}>{item}</p>)}</div>
+                <div><strong>Trust</strong>{mind.relationship.trustRules.map((item) => <p key={item}>{item}</p>)}</div>
+              </div>
+            </article>}
             <div className={styles.mindGrid}>
               <div className={styles.mindColumn}>
                 <div className={styles.mindColumnHead}><h3>Working state</h3><span>Live operational context</span></div>
