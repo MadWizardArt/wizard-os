@@ -16,7 +16,11 @@ type StudioEnvironment = { id: EnvironmentId; label: string; family: string; con
 type GrottoStatus = { authenticated: boolean; studio: { configured: boolean; checkpointLabel: string; defaultEnvironmentId: EnvironmentId; environments: StudioEnvironment[]; defaultNegative: string; maxImages: number } };
 
 const MUSE_NAMES: Record<MuseId, string> = { novy: "Novy", aurelia: "Aurelia", callista: "Callista", cleo: "Cleo", lyra: "Lyra", melina: "Melina", seraphine: "Seraphine", tessa: "Tessa", thalia: "Thalia" };
-const ROLE_LABELS: Record<ReferenceRole, string> = { primary: "Primary", pose: "Pose", style: "Style", environment: "Environment" };\nconst GENERATOR_CATALOG: Array<Pick<StudioEnvironment, "id" | "label" | "family">> = [\n  { id: "pony-v6", label: "Pony Diffusion V6 XL", family: "pony-sdxl" },\n  { id: "pony-realism", label: "Pony Realism", family: "pony-sdxl" },\n];
+const ROLE_LABELS: Record<ReferenceRole, string> = { primary: "Primary", pose: "Pose", style: "Style", environment: "Environment" };
+const GENERATOR_CATALOG: Array<Pick<StudioEnvironment, "id" | "label" | "family">> = [
+  { id: "pony-v6", label: "Pony Diffusion V6 XL", family: "pony-sdxl" },
+  { id: "pony-realism", label: "Pony Realism", family: "pony-sdxl" },
+];
 const ROLES = Object.keys(ROLE_LABELS) as ReferenceRole[];
 function canonicalItem(museId: MuseId): GalleryItem { return { id: `canon-${museId}`, museId, src: `/museum/${museId}.webp`, alt: `${MUSE_NAMES[museId]} canonical portrait`, canonical: true, favorite: true }; }
 async function readJson(response: Response) { const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "The Grotto request failed."); return payload; }
