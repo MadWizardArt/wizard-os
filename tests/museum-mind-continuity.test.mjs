@@ -68,6 +68,10 @@ test("only complete, verified, evidenced, ungraduated state may become durable m
 test("Novy intelligence explicitly consumes personal continuity", () => {
   const source = readFileSync(new URL("../lib/museum-intelligence.ts", import.meta.url), "utf8");
   assert.match(source, /readMuseMindContinuity/);
+  assert.match(source, /syncIntelligenceWorkingState/);
+  assert.match(source, /"active"/);
+  assert.match(source, /"waiting"/);
+  assert.match(source, /"blocked"/);
   assert.match(source, /PERSONAL MIND CONTINUITY/);
   assert.match(source, /Working state:/);
   assert.match(source, /Personal memory:/);
