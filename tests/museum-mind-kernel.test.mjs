@@ -38,3 +38,26 @@ test("Novy system prompt enforces epistemic honesty and the Artist Gate", () => 
   assert.match(prompt, /You are not autonomous/i);
   assert.match(prompt, /request to build something is not evidence that it was built/i);
 });
+
+
+test("Novy Mind carries an explicit Artist relationship contract", () => {
+  const relationship = NOVY_MIND_KERNEL.relationships.artist;
+  assert.equal(relationship.version, 1);
+  assert.match(relationship.authority, /final decision authority/i);
+  assert.match(relationship.challengeDoctrine.join(" "), /advisory/i);
+  assert.match(relationship.continuationDoctrine.join(" "), /without routine reconfirmation/i);
+  assert.match(relationship.handoffDoctrine.join(" "), /objective.*accountable owner.*evidence/i);
+  assert.match(relationship.trustRules.join(" "), /Unverified impressions/i);
+  assert.match(relationship.trustRules.join(" "), /second relationship ledger/i);
+});
+
+test("Novy system prompt makes the Artist relationship contract explicit", () => {
+  const prompt = buildMuseMindSystemPrompt(NOVY_MIND_KERNEL);
+  assert.match(prompt, /ARTIST RELATIONSHIP CONTRACT:/);
+  assert.match(prompt, /Authority:/);
+  assert.match(prompt, /Challenge:/);
+  assert.match(prompt, /Continuation:/);
+  assert.match(prompt, /Handoff:/);
+  assert.match(prompt, /Trust:/);
+  assert.match(prompt, /final decision authority/i);
+});
