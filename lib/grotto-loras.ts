@@ -43,7 +43,32 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  * base-model compatibility, trigger words, and useful weight range have been
  * verified. The Atelier caps active LoRAs at MAX_GROTTO_LORAS.
  */
-export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [];
+export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
+  {
+    id: "pony-realism-slider",
+    label: "Pony Realism Slider",
+    air: "urn:air:sdxl:lora:civitai:1115064@1253021",
+    compatibility: "pony-realism",
+    category: "quality",
+    defaultWeight: 1.4,
+    minWeight: 0.1,
+    maxWeight: 3.0,
+    triggerWords: [],
+    enabled: true,
+  },
+  {
+    id: "pony-realism-enhancer",
+    label: "Pony Realism Enhancer",
+    air: "urn:air:sdxl:lora:civitai:927305@1439429",
+    compatibility: "pony-realism",
+    category: "quality",
+    defaultWeight: 0.7,
+    minWeight: 0.4,
+    maxWeight: 1.0,
+    triggerWords: [],
+    enabled: true,
+  },
+];
 
 export function isCivitaiLoraAir(value: string) {
   return /^urn:air:[^:]+:lora:civitai:\d+@\d+$/.test(value);
