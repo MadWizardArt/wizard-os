@@ -109,3 +109,14 @@
 .graduated { margin: 13px 0 0; color: rgba(127,190,153,.72) !important; font-size: .76rem; }
 .memoryCard { border-color: rgba(127,190,153,.16); background: linear-gradient(145deg, rgba(127,190,153,.035), rgba(255,255,255,.018)); }
 @media (max-width: 900px) { .mindGrid { grid-template-columns: 1fr; } }
+
+.relationshipCard { margin: 16px 0 14px; border: 1px solid rgba(208,183,134,.22); background: linear-gradient(145deg, rgba(208,183,134,.055), rgba(123,83,161,.035)); border-radius: 18px; padding: 18px; }
+.relationshipHead { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.relationshipHead h3 { margin: 6px 0 0; font-size: 1.08rem; font-weight: 560; }
+.relationshipHead > span { color: rgba(244,239,231,.42); font-size: .72rem; text-align: right; }
+.relationshipAuthority { max-width: 900px; margin: 14px 0 0; color: rgba(244,239,231,.72); line-height: 1.55; }
+.relationshipGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 14px; }
+.relationshipGrid > div { border: 1px solid rgba(255,255,255,.07); border-radius: 13px; padding: 13px; background: rgba(0,0,0,.12); }
+.relationshipGrid strong { display: block; margin-bottom: 7px; color: rgba(224,200,151,.88); font-size: .76rem; text-transform: uppercase; letter-spacing: .09em; }
+.relationshipGrid p { margin: 6px 0 0; color: rgba(244,239,231,.57); line-height: 1.45; font-size: .82rem; }
+@media (max-width: 720px) { .relationshipHead { flex-direction: column; } .relationshipHead > span { text-align: left; } .relationshipGrid { grid-template-columns: 1fr; } }
