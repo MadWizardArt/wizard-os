@@ -318,13 +318,16 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       ? relevantMemories.map((item, index) => `${index + 1}. ${item.sourceMuseId}: ${item.memory.summary}${item.memory.actualValue ? ` | Actual value: ${item.memory.actualValue}` : ""}`).join("\n")
       : "No routed cross-Muse outcomes yet.";
     const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
+    const responseShape = mindKernel
+      ? mindKernel.outputContract.requiredSections.join(", ")
+      : "Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval";
 
     const model = running.model || "openai/gpt-5.6-sol";
     const legacySystem = `You are ${running.museId}, an accountable specialist in Brandon's Nine Muses council inside Wizard OS. Mission: ${charter.mission}\nEconomic objective: ${charter.economicObjective}\nCreative objective: ${charter.creativeObjective}\nCouncil policy: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}\nYou are not autonomous. Produce one decision-useful synthesis for Brandon. Separate evidence, inference, assumptions, and unknowns. Do not claim that actions were executed. Prefer a concrete next move over generic advice.`;
     const system = mindKernel
       ? `${buildMuseMindSystemPrompt(mindKernel)}\nCOUNCIL POLICY: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}`
       : legacySystem;
-    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval.`;
+    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: ${responseShape}.`;
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
       method: "POST",
