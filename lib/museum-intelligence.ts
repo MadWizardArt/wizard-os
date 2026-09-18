@@ -53,6 +53,7 @@ export type IntelligenceFuelUsage = {
   maxOutputTokens: number;
 };
 
+type IntelligenceQuestWriteDb = Pick<Prisma.TransactionClient, "museumIntelligenceQuest">;
 type IntelligenceDb = Pick<Prisma.TransactionClient, "project" | "painting" | "artworkSale" | "campaign" | "venture" | "museumIntelligenceQuest">;
 
 function text(value: unknown, max: number) {
@@ -119,7 +120,7 @@ export function decodeIntelligenceQuest(payload: string | null): StoredIntellige
   }
 }
 
-export async function createIntelligenceQuest(db: IntelligenceDb, input: {
+export async function createIntelligenceQuest(db: IntelligenceQuestWriteDb, input: {
   museId: MuseId;
   category: ProposalCategory;
   question: string;
