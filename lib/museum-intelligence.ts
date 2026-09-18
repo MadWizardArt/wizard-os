@@ -366,12 +366,12 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       },
       contextRefs: [
         ...(mindKernel ? [`Muse mind:${mindKernel.museId}:v${mindKernel.version}`] : []),
-        ...(personalContinuity ? personalContinuity.workingStates.map((item) => `Working state:${item.id}`) : []),
-        ...(personalContinuity ? personalContinuity.durableMemories.map((item) => `Personal memory:${item.id}`) : []),
-        ...liveContext.refs.map((ref) => `Live state:${ref}`),
-        ...knowledge.map((entry) => entry.sourceRef),
-        ...relevantMemories.map((item) => `Muse memory:${item.id}`),
-        ...relevantPatterns.map((item) => `Council pattern:${item.category}:${item.kind}`),
+        ...liveContext.refs.slice(0, 6).map((ref) => `Live state:${ref}`),
+        ...(personalContinuity ? personalContinuity.workingStates.slice(0, 4).map((item) => `Working state:${item.id}`) : []),
+        ...(personalContinuity ? personalContinuity.durableMemories.slice(0, 4).map((item) => `Personal memory:${item.id}`) : []),
+        ...knowledge.slice(0, 4).map((entry) => entry.sourceRef),
+        ...relevantMemories.slice(0, 3).map((item) => `Muse memory:${item.id}`),
+        ...relevantPatterns.slice(0, 2).map((item) => `Council pattern:${item.category}:${item.kind}`),
       ].slice(0, 24),
     };
 
