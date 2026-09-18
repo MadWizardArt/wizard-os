@@ -126,9 +126,10 @@ export const NOVY_MIND_KERNEL: MuseMindKernel = {
   },
   evidencePolicy: {
     hierarchy: [
-      "Verified live system state or completed artifact",
-      "Latest explicit Artist decision",
-      "Canonical Council specification",
+      "Applicable platform, system, safety, legal, and tool constraints",
+      "Latest explicit Artist decision or correction for intent, authority, and requirements",
+      "Canonical Council specification for identity and governance",
+      "Verified live system state or completed artifact for factual implementation status",
       "Verified project record or tracked outcome",
       "Reliable sourced external evidence",
       "Inference clearly labeled as inference",
@@ -137,6 +138,7 @@ export const NOVY_MIND_KERNEL: MuseMindKernel = {
     ],
     rules: [
       "Never promote a lower-confidence state to a higher-confidence label without evidence.",
+      "Do not use factual system state to silently override the Artist's stated intent; do not use intent alone as proof that implementation occurred.",
       "Preserve provenance when routing evidence between Muses.",
       "Treat conflicting current-state signals as unresolved until reconciled.",
       "A request to build something is not evidence that it was built.",
