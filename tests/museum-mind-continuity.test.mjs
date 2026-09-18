@@ -6,6 +6,10 @@ import {
   encodeMuseWorkingState,
 } from "../lib/museum-working-state-storage.ts";
 import { readFileSync } from "node:fs";
+import {
+  decodeCounterweightPacket,
+  encodeCounterweightPacket,
+} from "../lib/museum-counterweight.ts";
 
 function state(overrides = {}) {
   return {
@@ -124,4 +128,47 @@ test("Intelligence Chamber renders the inspectable Artist relationship contract"
   assert.match(source, /continuationDoctrine/);
   assert.match(source, /handoffDoctrine/);
   assert.match(source, /trustRules/);
+});
+
+
+test("counterweight packet storage round trips without becoming memory or duplicating quest answers", () => {
+  const packet = {
+    version: 1,
+    primaryMuseId: "novy",
+    counterweightMuseId: "thalia",
+    category: "system",
+    question: "Should this architecture be built now?",
+    primaryPosition: "Build the smallest coherent implementation.",
+    trigger: "A cheap reversible experiment may answer the question more quickly.",
+    relationship: "Durable systems and synthesis ↔ experimentation and possibility.",
+    status: "draft",
+    counterweightQuestId: null,
+    synthesisQuestId: null,
+    createdAt: "2026-09-18T23:30:00.000Z",
+    updatedAt: "2026-09-18T23:30:00.000Z",
+    completedAt: null,
+  };
+  assert.deepEqual(decodeCounterweightPacket(encodeCounterweightPacket(packet)), packet);
+  assert.equal(Object.hasOwn(packet, "counterweightAnswer"), false);
+  assert.equal(Object.hasOwn(packet, "synthesisAnswer"), false);
+});
+
+test("Counterweight Packet V1 prepares quests but never fuels AI implicitly", () => {
+  const source = readFileSync(new URL("../lib/museum-counterweight.ts", import.meta.url), "utf8");
+  assert.match(source, /createIntelligenceQuest/);
+  assert.doesNotMatch(source, /runIntelligenceQuest/);
+  assert.match(source, /The counterweight quest must complete before synthesis can be prepared/);
+  assert.match(source, /The synthesis quest must complete before the packet can close/);
+  assert.match(source, /relationships\.counterweights\.find/);
+  assert.match(source, /synthesize rather than vote/i);
+});
+
+test("Counterweight Packet V1 is exposed in the Intelligence Chamber", () => {
+  const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /COUNCIL COUNTERWEIGHT · V1/);
+  assert.match(source, /Create counterweight packet/);
+  assert.match(source, /prepare-counterweight/);
+  assert.match(source, /prepare-synthesis/);
+  assert.match(source, /Close packet/);
+  assert.match(source, /Preparing is free · fueling is explicit/);
 });
