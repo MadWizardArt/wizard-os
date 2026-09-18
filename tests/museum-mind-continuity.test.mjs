@@ -107,3 +107,21 @@ test("powered Novy reasoning records the Artist relationship contract as context
   assert.match(source, /Artist relationship:/);
   assert.match(source, /mindKernel\.relationships\.artist\.version/);
 });
+
+
+test("mind-state API exposes the same Artist relationship contract used by Novy Mind", () => {
+  const source = readFileSync(new URL("../app/api/museum/mind-state/route.ts", import.meta.url), "utf8");
+  assert.match(source, /getMuseMindKernel/);
+  assert.match(source, /relationship: mindKernel\?\.relationships\.artist \?\? null/);
+});
+
+test("Intelligence Chamber renders the inspectable Artist relationship contract", () => {
+  const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /ARTIST RELATIONSHIP V/);
+  assert.match(source, /Our working contract/);
+  assert.match(source, /Canonical · inspectable · not scored/);
+  assert.match(source, /challengeDoctrine/);
+  assert.match(source, /continuationDoctrine/);
+  assert.match(source, /handoffDoctrine/);
+  assert.match(source, /trustRules/);
+});

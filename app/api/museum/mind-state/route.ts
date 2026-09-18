@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { isMuseId } from "../../../../lib/museum";
+import { getMuseMindKernel } from "../../../../lib/museum-mind-kernel";
 import type { MuseMemoryKind } from "../../../../lib/museum-memory-storage";
 import type { ProposalCategory } from "../../../../lib/museum-proposal-storage";
 import {
@@ -63,7 +64,11 @@ export async function GET(request: NextRequest) {
   }
 
   const continuity = await readMuseMindContinuity(prisma, museParam);
-  return NextResponse.json(continuity);
+  const mindKernel = getMuseMindKernel(museParam);
+  return NextResponse.json({
+    ...continuity,
+    relationship: mindKernel?.relationships.artist ?? null,
+  });
 }
 
 export async function POST(request: NextRequest) {
