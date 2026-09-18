@@ -18,7 +18,7 @@ assert.equal(session.body.knowledgeIntakeConfigured, true, "CI should expose onl
 assert.equal(Object.hasOwn(session.body, "accessKey"), false, "Session status must never expose an Artist key.");
 assert.equal(Object.hasOwn(session.body, "ingestKey"), false, "Session status must never expose a Knowledge Intake key.");
 
-for (const path of ["/api/museum/knowledge", "/api/museum/intelligence"]) {
+for (const path of ["/api/museum/knowledge", "/api/museum/intelligence", "/api/museum/mind-state?muse=novy"]) {
   const result = await request(path);
   assert.equal(result.response.status, 401, `${path} must reject anonymous reads.`);
   assert.match(String(result.body?.error || ""), /Artist session required/i);
@@ -30,6 +30,26 @@ const knowledgeWrite = await request("/api/museum/knowledge", {
   body: JSON.stringify({ title: "Nope", content: "Nope", sourceRef: "test" }),
 });
 assert.equal(knowledgeWrite.response.status, 401, "Knowledge Vault writes must reject anonymous requests.");
+
+const mindStateWrite = await request("/api/museum/mind-state", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    museId: "novy",
+    category: "system",
+    objective: "Nope",
+    sourceKey: "security-test",
+    completionCondition: "Nope",
+  }),
+});
+assert.equal(mindStateWrite.response.status, 401, "Mind working-state writes must remain behind the Artist Gate.");
+
+const mindStateAction = await request("/api/museum/mind-state", {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ id: "not-a-real-state", action: "verify", evidenceRefs: ["nope"] }),
+});
+assert.equal(mindStateAction.response.status, 401, "Mind verification and graduation actions must remain behind the Artist Gate.");
 
 const questWrite = await request("/api/museum/intelligence", {
   method: "POST",
