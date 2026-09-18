@@ -68,22 +68,38 @@ export async function upsertMuseWorkingState(db: ContinuityDb, input: MuseWorkin
 
   const now = new Date().toISOString();
   const status = input.status ?? existing?.state?.status ?? "active";
+  const sourceProjectId = cleanText(input.sourceProjectId, 120) || existing?.state?.sourceProjectId || null;
+  const notes = cleanText(input.notes, 1400) || null;
+  const nextAction = cleanText(input.nextAction, 700) || null;
   const evidenceRefs = normalizeRefs(input.evidenceRefs);
   const preservedEvidence = existing?.state?.evidenceRefs ?? [];
+  const substantiveChanged = Boolean(existing?.state) && (
+    existing?.state?.objective !== objective
+    || existing?.state?.category !== input.category
+    || existing?.state?.sourceProjectId !== sourceProjectId
+    || existing?.state?.completionCondition !== completionCondition
+    || existing?.state?.notes !== notes
+    || (existing?.state?.status === "complete" && status !== "complete")
+  );
+
+  if (existing?.state?.graduatedMemoryId && substantiveChanged) {
+    throw new Error("Graduated working state is immutable. Create a new sourceKey for materially changed work.");
+  }
+
   const state: StoredMuseWorkingState = {
     version: 1,
     museId: input.museId,
     objective,
     category: input.category,
     sourceKey,
-    sourceProjectId: cleanText(input.sourceProjectId, 120) || existing?.state?.sourceProjectId || null,
+    sourceProjectId,
     status,
-    nextAction: cleanText(input.nextAction, 700) || null,
+    nextAction,
     completionCondition,
-    notes: cleanText(input.notes, 1400) || null,
+    notes,
     evidenceRefs: evidenceRefs.length ? evidenceRefs : preservedEvidence,
-    verificationStatus: existing?.state?.verificationStatus ?? "unverified",
-    verifiedAt: existing?.state?.verifiedAt ?? null,
+    verificationStatus: substantiveChanged ? "unverified" : existing?.state?.verificationStatus ?? "unverified",
+    verifiedAt: substantiveChanged ? null : existing?.state?.verifiedAt ?? null,
     createdAt: existing?.state?.createdAt ?? now,
     updatedAt: now,
     completedAt: status === "complete" ? existing?.state?.completedAt ?? now : null,
@@ -118,6 +134,7 @@ export async function verifyMuseWorkingState(
   const record = await db.project.findUnique({ where: { id }, select: { id: true, notes: true } });
   const state = record ? decodeMuseWorkingState(record.notes) : null;
   if (!record || !state) throw new Error("Muse working state not found.");
+  if (state.status !== "complete") throw new Error("Only completed working state can be verified.");
 
   const refs = normalizeRefs(evidenceRefs);
   if (refs.length === 0) throw new Error("Verification requires at least one evidence reference.");
