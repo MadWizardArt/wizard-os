@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { grottoGenerationStatus, grottoStudioStatus } from "../../../../lib/grotto-civitai";
 import { artistAccessConfigured, verifyArtistSession } from "../../../../lib/museum-artist-auth";
+import { MAX_GROTTO_LORAS } from "../../../../lib/grotto-loras";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
       defaultEnvironmentId: "pony-v6",
       environments: [],
       loras: [],
-      maxLoras: 2,
+      maxLoras: MAX_GROTTO_LORAS,
       defaultNegative: "",
       maxImages: 1,
     },
