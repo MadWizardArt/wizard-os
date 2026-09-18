@@ -1,7 +1,5 @@
 import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
-import { getMuseMindKernel } from "./museum-mind-kernel";
-
 export const MUSEUM_COUNTERWEIGHT_PREFIX = "MUSEUM_COUNTERWEIGHT_V1:";
 
 export type CounterweightPacketStatus =
@@ -28,6 +26,18 @@ export type StoredCounterweightPacket = {
 };
 
 export type CounterweightPacketRecord = StoredCounterweightPacket & { id: string };
+
+const MUSE_IDS = new Set<MuseId>([
+  "novy",
+  "callista",
+  "aurelia",
+  "cleo",
+  "lyra",
+  "melina",
+  "seraphine",
+  "tessa",
+  "thalia",
+]);
 
 const STATUSES = new Set<CounterweightPacketStatus>([
   "draft",
@@ -71,7 +81,7 @@ export function decodeCounterweightPacket(notes: string | null): StoredCounterwe
 
     const primaryMuseId = parsed.primaryMuseId as MuseId;
     const counterweightMuseId = parsed.counterweightMuseId as MuseId;
-    if (!getMuseMindKernel(primaryMuseId) || !getMuseMindKernel(counterweightMuseId)) return null;
+    if (!MUSE_IDS.has(primaryMuseId) || !MUSE_IDS.has(counterweightMuseId)) return null;
 
     const question = text(parsed.question, 1200);
     const primaryPosition = text(parsed.primaryPosition, 5000);
