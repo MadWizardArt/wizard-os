@@ -3,6 +3,7 @@ import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters";
 import { buildMuseMindSystemPrompt, getMuseMindKernel } from "./museum-mind-kernel";
+import { formatMuseMindContinuity, readMuseMindContinuity } from "./museum-mind-continuity";
 import { readRelevantCouncilKnowledge } from "./museum-knowledge";
 import { readSharedCouncilCognition } from "./museum-agent-cognition";
 import { intelligenceBudget, intelligenceFuelEnabled } from "./museum-artist-auth";
@@ -303,10 +304,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
   try {
     const charter = MUSE_AGENT_CHARTERS[running.museId];
     const mindKernel = getMuseMindKernel(running.museId);
-    const [knowledge, cognition, liveContext] = await Promise.all([
+    const [knowledge, cognition, liveContext, personalContinuity] = await Promise.all([
       readRelevantCouncilKnowledge(db, running.museId, running.category, 8),
       readSharedCouncilCognition(db, running.museId),
       buildIntelligenceContextPacket(db, running.museId, running.category),
+      mindKernel ? readMuseMindContinuity(db, running.museId) : Promise.resolve(null),
     ]);
     const relevantMemories = cognition.routedMemories.filter((item) => item.memory.category === running.category).slice(0, 5);
     const relevantPatterns = cognition.patterns.filter((item) => item.category === running.category).slice(0, 3);
@@ -318,6 +320,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       ? relevantMemories.map((item, index) => `${index + 1}. ${item.sourceMuseId}: ${item.memory.summary}${item.memory.actualValue ? ` | Actual value: ${item.memory.actualValue}` : ""}`).join("\n")
       : "No routed cross-Muse outcomes yet.";
     const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
+    const continuityBlock = personalContinuity ? formatMuseMindContinuity(personalContinuity) : "No persistent personal continuity is enabled for this Muse yet.";
     const responseShape = mindKernel
       ? mindKernel.outputContract.requiredSections.join(", ")
       : "Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval";
@@ -327,7 +330,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
     const system = mindKernel
       ? `${buildMuseMindSystemPrompt(mindKernel)}\nCOUNCIL POLICY: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}`
       : legacySystem;
-    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: ${responseShape}.`;
+    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nPERSONAL MIND CONTINUITY\n${continuityBlock}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: ${responseShape}.`;
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
       method: "POST",
@@ -363,6 +366,8 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       },
       contextRefs: [
         ...(mindKernel ? [`Muse mind:${mindKernel.museId}:v${mindKernel.version}`] : []),
+        ...(personalContinuity ? personalContinuity.workingStates.map((item) => `Working state:${item.id}`) : []),
+        ...(personalContinuity ? personalContinuity.durableMemories.map((item) => `Personal memory:${item.id}`) : []),
         ...liveContext.refs.map((ref) => `Live state:${ref}`),
         ...knowledge.map((entry) => entry.sourceRef),
         ...relevantMemories.map((item) => `Muse memory:${item.id}`),
