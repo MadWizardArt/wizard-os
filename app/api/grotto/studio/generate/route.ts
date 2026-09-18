@@ -13,6 +13,7 @@ import {
   type StudioGenerationInput,
 } from "../../../../../lib/grotto-civitai";
 import { DEFAULT_GROTTO_MODEL_ENVIRONMENT, isGrottoModelEnvironmentId } from "../../../../../lib/grotto-model-environments";
+import { resolveGrottoLoras, type GrottoLoraSelection } from "../../../../../lib/grotto-loras";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { referenceUrl } from "../../../../../lib/grotto-reference";
 import { prisma } from "../../../../../lib/prisma";
@@ -40,6 +41,18 @@ function readInput(value: unknown): StudioGenerationInput | null {
 
   if (!prompt || prompt.length > 5000 || negativePrompt.length > 5000 || !FORMATS.has(format)) return null;
   if (quantity !== 1 && quantity !== 4 || !isGrottoModelEnvironmentId(environmentId)) return null;
+  const loraValues = raw.loras === undefined ? [] : raw.loras;
+  if (!Array.isArray(loraValues)) return null;
+  const loras: GrottoLoraSelection[] = [];
+  for (const value of loraValues) {
+    if (!value || typeof value !== "object") return null;
+    const item = value as Record<string, unknown>;
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    const weight = Number(item.weight);
+    if (!/^[a-z0-9-]{1,80}$/.test(id) || !Number.isFinite(weight)) return null;
+    loras.push({ id, weight });
+  }
+  try { resolveGrottoLoras(loras, environmentId); } catch { return null; }
   const status = grottoStudioStatus();
   if (quantity > status.maxImages) return null;
 
@@ -47,12 +60,12 @@ function readInput(value: unknown): StudioGenerationInput | null {
   if (referenceId && !/^[a-zA-Z0-9_-]{1,100}$/.test(referenceId)) return null;
   const strength = raw.strength === undefined ? 0.35 : Number(raw.strength);
   if (!Number.isFinite(strength) || strength < 0.05 || strength > 0.9) return null;
-  return { environmentId, prompt, negativePrompt, format, quantity, ...(referenceId ? { referenceId, strength } : {}) };
+  return { environmentId, prompt, negativePrompt, format, quantity, ...(loras.length ? { loras } : {}), ...(referenceId ? { referenceId, strength } : {}) };
 }
 
 async function persistWorkflowImages(workflowId: string, input: StudioGenerationInput, snapshot: Awaited<ReturnType<typeof getGeneration>>) {
   const outputs = extractWorkflowImages(snapshot);
-  const { prompt, body, environment } = buildStudioWorkflow(input);
+  const { prompt, body, environment, loras } = buildStudioWorkflow(input);
   const saved = [];
   for (let index = 0; index < outputs.length; index += 1) {
     const output = outputs[index];
@@ -68,7 +81,7 @@ async function persistWorkflowImages(workflowId: string, input: StudioGeneration
     if (!bytes.byteLength) throw new Error("Generated image was empty.");
     if (bytes.byteLength > 16 * 1024 * 1024) throw new Error("Generated image exceeded the private gallery size limit.");
     const image = await prisma.grottoImage.create({
-      data: { museId: "studio", contentType, imageData: bytes, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, workflow: body }) },
+      data: { museId: "studio", contentType, imageData: bytes, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, workflow: body }) },
       select: { id: true, favorite: true, canonical: true, createdAt: true },
     });
     saved.push({ ...image, src: `/api/grotto/images/${image.id}/file` });
@@ -83,7 +96,7 @@ export async function POST(request: NextRequest) {
   if (!status.configured) return NextResponse.json({ error: "The Atelier is not connected yet.", studio: status }, { status: 503 });
   const body = await request.json().catch(() => ({}));
   const input = readInput(body.input);
-  if (!input) return NextResponse.json({ error: "A valid Studio model, prompt, format, and count are required." }, { status: 400 });
+  if (!input) return NextResponse.json({ error: "A valid Studio model, LoRA stack, prompt, format, and count are required." }, { status: 400 });
 
   try {
     let sourceImage: string | undefined;
