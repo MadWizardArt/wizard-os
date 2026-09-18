@@ -1,4 +1,4 @@
-import { isMuseId, type MuseId } from "./museum";
+import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 
 export const MUSEUM_WORKING_STATE_PREFIX = "MUSEUM_WORKING_STATE_V1:";
@@ -29,6 +29,11 @@ export type StoredMuseWorkingState = {
 const STATUSES = new Set<MuseWorkingStateStatus>(["active", "waiting", "blocked", "complete", "superseded"]);
 const VERIFICATION = new Set<MuseWorkingStateVerification>(["unverified", "artist-confirmed", "system-verified"]);
 const CATEGORIES = new Set<ProposalCategory>(["revenue", "product", "content", "system", "risk", "research", "capacity", "experiment"]);
+const MUSE_IDS = new Set<MuseId>(["callista", "aurelia", "lyra", "cleo", "novy", "seraphine", "tessa", "thalia", "melina"]);
+
+function isStoredMuseId(value: unknown): value is MuseId {
+  return typeof value === "string" && MUSE_IDS.has(value as MuseId);
+}
 
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -62,7 +67,7 @@ export function decodeMuseWorkingState(notes: string | null): StoredMuseWorkingS
   if (!notes?.startsWith(MUSEUM_WORKING_STATE_PREFIX)) return null;
   try {
     const parsed = JSON.parse(notes.slice(MUSEUM_WORKING_STATE_PREFIX.length)) as Record<string, unknown>;
-    if (Number(parsed.version) !== 1 || !isMuseId(parsed.museId)) return null;
+    if (Number(parsed.version) !== 1 || !isStoredMuseId(parsed.museId)) return null;
     if (!STATUSES.has(parsed.status as MuseWorkingStateStatus)) return null;
     if (!VERIFICATION.has(parsed.verificationStatus as MuseWorkingStateVerification)) return null;
     if (!CATEGORIES.has(parsed.category as ProposalCategory)) return null;
