@@ -11,6 +11,7 @@ import {
 } from "../../../../lib/grotto-civitai";
 import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../lib/prisma";
+import { deleteGrottoImages, storeGrottoImage } from "../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,20 +101,27 @@ async function persistWorkflowImages(workflowId: string, choices: GrottoChoices,
     if (bytes.byteLength === 0) throw new Error("Generated image was empty.");
     if (bytes.byteLength > 16 * 1024 * 1024) throw new Error("Generated image exceeded the private gallery size limit.");
 
-    const image = await prisma.grottoImage.create({
-      data: {
-        museId: "tessa",
-        contentType,
-        imageData: bytes,
-        byteSize: bytes.byteLength,
-        provider: "civitai",
-        providerWorkflowId: workflowId,
-        providerImageId,
-        prompt,
-        recipeJson: JSON.stringify({ choices, workflow: body }),
-      },
-      select: { id: true, favorite: true, canonical: true, createdAt: true },
-    });
+    const blob = await storeGrottoImage("tessa", bytes, contentType);
+    let image;
+    try {
+      image = await prisma.grottoImage.create({
+        data: {
+          museId: "tessa",
+          contentType,
+          blobUrl: blob.url,
+          byteSize: bytes.byteLength,
+          provider: "civitai",
+          providerWorkflowId: workflowId,
+          providerImageId,
+          prompt,
+          recipeJson: JSON.stringify({ choices, workflow: body }),
+        },
+        select: { id: true, favorite: true, canonical: true, createdAt: true },
+      });
+    } catch (error) {
+      await deleteGrottoImages([blob.url]).catch(() => undefined);
+      throw error;
+    }
 
     saved.push({ ...image, src: `/api/grotto/images/${image.id}/file` });
   }

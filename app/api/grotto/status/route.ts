@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { grottoGenerationStatus, grottoStudioStatus } from "../../../../lib/grotto-civitai";
 import { artistAccessConfigured, verifyArtistSession } from "../../../../lib/museum-artist-auth";
 import { MAX_GROTTO_LORAS } from "../../../../lib/grotto-loras";
+import { grottoBlobConfigured } from "../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     configured: artistAccessConfigured(),
     authenticated,
+    storage: { provider: "vercel-blob", configured: grottoBlobConfigured() },
     generation: authenticated ? generation : {
       enabled: false,
       provider: "civitai",

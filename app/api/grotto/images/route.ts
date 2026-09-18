@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../lib/prisma";
+import { deleteGrottoImages, storeGrottoImage } from "../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,7 +76,14 @@ export async function POST(request: NextRequest) {
     if (!contentType) return NextResponse.json({ error: "Choose a JPG, PNG, or WebP image." }, { status: 400 });
     const museId = String(form.get("museId") || "studio").trim().toLowerCase();
     if (!ALLOWED_GALLERIES.has(museId)) return NextResponse.json({ error: "That Grotto gallery is not available." }, { status: 400 });
-    const image = await prisma.grottoImage.create({ data: { museId, provider: "reference", contentType, imageData: bytes, byteSize: bytes.length }, select: { id: true, museId: true } });
+    const blob = await storeGrottoImage(museId, bytes, contentType);
+    let image;
+    try {
+      image = await prisma.grottoImage.create({ data: { museId, provider: "reference", contentType, blobUrl: blob.url, byteSize: bytes.length }, select: { id: true, museId: true } });
+    } catch (error) {
+      await deleteGrottoImages([blob.url]).catch(() => undefined);
+      throw error;
+    }
     return NextResponse.json({ id: image.id, museId: image.museId, src: `/api/grotto/images/${image.id}/file`, favorite: false, canonical: false, provider: "reference" }, { status: 201 });
   } catch { return NextResponse.json({ error: "Reference could not be uploaded." }, { status: 400 }); }
 }

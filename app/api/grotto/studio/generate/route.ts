@@ -17,6 +17,7 @@ import { resolveGrottoLoras, type GrottoLoraSelection } from "../../../../../lib
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { referenceUrl } from "../../../../../lib/grotto-reference";
 import { prisma } from "../../../../../lib/prisma";
+import { deleteGrottoImages, storeGrottoImage } from "../../../../../lib/grotto-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,10 +81,17 @@ async function persistWorkflowImages(workflowId: string, input: StudioGeneration
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.byteLength) throw new Error("Generated image was empty.");
     if (bytes.byteLength > 16 * 1024 * 1024) throw new Error("Generated image exceeded the private gallery size limit.");
-    const image = await prisma.grottoImage.create({
-      data: { museId: "studio", contentType, imageData: bytes, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, workflow: body }) },
-      select: { id: true, favorite: true, canonical: true, createdAt: true },
-    });
+    const blob = await storeGrottoImage("studio", bytes, contentType);
+    let image;
+    try {
+      image = await prisma.grottoImage.create({
+        data: { museId: "studio", contentType, blobUrl: blob.url, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, workflow: body }) },
+        select: { id: true, favorite: true, canonical: true, createdAt: true },
+      });
+    } catch (error) {
+      await deleteGrottoImages([blob.url]).catch(() => undefined);
+      throw error;
+    }
     saved.push({ ...image, src: `/api/grotto/images/${image.id}/file` });
   }
   return saved;
