@@ -3,7 +3,7 @@ import type { MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "./museum-agent-charters";
 import { buildMuseMindSystemPrompt, getMuseMindKernel } from "./museum-mind-kernel";
-import { formatMuseMindContinuity, readMuseMindContinuity } from "./museum-mind-continuity";
+import { formatMuseMindContinuity, readMuseMindContinuity, upsertMuseWorkingState } from "./museum-mind-continuity";
 import { readRelevantCouncilKnowledge } from "./museum-knowledge";
 import { readSharedCouncilCognition } from "./museum-agent-cognition";
 import { intelligenceBudget, intelligenceFuelEnabled } from "./museum-artist-auth";
@@ -249,6 +249,32 @@ function outputText(payload: any) {
   return parts.join("\n").trim();
 }
 
+async function syncIntelligenceWorkingState(
+  db: IntelligenceDb,
+  id: string,
+  quest: StoredIntelligenceQuest,
+  status: "active" | "waiting" | "blocked",
+  nextAction: string,
+  evidenceRefs: string[] = [],
+) {
+  if (!getMuseMindKernel(quest.museId)) return null;
+  try {
+    return await upsertMuseWorkingState(db, {
+      museId: quest.museId,
+      objective: quest.question,
+      category: quest.category,
+      sourceKey: `intelligence:${id}`,
+      status,
+      nextAction,
+      completionCondition: "The question is resolved by completed and verified work, or this line of work is explicitly superseded.",
+      notes: `Why this merits intelligence: ${quest.reason}\nExpected value: ${quest.expectedValue}`,
+      evidenceRefs,
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function markFailed(db: IntelligenceDb, id: string, quest: StoredIntelligenceQuest, message: string) {
   const failure = describeIntelligenceFailure(message);
   const failed: StoredIntelligenceQuest = { ...quest, status: "failed", error: failure.message, errorCode: failure.code };
@@ -300,6 +326,14 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
     },
   });
   if (claim.count !== 1) throw new Error("This intelligence quest was already claimed by another request.");
+
+  await syncIntelligenceWorkingState(
+    db,
+    id,
+    running,
+    "active",
+    "Complete the bounded intelligence synthesis and return it for Artist review.",
+  );
 
   try {
     const charter = MUSE_AGENT_CHARTERS[running.museId];
@@ -383,9 +417,26 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       },
     });
 
+    await syncIntelligenceWorkingState(
+      db,
+      id,
+      completed,
+      "waiting",
+      "Review the synthesis, execute an approved next action, or explicitly supersede this line of work.",
+      [`Intelligence quest:${id}`],
+    );
+
     return { id, ...completed };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Intelligence quest failed.";
+    await syncIntelligenceWorkingState(
+      db,
+      id,
+      running,
+      "blocked",
+      "Resolve the intelligence failure or prepare a retry; do not treat the failed run as a learned outcome.",
+      [`Failed intelligence quest:${id}`],
+    );
     await markFailed(db, id, running, message);
     throw error;
   }
