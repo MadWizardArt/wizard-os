@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import {
   decodeCounterweightPacket,
   encodeCounterweightPacket,
-} from "../lib/museum-counterweight.ts";
+} from "../lib/museum-counterweight-storage.ts";
 
 function state(overrides = {}) {
   return {
