@@ -399,7 +399,10 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
         totalTokens: typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null,
       },
       contextRefs: [
-        ...(mindKernel ? [`Muse mind:${mindKernel.museId}:v${mindKernel.version}`] : []),
+        ...(mindKernel ? [
+          `Muse mind:${mindKernel.museId}:v${mindKernel.version}`,
+          `Artist relationship:${mindKernel.museId}:v${mindKernel.relationships.artist.version}`,
+        ] : []),
         ...liveContext.refs.slice(0, 6).map((ref) => `Live state:${ref}`),
         ...(personalContinuity ? personalContinuity.workingStates.slice(0, 4).map((item) => `Working state:${item.id}`) : []),
         ...(personalContinuity ? personalContinuity.durableMemories.slice(0, 4).map((item) => `Personal memory:${item.id}`) : []),
