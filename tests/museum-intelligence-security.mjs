@@ -18,7 +18,7 @@ assert.equal(session.body.knowledgeIntakeConfigured, true, "CI should expose onl
 assert.equal(Object.hasOwn(session.body, "accessKey"), false, "Session status must never expose an Artist key.");
 assert.equal(Object.hasOwn(session.body, "ingestKey"), false, "Session status must never expose a Knowledge Intake key.");
 
-for (const path of ["/api/museum/knowledge", "/api/museum/intelligence", "/api/museum/mind-state?muse=novy"]) {
+for (const path of ["/api/museum/knowledge", "/api/museum/intelligence", "/api/museum/mind-state?muse=novy", "/api/museum/counterweight"]) {
   const result = await request(path);
   assert.equal(result.response.status, 401, `${path} must reject anonymous reads.`);
   assert.match(String(result.body?.error || ""), /Artist session required/i);
@@ -50,6 +50,27 @@ const mindStateAction = await request("/api/museum/mind-state", {
   body: JSON.stringify({ id: "not-a-real-state", action: "verify", evidenceRefs: ["nope"] }),
 });
 assert.equal(mindStateAction.response.status, 401, "Mind verification and graduation actions must remain behind the Artist Gate.");
+
+const counterweightWrite = await request("/api/museum/counterweight", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    primaryMuseId: "novy",
+    counterweightMuseId: "thalia",
+    category: "system",
+    question: "Nope",
+    primaryPosition: "Nope",
+    trigger: "Nope",
+  }),
+});
+assert.equal(counterweightWrite.response.status, 401, "Counterweight packet creation must remain behind the Artist Gate.");
+
+const counterweightAction = await request("/api/museum/counterweight", {
+  method: "PATCH",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ id: "not-a-real-packet", action: "prepare-counterweight" }),
+});
+assert.equal(counterweightAction.response.status, 401, "Counterweight packet actions must remain behind the Artist Gate.");
 
 const questWrite = await request("/api/museum/intelligence", {
   method: "POST",
