@@ -68,9 +68,15 @@ export async function upsertMuseWorkingState(db: ContinuityDb, input: MuseWorkin
 
   const now = new Date().toISOString();
   const status = input.status ?? existing?.state?.status ?? "active";
-  const sourceProjectId = cleanText(input.sourceProjectId, 120) || existing?.state?.sourceProjectId || null;
-  const notes = cleanText(input.notes, 1400) || null;
-  const nextAction = cleanText(input.nextAction, 700) || null;
+  const sourceProjectId = input.sourceProjectId === undefined
+    ? existing?.state?.sourceProjectId ?? null
+    : cleanText(input.sourceProjectId, 120) || null;
+  const notes = input.notes === undefined
+    ? existing?.state?.notes ?? null
+    : cleanText(input.notes, 1400) || null;
+  const nextAction = input.nextAction === undefined
+    ? existing?.state?.nextAction ?? null
+    : cleanText(input.nextAction, 700) || null;
   const evidenceRefs = normalizeRefs(input.evidenceRefs);
   const preservedEvidence = existing?.state?.evidenceRefs ?? [];
   const substantiveChanged = Boolean(existing?.state) && (
