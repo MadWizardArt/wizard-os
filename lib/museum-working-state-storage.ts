@@ -1,4 +1,3 @@
-import { ProjectStatus, ProjectType } from "../app/generated/prisma/client";
 import { isMuseId, type MuseId } from "./museum";
 import type { ProposalCategory } from "./museum-proposal-storage";
 
@@ -99,16 +98,15 @@ export function decodeMuseWorkingState(notes: string | null): StoredMuseWorkingS
   }
 }
 
-export function projectStatusForMuseWorkingState(status: MuseWorkingStateStatus): ProjectStatus {
-  if (status === "complete") return ProjectStatus.COMPLETE;
-  if (status === "blocked") return ProjectStatus.BLOCKED;
-  if (status === "waiting") return ProjectStatus.WAITING;
-  if (status === "superseded") return ProjectStatus.ARCHIVED;
-  return ProjectStatus.ACTIVE;
+export function canGraduateMuseWorkingState(state: StoredMuseWorkingState) {
+  if (state.status !== "complete") return { allowed: false, reason: "Working state must be complete before it can become durable memory." };
+  if (state.verificationStatus === "unverified" || !state.verifiedAt) return { allowed: false, reason: "Working state must be explicitly verified before graduation." };
+  if (state.evidenceRefs.length === 0) return { allowed: false, reason: "Graduation requires at least one evidence reference." };
+  if (state.graduatedMemoryId) return { allowed: false, reason: "This working state already graduated into durable memory." };
+  return { allowed: true, reason: null };
 }
 
 export function isMuseWorkingStateProject(notes: string | null) {
   return Boolean(notes?.startsWith(MUSEUM_WORKING_STATE_PREFIX));
 }
 
-export const MUSE_WORKING_STATE_PROJECT_TYPE = ProjectType.INTERNAL;
