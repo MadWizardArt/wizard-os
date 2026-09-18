@@ -14,7 +14,8 @@ type StudioInput = { environmentId: EnvironmentId; prompt: string; negativePromp
 type GalleryItem = { id: string; museId?: string; src: string; alt: string; canonical?: boolean; favorite?: boolean; private?: boolean; prompt?: string; studioInput?: StudioInput | null };
 type TrayItem = GalleryItem & { role: ReferenceRole };
 type StudioEnvironment = { id: EnvironmentId; label: string; family: string; configured: boolean };
-type GrottoStatus = { authenticated: boolean; studio: { configured: boolean; checkpointLabel: string; defaultEnvironmentId: EnvironmentId; environments: StudioEnvironment[]; defaultNegative: string; maxImages: number } };
+type StudioLora = { id: string; label: string; compatibility: EnvironmentId | "both"; category: string; defaultWeight: number; minWeight: number; maxWeight: number; triggerWords: string[]; configured: boolean };
+type GrottoStatus = { authenticated: boolean; studio: { configured: boolean; checkpointLabel: string; defaultEnvironmentId: EnvironmentId; environments: StudioEnvironment[]; loras: StudioLora[]; maxLoras: number; defaultNegative: string; maxImages: number } };
 
 const MUSE_NAMES: Record<MuseId, string> = { novy: "Novy", aurelia: "Aurelia", callista: "Callista", cleo: "Cleo", lyra: "Lyra", melina: "Melina", seraphine: "Seraphine", tessa: "Tessa", thalia: "Thalia" };
 const ROLE_LABELS: Record<ReferenceRole, string> = { primary: "Primary", pose: "Pose", style: "Style", environment: "Environment" };
