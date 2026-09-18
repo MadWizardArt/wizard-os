@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
       configured: false,
       defaultEnvironmentId: "pony-v6",
       environments: [],
+      loras: [],
+      maxLoras: 2,
       defaultNegative: "",
       maxImages: 1,
     },
