@@ -5,6 +5,14 @@ import {
   grottoModelEnvironmentList,
   type GrottoModelEnvironmentId,
 } from "./grotto-model-environments.ts";
+import {
+  grottoAdditionalNetworks,
+  grottoLoraList,
+  grottoLoraTriggerWords,
+  MAX_GROTTO_LORAS,
+  resolveGrottoLoras,
+  type GrottoLoraSelection,
+} from "./grotto-loras.ts";
 
 const ORCHESTRATION_BASE_URL = "https://orchestration.civitai.com";
 const DEFAULT_FLUX1_DIFFUSER_AIR = "urn:air:flux1:diffuser:civitai:618692@691639";
@@ -19,6 +27,7 @@ export type StudioGenerationInput = {
   quantity: 1 | 4;
   referenceId?: string;
   strength?: number;
+  loras?: GrottoLoraSelection[];
 };
 type CivitaiImage = { id?: string; url: string };
 export type WorkflowSnapshot = { id: string; status: string; cost?: { total?: number }; transactions?: Array<{ amount?: number; quantity?: number }>; steps?: Array<{ output?: { images?: Array<{ id?: string; url?: string; available?: boolean }>; blobs?: Array<{ url?: string; type?: string; mimeType?: string }> } }>; [key: string]: unknown };
@@ -45,7 +54,7 @@ export function grottoStudioStatus() {
   const providerConfigured = token().length > 0;
   const environments = grottoModelEnvironmentList().map((environment) => ({ ...environment, configured: isCivitaiCheckpointAir(grottoModelEnvironmentAir(environment.id)) }));
   const checkpointConfigured = environments.some((environment) => environment.configured);
-  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, environments, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
+  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, environments, loras: grottoLoraList(), maxLoras: MAX_GROTTO_LORAS, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
 }
 
 const MOODS: Record<string,string> = { Soft:"soft relaxed expression, tender quiet atmosphere", Playful:"warm playful expression, light affectionate energy", Mysterious:"quiet mysterious expression, intimate low light, restrained cinematic atmosphere", Serene:"serene self-possessed expression, calm graceful presence" };
@@ -64,7 +73,13 @@ export function buildStudioWorkflow(input:StudioGenerationInput,sourceImage?:str
   const environment=grottoModelEnvironment(environmentId);
   const model=grottoModelEnvironmentAir(environmentId);
   if(!isCivitaiCheckpointAir(model)) throw new Error(`${environment.label} is not configured with a valid Civitai checkpoint AIR.`);
-  return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, prompt:input.prompt.trim(), body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt:input.prompt.trim(),negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
+  const resolvedLoras=resolveGrottoLoras(input.loras,environmentId);
+  const triggerWords=grottoLoraTriggerWords(resolvedLoras);
+  const prompt=[input.prompt.trim(),...triggerWords].filter(Boolean).join(", ");
+  const additionalNetworks=grottoAdditionalNetworks(resolvedLoras);
+  const networkInput=Object.keys(additionalNetworks).length?{additionalNetworks}:{};
+  const loras=resolvedLoras.map(({id,label,air,weight})=>({id,label,air,weight}));
+  return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, loras, prompt, body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...networkInput,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt,negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
 }
 
 export function civitaiOutputHeaders(){ const accessToken=token(); if(!accessToken) throw new Error("Civitai is not configured."); return {Accept:"image/*",Authorization:`Bearer ${accessToken}`}; }
