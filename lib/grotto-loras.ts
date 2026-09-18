@@ -4,7 +4,7 @@ import {
   type GrottoModelEnvironmentId,
 } from "./grotto-model-environments.ts";
 
-export const MAX_GROTTO_LORAS = 2;
+export const MAX_GROTTO_LORAS = 5;
 
 export type GrottoLoraCategory =
   | "character"
