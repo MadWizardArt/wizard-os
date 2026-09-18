@@ -36,6 +36,40 @@ type ArtistSession = {
   budget: { maxRuns: number; dailyTokens: number; maxOutputTokens: number };
 };
 
+type MindWorkingState = {
+  version: 1;
+  museId: MuseId;
+  objective: string;
+  category: ProposalCategory;
+  sourceKey: string;
+  status: "active" | "waiting" | "blocked" | "complete" | "superseded";
+  nextAction: string | null;
+  completionCondition: string;
+  notes: string | null;
+  evidenceRefs: string[];
+  verificationStatus: "unverified" | "artist-confirmed" | "system-verified";
+  verifiedAt: string | null;
+  completedAt: string | null;
+  graduatedMemoryId: string | null;
+};
+
+type MindMemory = {
+  version: 1;
+  museId: MuseId;
+  kind: "decision" | "outcome" | "lesson";
+  title: string;
+  summary: string;
+  category: ProposalCategory;
+  verifiedBy: "artist" | "system";
+  createdAt: string;
+};
+
+type MindContinuityPayload = {
+  museId: MuseId;
+  workingStates: Array<{ id: string; state: MindWorkingState }>;
+  durableMemories: Array<{ id: string; memory: MindMemory }>;
+};
+
 const EMPTY_QUEST: QuestDraft = {
   museId: "callista",
   category: "revenue",
@@ -85,6 +119,8 @@ export default function SelectiveIntelligencePage() {
   const [accessKey, setAccessKey] = useState("");
   const [knowledge, setKnowledge] = useState<CouncilKnowledgeRecord[]>([]);
   const [payload, setPayload] = useState<IntelligencePayload>(EMPTY_PAYLOAD);
+  const [mind, setMind] = useState<MindContinuityPayload | null>(null);
+  const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<QuestDraft>(EMPTY_QUEST);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -93,20 +129,24 @@ export default function SelectiveIntelligencePage() {
   const loadProtected = async () => {
     setLoading(true);
     try {
-      const [knowledgeResponse, intelligenceResponse] = await Promise.all([
+      const [knowledgeResponse, intelligenceResponse, mindResponse] = await Promise.all([
         fetch("/api/museum/knowledge", { cache: "no-store" }),
         fetch("/api/museum/intelligence", { cache: "no-store" }),
+        fetch("/api/museum/mind-state?muse=novy", { cache: "no-store" }),
       ]);
       const knowledgeJson = await knowledgeResponse.json();
       const intelligenceJson = await intelligenceResponse.json();
-      if (knowledgeResponse.status === 401 || intelligenceResponse.status === 401) {
+      const mindJson = await mindResponse.json();
+      if (knowledgeResponse.status === 401 || intelligenceResponse.status === 401 || mindResponse.status === 401) {
         setSession((current) => current ? { ...current, authenticated: false } : current);
         throw new Error("Artist session expired. Unlock the chamber again.");
       }
       if (!knowledgeResponse.ok) throw new Error(knowledgeJson.error || "Council knowledge could not be read.");
       if (!intelligenceResponse.ok) throw new Error(intelligenceJson.error || "Intelligence quests could not be read.");
+      if (!mindResponse.ok) throw new Error(mindJson.error || "Novy continuity could not be read.");
       setKnowledge(Array.isArray(knowledgeJson) ? knowledgeJson : []);
       setPayload(intelligenceJson);
+      setMind(mindJson);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The Intelligence Chamber could not be loaded.");
     } finally {
@@ -157,6 +197,8 @@ export default function SelectiveIntelligencePage() {
     setSession((current) => current ? { ...current, authenticated: false } : current);
     setKnowledge([]);
     setPayload(EMPTY_PAYLOAD);
+    setMind(null);
+    setLessonDrafts({});
     setNotice("Intelligence Chamber locked.");
   };
 
@@ -243,6 +285,81 @@ export default function SelectiveIntelligencePage() {
       await loadProtected();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The failed quest could not be deleted.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updateMindStatus = async (record: { id: string; state: MindWorkingState }, status: MindWorkingState["status"]) => {
+    setBusy(`mind-status:${record.id}`);
+    try {
+      const state = record.state;
+      const response = await fetch("/api/museum/mind-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          museId: state.museId,
+          category: state.category,
+          objective: state.objective,
+          sourceKey: state.sourceKey,
+          completionCondition: state.completionCondition,
+          status,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Working state could not be updated.");
+      setNotice(status === "complete" ? "Working state marked complete. It still requires explicit verification." : "Working state updated.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Working state could not be updated.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const verifyMindState = async (record: { id: string; state: MindWorkingState }) => {
+    setBusy(`mind-verify:${record.id}`);
+    try {
+      const response = await fetch("/api/museum/mind-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, action: "verify", evidenceRefs: record.state.evidenceRefs }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Working state could not be verified.");
+      setNotice("Evidence verified by the Artist. The state is now eligible for explicit memory graduation.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Working state could not be verified.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const graduateMindState = async (record: { id: string; state: MindWorkingState }) => {
+    const summary = (lessonDrafts[record.id] || "").trim();
+    if (!summary) {
+      setNotice("Write the durable lesson before graduating this state.");
+      return;
+    }
+    setBusy(`mind-graduate:${record.id}`);
+    try {
+      const response = await fetch("/api/museum/mind-state", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: record.id, action: "graduate", kind: "lesson", summary }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Working state could not become durable memory.");
+      setLessonDrafts((current) => {
+        const next = { ...current };
+        delete next[record.id];
+        return next;
+      });
+      setNotice("Durable lesson graduated into Novy's personal memory.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Working state could not become durable memory.");
     } finally {
       setBusy(null);
     }
@@ -337,6 +454,52 @@ export default function SelectiveIntelligencePage() {
             <article><strong>{pendingKnowledge.length}</strong><span>awaiting review</span></article>
             <article><strong>{payload.quests.filter((quest) => quest.status === "candidate").length}</strong><span>ready quests</span></article>
             <article><strong>{totalTokens.toLocaleString()}</strong><span>lifetime quest tokens</span></article>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>NOVY MIND · REFERENCE ORGANISM</p><h2>Working continuity and durable memory</h2></div><small>{mind ? `${mind.workingStates.length} states · ${mind.durableMemories.length} memories` : "Reading mind…"}</small></div>
+            <p className={styles.explainer}>Working state is temporary and may change. Durable memory only appears after completion, evidence, verification, and explicit graduation. This panel uses the same continuity ledger that fuels Novy&apos;s future reasoning.</p>
+            <div className={styles.mindGrid}>
+              <div className={styles.mindColumn}>
+                <div className={styles.mindColumnHead}><h3>Working state</h3><span>Live operational context</span></div>
+                {!mind && <p className={styles.empty}>Reading Novy&apos;s continuity…</p>}
+                {mind && mind.workingStates.length === 0 && <div className={styles.emptyBox}><strong>No working state.</strong><p>Novy has no persisted operational context yet.</p></div>}
+                {mind?.workingStates.slice(0, 8).map((record) => {
+                  const state = record.state;
+                  const verified = state.verificationStatus !== "unverified";
+                  const canGraduate = state.status === "complete" && verified && !state.graduatedMemoryId;
+                  return <article className={styles.mindCard} key={record.id}>
+                    <div className={styles.tags}><span>{state.status}</span><span>{state.verificationStatus.replaceAll("-", " ")}</span><span>{state.category}</span></div>
+                    <h3>{state.objective}</h3>
+                    <p><strong>Next</strong> · {state.nextAction || "No next action"}</p>
+                    <small><strong>Complete when</strong> · {state.completionCondition}</small>
+                    <div className={styles.mindEvidence}>
+                      <strong>Evidence</strong>
+                      {state.evidenceRefs.length ? <ul>{state.evidenceRefs.map((ref) => <li key={ref}>{ref}</li>)}</ul> : <span>No evidence recorded yet.</span>}
+                    </div>
+                    {state.graduatedMemoryId && <p className={styles.graduated}>Graduated → {state.graduatedMemoryId}</p>}
+                    {!state.graduatedMemoryId && <div className={styles.mindActions}>
+                      {["active", "waiting", "blocked"].includes(state.status) && <button className={styles.secondary} disabled={busy === `mind-status:${record.id}`} onClick={() => updateMindStatus(record, "complete")}>{busy === `mind-status:${record.id}` ? "Saving…" : "Mark complete"}</button>}
+                      {state.status === "complete" && !verified && <button className={styles.primary} disabled={busy === `mind-verify:${record.id}` || state.evidenceRefs.length === 0} onClick={() => verifyMindState(record)}>{busy === `mind-verify:${record.id}` ? "Verifying…" : "Verify evidence"}</button>}
+                      {canGraduate && <>
+                        <textarea className={styles.lessonDraft} value={lessonDrafts[record.id] || ""} onChange={(event) => setLessonDrafts((current) => ({ ...current, [record.id]: event.target.value }))} placeholder="State the durable lesson worth carrying into future reasoning." />
+                        <button className={styles.primary} disabled={busy === `mind-graduate:${record.id}` || !(lessonDrafts[record.id] || "").trim()} onClick={() => graduateMindState(record)}>{busy === `mind-graduate:${record.id}` ? "Graduating…" : "Graduate lesson"}</button>
+                      </>}
+                    </div>}
+                  </article>;
+                })}
+              </div>
+              <div className={styles.mindColumn}>
+                <div className={styles.mindColumnHead}><h3>Durable memory</h3><span>Verified lessons and decisions</span></div>
+                {mind && mind.durableMemories.length === 0 && <div className={styles.emptyBox}><strong>No durable memory.</strong><p>Verified learning will appear here after explicit graduation.</p></div>}
+                {mind?.durableMemories.slice(0, 8).map(({ id, memory }) => <article className={styles.memoryCard} key={id}>
+                  <div className={styles.tags}><span>{memory.kind}</span><span>{memory.category}</span><span>verified by {memory.verifiedBy}</span></div>
+                  <h3>{memory.title}</h3>
+                  <p>{memory.summary}</p>
+                  <small>{new Date(memory.createdAt).toLocaleString()}</small>
+                </article>)}
+              </div>
+            </div>
           </section>
 
           {pendingKnowledge.length > 0 && <section className={styles.section}>
