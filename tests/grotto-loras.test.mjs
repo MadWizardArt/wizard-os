@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  GROTTO_LORAS,
   MAX_GROTTO_LORAS,
   grottoAdditionalNetworks,
+  grottoLoraList,
   isCivitaiLoraAir,
   resolveGrottoLoras,
 } from "../lib/grotto-loras.ts";
@@ -51,4 +53,33 @@ test("Civitai textToImage LoRAs use additionalNetworks wire format", () => {
       strength: 0.65,
     },
   });
+});
+
+test("Pony Realism utility LoRAs are curated with exact AIRs", () => {
+  assert.deepEqual(
+    GROTTO_LORAS.map(({ id, air, compatibility, defaultWeight }) => ({ id, air, compatibility, defaultWeight })),
+    [
+      {
+        id: "pony-realism-slider",
+        air: "urn:air:sdxl:lora:civitai:1115064@1253021",
+        compatibility: "pony-realism",
+        defaultWeight: 1.4,
+      },
+      {
+        id: "pony-realism-enhancer",
+        air: "urn:air:sdxl:lora:civitai:927305@1439429",
+        compatibility: "pony-realism",
+        defaultWeight: 0.7,
+      },
+    ],
+  );
+  assert.equal(grottoLoraList().every((lora) => lora.configured), true);
+  assert.throws(
+    () => resolveGrottoLoras([{ id: "pony-realism-enhancer", weight: 0.7 }], "pony-v6"),
+    /not compatible/,
+  );
+  assert.equal(
+    resolveGrottoLoras([{ id: "pony-realism-enhancer", weight: 0.7 }], "pony-realism")[0].weight,
+    0.7,
+  );
 });
