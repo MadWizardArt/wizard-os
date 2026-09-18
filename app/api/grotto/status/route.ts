@@ -13,26 +13,24 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     configured: artistAccessConfigured(),
     authenticated,
-    generation: authenticated
-      ? generation
-      : {
-          enabled: false,
-          provider: "civitai",
-          providerConfigured: false,
-          museModelConfigured: false,
-          configured: false,
-        },
-    studio: authenticated
-      ? studio
-      : {
-          enabled: false,
-          provider: "civitai",
-          providerConfigured: false,
-          checkpointConfigured: false,
-          checkpointLabel: "",
-          configured: false,
-          defaultNegative: "",
-          maxImages: 1,
-        },
+    generation: authenticated ? generation : {
+      enabled: false,
+      provider: "civitai",
+      providerConfigured: false,
+      museModelConfigured: false,
+      configured: false,
+    },
+    studio: authenticated ? studio : {
+      enabled: false,
+      provider: "civitai",
+      providerConfigured: false,
+      checkpointConfigured: false,
+      checkpointLabel: "",
+      configured: false,
+      defaultEnvironmentId: "pony-v6",
+      environments: [],
+      defaultNegative: "",
+      maxImages: 1,
+    },
   });
 }
