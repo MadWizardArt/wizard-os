@@ -1,13 +1,13 @@
-import { Prisma, ProjectType } from "../app/generated/prisma/client";
+import { Prisma, ProjectStatus, ProjectType } from "../app/generated/prisma/client";
 import type { MuseId } from "./museum";
 import { recordMuseMemory } from "./museum-agent-memory";
 import { decodeMuseMemory, MUSEUM_MEMORY_PREFIX, type MuseMemoryKind, type StoredMuseMemory } from "./museum-memory-storage";
 import type { ProposalCategory } from "./museum-proposal-storage";
 import {
+  canGraduateMuseWorkingState,
   decodeMuseWorkingState,
   encodeMuseWorkingState,
   MUSEUM_WORKING_STATE_PREFIX,
-  projectStatusForMuseWorkingState,
   type MuseWorkingStateStatus,
   type MuseWorkingStateVerification,
   type StoredMuseWorkingState,
@@ -42,12 +42,12 @@ function normalizeRefs(values: string[] | undefined) {
   return (values ?? []).map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 12);
 }
 
-export function canGraduateMuseWorkingState(state: StoredMuseWorkingState) {
-  if (state.status !== "complete") return { allowed: false, reason: "Working state must be complete before it can become durable memory." };
-  if (state.verificationStatus === "unverified" || !state.verifiedAt) return { allowed: false, reason: "Working state must be explicitly verified before graduation." };
-  if (state.evidenceRefs.length === 0) return { allowed: false, reason: "Graduation requires at least one evidence reference." };
-  if (state.graduatedMemoryId) return { allowed: false, reason: "This working state already graduated into durable memory." };
-  return { allowed: true, reason: null };
+function projectStatusForMuseWorkingState(status: MuseWorkingStateStatus): ProjectStatus {
+  if (status === "complete") return ProjectStatus.COMPLETE;
+  if (status === "blocked") return ProjectStatus.BLOCKED;
+  if (status === "waiting") return ProjectStatus.WAITING;
+  if (status === "superseded") return ProjectStatus.ARCHIVED;
+  return ProjectStatus.ACTIVE;
 }
 
 export async function upsertMuseWorkingState(db: ContinuityDb, input: MuseWorkingStateInput) {
