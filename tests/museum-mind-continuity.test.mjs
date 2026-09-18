@@ -76,3 +76,16 @@ test("Novy intelligence explicitly consumes personal continuity", () => {
   assert.match(source, /Working state:/);
   assert.match(source, /Personal memory:/);
 });
+
+
+test("mind-state API preserves omitted optional fields instead of clearing or reopening state", () => {
+  const source = readFileSync(new URL("../app/api/museum/mind-state/route.ts", import.meta.url), "utf8");
+  assert.match(source, /function optionalNullableText/);
+  assert.match(source, /if \(body\.status !== undefined\)/);
+  assert.match(source, /Choose a valid working-state status/);
+  assert.match(source, /sourceProjectId: optionalNullableText\(body\.sourceProjectId, 120\)/);
+  assert.match(source, /nextAction: optionalNullableText\(body\.nextAction, 700\)/);
+  assert.match(source, /notes: optionalNullableText\(body\.notes, 1400\)/);
+  assert.match(source, /evidenceRefs: body\.evidenceRefs === undefined \? undefined : refs\(body\.evidenceRefs\)/);
+  assert.doesNotMatch(source, /body\.status as MuseWorkingStateStatus\) \? body\.status as MuseWorkingStateStatus : "active"/);
+});
