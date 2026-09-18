@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(request.nextUrl.searchParams.get("offset")) || 0)));
   const images = await prisma.grottoImage.findMany({
-    where: { museId, deletedAt: null },
+    where: { museId, deletedAt: null, provider: { not: "header" } },
     orderBy: [{ favorite: "desc" }, { createdAt: "desc" }],
     take: limit,
     skip: offset,
