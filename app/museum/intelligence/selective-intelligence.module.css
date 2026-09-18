@@ -120,3 +120,26 @@
 .relationshipGrid strong { display: block; margin-bottom: 7px; color: rgba(224,200,151,.88); font-size: .76rem; text-transform: uppercase; letter-spacing: .09em; }
 .relationshipGrid p { margin: 6px 0 0; color: rgba(244,239,231,.57); line-height: 1.45; font-size: .82rem; }
 @media (max-width: 720px) { .relationshipHead { flex-direction: column; } .relationshipHead > span { text-align: left; } .relationshipGrid { grid-template-columns: 1fr; } }
+
+.counterweightComposer { display: grid; gap: 12px; margin: 16px 0 18px; padding: 16px; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; background: rgba(0,0,0,.13); }
+.counterweightComposer label { display: grid; gap: 7px; color: rgba(244,239,231,.64); font-size: .78rem; }
+.counterweightComposer input, .counterweightComposer select, .counterweightComposer textarea { width: 100%; box-sizing: border-box; border: 1px solid rgba(255,255,255,.11); background: rgba(0,0,0,.24); color: #f4efe7; border-radius: 11px; padding: 10px 11px; font: inherit; }
+.counterweightComposer input[readonly] { color: rgba(244,239,231,.55); }
+.counterweightComposer textarea { min-height: 86px; resize: vertical; }
+.counterweightGrid { display: grid; gap: 12px; }
+.counterweightCard { border: 1px solid rgba(208,183,134,.17); background: linear-gradient(145deg, rgba(208,183,134,.035), rgba(123,83,161,.025)); border-radius: 18px; padding: 17px; }
+.counterweightCard h3 { margin: 13px 0 8px; font-size: 1.05rem; line-height: 1.4; font-weight: 560; }
+.counterweightRelation { margin: 0 0 13px; color: rgba(224,200,151,.72); font-size: .8rem; }
+.counterweightPosition, .counterweightTrigger { border-top: 1px solid rgba(255,255,255,.06); padding-top: 10px; margin-top: 10px; }
+.counterweightPosition strong, .counterweightTrigger strong { color: rgba(244,239,231,.72); font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
+.counterweightPosition p, .counterweightTrigger p { margin: 6px 0 0; color: rgba(244,239,231,.58); line-height: 1.48; }
+.counterweightSteps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 14px; }
+.counterweightSteps > div { display: flex; gap: 8px; align-items: flex-start; border: 1px solid rgba(255,255,255,.065); border-radius: 12px; padding: 10px; background: rgba(0,0,0,.12); }
+.counterweightSteps span { flex: 0 0 23px; width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.07); color: rgba(244,239,231,.52); font-size: .7rem; }
+.counterweightSteps p { margin: 2px 0 0; color: rgba(244,239,231,.48); font-size: .75rem; line-height: 1.35; }
+.counterweightSteps strong { color: rgba(244,239,231,.72); }
+.counterweightSteps .stepDone { border-color: rgba(127,190,153,.2); background: rgba(127,190,153,.035); }
+.counterweightSteps .stepDone span { background: rgba(127,190,153,.16); color: rgba(190,230,207,.85); }
+.counterweightHint { color: rgba(224,200,151,.68); font-size: .78rem; align-self: center; }
+.counterweightComplete { color: rgba(127,190,153,.82); font-size: .78rem; }
+@media (max-width: 760px) { .counterweightSteps { grid-template-columns: 1fr; } }

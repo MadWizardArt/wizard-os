@@ -80,6 +80,32 @@ type MindContinuityPayload = {
   relationship: ArtistRelationshipContract | null;
 };
 
+type CounterweightPacketRecord = {
+  id: string;
+  version: 1;
+  primaryMuseId: MuseId;
+  counterweightMuseId: MuseId;
+  category: ProposalCategory;
+  question: string;
+  primaryPosition: string;
+  trigger: string;
+  relationship: string;
+  status: "draft" | "counterweight-ready" | "synthesis-ready" | "complete";
+  counterweightQuestId: string | null;
+  synthesisQuestId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+type CounterweightDraft = {
+  primaryMuseId: "novy" | "thalia";
+  category: ProposalCategory;
+  question: string;
+  primaryPosition: string;
+  trigger: string;
+};
+
 const EMPTY_QUEST: QuestDraft = {
   museId: "callista",
   category: "revenue",
@@ -92,6 +118,14 @@ const EMPTY_PAYLOAD: IntelligencePayload = {
   gateway: null,
   usage: null,
   quests: [],
+};
+
+const EMPTY_COUNTERWEIGHT: CounterweightDraft = {
+  primaryMuseId: "novy",
+  category: "system",
+  question: "",
+  primaryPosition: "",
+  trigger: "",
 };
 
 function modelLabel(model: string) {
@@ -130,6 +164,8 @@ export default function SelectiveIntelligencePage() {
   const [knowledge, setKnowledge] = useState<CouncilKnowledgeRecord[]>([]);
   const [payload, setPayload] = useState<IntelligencePayload>(EMPTY_PAYLOAD);
   const [mind, setMind] = useState<MindContinuityPayload | null>(null);
+  const [counterweights, setCounterweights] = useState<CounterweightPacketRecord[]>([]);
+  const [counterweightDraft, setCounterweightDraft] = useState<CounterweightDraft>(EMPTY_COUNTERWEIGHT);
   const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<QuestDraft>(EMPTY_QUEST);
   const [notice, setNotice] = useState("");
@@ -139,24 +175,28 @@ export default function SelectiveIntelligencePage() {
   const loadProtected = async () => {
     setLoading(true);
     try {
-      const [knowledgeResponse, intelligenceResponse, mindResponse] = await Promise.all([
+      const [knowledgeResponse, intelligenceResponse, mindResponse, counterweightResponse] = await Promise.all([
         fetch("/api/museum/knowledge", { cache: "no-store" }),
         fetch("/api/museum/intelligence", { cache: "no-store" }),
         fetch("/api/museum/mind-state?muse=novy", { cache: "no-store" }),
+        fetch("/api/museum/counterweight", { cache: "no-store" }),
       ]);
       const knowledgeJson = await knowledgeResponse.json();
       const intelligenceJson = await intelligenceResponse.json();
       const mindJson = await mindResponse.json();
-      if (knowledgeResponse.status === 401 || intelligenceResponse.status === 401 || mindResponse.status === 401) {
+      const counterweightJson = await counterweightResponse.json();
+      if (knowledgeResponse.status === 401 || intelligenceResponse.status === 401 || mindResponse.status === 401 || counterweightResponse.status === 401) {
         setSession((current) => current ? { ...current, authenticated: false } : current);
         throw new Error("Artist session expired. Unlock the chamber again.");
       }
       if (!knowledgeResponse.ok) throw new Error(knowledgeJson.error || "Council knowledge could not be read.");
       if (!intelligenceResponse.ok) throw new Error(intelligenceJson.error || "Intelligence quests could not be read.");
       if (!mindResponse.ok) throw new Error(mindJson.error || "Novy continuity could not be read.");
+      if (!counterweightResponse.ok) throw new Error(counterweightJson.error || "Counterweight packets could not be read.");
       setKnowledge(Array.isArray(knowledgeJson) ? knowledgeJson : []);
       setPayload(intelligenceJson);
       setMind(mindJson);
+      setCounterweights(Array.isArray(counterweightJson) ? counterweightJson : []);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The Intelligence Chamber could not be loaded.");
     } finally {
@@ -208,6 +248,8 @@ export default function SelectiveIntelligencePage() {
     setKnowledge([]);
     setPayload(EMPTY_PAYLOAD);
     setMind(null);
+    setCounterweights([]);
+    setCounterweightDraft(EMPTY_COUNTERWEIGHT);
     setLessonDrafts({});
     setNotice("Intelligence Chamber locked.");
   };
@@ -216,6 +258,60 @@ export default function SelectiveIntelligencePage() {
   const pendingKnowledge = useMemo(() => knowledge.filter((entry) => !entry.verifiedByArtist), [knowledge]);
   const activeKnowledge = useMemo(() => knowledge.filter((entry) => entry.verifiedByArtist), [knowledge]);
   const totalTokens = completed.reduce((sum, quest) => sum + (quest.usage?.totalTokens ?? 0), 0);
+  const questById = useMemo(() => new Map(payload.quests.map((quest) => [quest.id, quest])), [payload.quests]);
+  const counterweightPartner: "novy" | "thalia" = counterweightDraft.primaryMuseId === "novy" ? "thalia" : "novy";
+
+  const createCounterweight = async () => {
+    if (!counterweightDraft.question.trim() || !counterweightDraft.primaryPosition.trim() || !counterweightDraft.trigger.trim()) {
+      setNotice("Counterweight packets need a question, primary position, and canonical trigger.");
+      return;
+    }
+    setBusy("counterweight:create");
+    try {
+      const response = await fetch("/api/museum/counterweight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...counterweightDraft,
+          counterweightMuseId: counterweightPartner,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Counterweight packet could not be created.");
+      setCounterweightDraft((current) => ({ ...EMPTY_COUNTERWEIGHT, primaryMuseId: current.primaryMuseId, category: current.category }));
+      setNotice("Counterweight packet prepared. No AI credits have been spent.");
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Counterweight packet could not be created.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const advanceCounterweight = async (id: string, action: "prepare-counterweight" | "prepare-synthesis" | "complete") => {
+    setBusy(`counterweight:${id}:${action}`);
+    try {
+      const response = await fetch("/api/museum/counterweight", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Counterweight packet could not advance.");
+      setNotice(
+        action === "prepare-counterweight"
+          ? "Counterweight quest prepared. Fueling it remains your explicit choice."
+          : action === "prepare-synthesis"
+            ? "Accountable synthesis quest prepared. Fueling it remains your explicit choice."
+            : "Counterweight packet complete. Both reasoning lines remain preserved in the quest ledger.",
+      );
+      await loadProtected();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Counterweight packet could not advance.");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const createQuest = async () => {
     if (!draft.brief.trim()) {
@@ -522,6 +618,55 @@ export default function SelectiveIntelligencePage() {
                   <small>{new Date(memory.createdAt).toLocaleString()}</small>
                 </article>)}
               </div>
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHead}><div><p className={styles.kicker}>COUNCIL COUNTERWEIGHT · V1</p><h2>Novy ↔ Thalia bounded challenge</h2></div><small>Preparing is free · fueling is explicit</small></div>
+            <p className={styles.explainer}>Use a counterweight when the second Muse&apos;s canonical role could materially change the decision. The packet preserves the primary position, prepares a separate challenge quest, and returns the completed challenge to the original Muse for one accountable synthesis. It never runs a hidden debate loop.</p>
+            <div className={styles.counterweightComposer}>
+              <div className={styles.twoCol}>
+                <label>Primary Muse<select value={counterweightDraft.primaryMuseId} onChange={(event) => setCounterweightDraft({ ...counterweightDraft, primaryMuseId: event.target.value as "novy" | "thalia" })}><option value="novy">Novy · Systems Architect</option><option value="thalia">Thalia · Creative Provocateur</option></select></label>
+                <label>Counterweight<input value={counterweightPartner === "novy" ? "Novy · Systems Architect" : "Thalia · Creative Provocateur"} readOnly /></label>
+              </div>
+              <label>Domain<select value={counterweightDraft.category} onChange={(event) => setCounterweightDraft({ ...counterweightDraft, category: event.target.value as ProposalCategory })}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></label>
+              <label>Decision question<textarea value={counterweightDraft.question} onChange={(event) => setCounterweightDraft({ ...counterweightDraft, question: event.target.value })} placeholder="What decision or problem should the pair examine?" /></label>
+              <label>Primary position<textarea value={counterweightDraft.primaryPosition} onChange={(event) => setCounterweightDraft({ ...counterweightDraft, primaryPosition: event.target.value })} placeholder="Preserve the primary Muse's actual position before the challenge begins." /></label>
+              <label>Why the counterweight is triggered<textarea value={counterweightDraft.trigger} onChange={(event) => setCounterweightDraft({ ...counterweightDraft, trigger: event.target.value })} placeholder="Name the canonical trigger: e.g. architecture is closing a cheap experiment too early." /></label>
+              <button className={styles.primary} disabled={busy === "counterweight:create" || !counterweightDraft.question.trim() || !counterweightDraft.primaryPosition.trim() || !counterweightDraft.trigger.trim()} onClick={createCounterweight}>{busy === "counterweight:create" ? "Preparing…" : "Create counterweight packet"}</button>
+            </div>
+
+            <div className={styles.counterweightGrid}>
+              {counterweights.map((packet) => {
+                const primary = MUSE_DIRECTORY.find((item) => item.id === packet.primaryMuseId)?.name ?? packet.primaryMuseId;
+                const counterweight = MUSE_DIRECTORY.find((item) => item.id === packet.counterweightMuseId)?.name ?? packet.counterweightMuseId;
+                const counterQuest = packet.counterweightQuestId ? questById.get(packet.counterweightQuestId) : null;
+                const synthesisQuest = packet.synthesisQuestId ? questById.get(packet.synthesisQuestId) : null;
+                const preparingCounter = busy === `counterweight:${packet.id}:prepare-counterweight`;
+                const preparingSynthesis = busy === `counterweight:${packet.id}:prepare-synthesis`;
+                const completingPacket = busy === `counterweight:${packet.id}:complete`;
+                return <article className={styles.counterweightCard} key={packet.id}>
+                  <div className={styles.questTop}><div className={styles.tags}><span>{primary} → {counterweight}</span><span>{packet.category}</span><span>{packet.status.replaceAll("-", " ")}</span></div><small>{new Date(packet.createdAt).toLocaleString()}</small></div>
+                  <h3>{packet.question}</h3>
+                  <p className={styles.counterweightRelation}>{packet.relationship}</p>
+                  <div className={styles.counterweightPosition}><strong>Primary position</strong><p>{packet.primaryPosition}</p></div>
+                  <div className={styles.counterweightTrigger}><strong>Trigger</strong><p>{packet.trigger}</p></div>
+                  <div className={styles.counterweightSteps}>
+                    <div className={packet.counterweightQuestId ? styles.stepDone : ""}><span>1</span><p><strong>Counterweight quest</strong>{packet.counterweightQuestId ? <> · {counterQuest ? questStatus(counterQuest.status) : "prepared"}</> : " · not prepared"}</p></div>
+                    <div className={packet.synthesisQuestId ? styles.stepDone : ""}><span>2</span><p><strong>Primary synthesis</strong>{packet.synthesisQuestId ? <> · {synthesisQuest ? questStatus(synthesisQuest.status) : "prepared"}</> : " · waits for completed counterweight"}</p></div>
+                    <div className={packet.status === "complete" ? styles.stepDone : ""}><span>3</span><p><strong>Packet close</strong> · {packet.status === "complete" ? "complete" : "preserves both reasoning records"}</p></div>
+                  </div>
+                  <div className={styles.reviewRow}>
+                    {packet.status === "draft" && <button className={styles.secondary} disabled={preparingCounter} onClick={() => advanceCounterweight(packet.id, "prepare-counterweight")}>{preparingCounter ? "Preparing…" : "Prepare counterweight quest"}</button>}
+                    {packet.status === "counterweight-ready" && counterQuest?.status === "completed" && <button className={styles.secondary} disabled={preparingSynthesis} onClick={() => advanceCounterweight(packet.id, "prepare-synthesis")}>{preparingSynthesis ? "Preparing…" : "Prepare accountable synthesis"}</button>}
+                    {packet.status === "counterweight-ready" && counterQuest?.status !== "completed" && <span className={styles.counterweightHint}>Fuel the {counterweight} quest in the Quest Log below.</span>}
+                    {packet.status === "synthesis-ready" && synthesisQuest?.status === "completed" && <button className={styles.primary} disabled={completingPacket} onClick={() => advanceCounterweight(packet.id, "complete")}>{completingPacket ? "Closing…" : "Close packet"}</button>}
+                    {packet.status === "synthesis-ready" && synthesisQuest?.status !== "completed" && <span className={styles.counterweightHint}>Fuel the {primary} synthesis quest in the Quest Log below.</span>}
+                    {packet.status === "complete" && <span className={styles.counterweightComplete}>Complete · both quest records preserved</span>}
+                  </div>
+                </article>;
+              })}
+              {counterweights.length === 0 && <div className={styles.emptyBox}><strong>No counterweight packets yet.</strong><p>Create one only when a canonical counterweight could materially change the decision.</p></div>}
             </div>
           </section>
 
