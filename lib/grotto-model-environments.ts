@@ -1,4 +1,5 @@
-// Optional generators remain visible in the Atelier even when a preview lacks their AIR; runtime status controls availability.\nexport const GROTTO_MODEL_ENVIRONMENTS = {
+// Optional generators remain visible in the Atelier even when a preview lacks their AIR; runtime status controls availability.
+export const GROTTO_MODEL_ENVIRONMENTS = {
   "pony-v6": {
     id: "pony-v6",
     label: "Pony Diffusion V6 XL",
