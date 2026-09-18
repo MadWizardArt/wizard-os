@@ -225,7 +225,9 @@ export async function readMuseMindContinuity(db: ContinuityDb, museId: MuseId): 
 }
 
 export function formatMuseMindContinuity(continuity: MuseMindContinuity) {
-  const active = continuity.workingStates.filter(({ state }) => state.status !== "superseded").slice(0, 6);
+  const active = continuity.workingStates
+    .filter(({ state }) => ["active", "waiting", "blocked"].includes(state.status) || (state.status === "complete" && !state.graduatedMemoryId))
+    .slice(0, 6);
   const states = active.length
     ? active.map(({ id, state }, index) => {
         const evidence = state.evidenceRefs.length ? state.evidenceRefs.join("; ") : "none";
