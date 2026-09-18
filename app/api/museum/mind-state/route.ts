@@ -23,6 +23,11 @@ function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function optionalNullableText(value: unknown, max: number) {
+  if (value === undefined) return undefined;
+  return text(value, max) || null;
+}
+
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
@@ -73,7 +78,13 @@ export async function POST(request: NextRequest) {
   const objective = text(body.objective, 240);
   const sourceKey = text(body.sourceKey, 260);
   const completionCondition = text(body.completionCondition, 700);
-  const status = STATUSES.has(body.status as MuseWorkingStateStatus) ? body.status as MuseWorkingStateStatus : "active";
+  let status: MuseWorkingStateStatus | undefined;
+  if (body.status !== undefined) {
+    if (!STATUSES.has(body.status as MuseWorkingStateStatus)) {
+      return NextResponse.json({ error: "Choose a valid working-state status." }, { status: 400 });
+    }
+    status = body.status as MuseWorkingStateStatus;
+  }
   if (!objective || !sourceKey || !completionCondition) {
     return NextResponse.json({ error: "Objective, sourceKey, and completionCondition are required." }, { status: 400 });
   }
@@ -84,12 +95,12 @@ export async function POST(request: NextRequest) {
       objective,
       category: body.category as ProposalCategory,
       sourceKey,
-      sourceProjectId: text(body.sourceProjectId, 120) || null,
+      sourceProjectId: optionalNullableText(body.sourceProjectId, 120),
       status,
-      nextAction: text(body.nextAction, 700) || null,
+      nextAction: optionalNullableText(body.nextAction, 700),
       completionCondition,
-      notes: text(body.notes, 1400) || null,
-      evidenceRefs: refs(body.evidenceRefs),
+      notes: optionalNullableText(body.notes, 1400),
+      evidenceRefs: body.evidenceRefs === undefined ? undefined : refs(body.evidenceRefs),
     }));
     return NextResponse.json({ id: result.id, ...result.state }, { status: result.created ? 201 : 200 });
   } catch (error) {
