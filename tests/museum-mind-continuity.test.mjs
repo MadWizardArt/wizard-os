@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  canGraduateMuseWorkingState,
   decodeMuseWorkingState,
   encodeMuseWorkingState,
 } from "../lib/museum-working-state-storage.ts";
-import { canGraduateMuseWorkingState } from "../lib/museum-mind-continuity.ts";
 import { readFileSync } from "node:fs";
 
 function state(overrides = {}) {
