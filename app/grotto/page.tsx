@@ -49,13 +49,13 @@ export default function GrottoPage() {
   const setLoraWeight = (id: string, weight: number) => { setStudioLoras((current) => current.map((selection) => selection.id === id ? { ...selection, weight } : selection)); };
 
   const loadGallery = async (target: Space, page = 0, append = false) => {
-    if (append && loadMoreBusy.current) return;
+    if (append && loadMoreBusy.current) return 0;
     if (append) { loadMoreBusy.current = true; setLoadingMore(true); }
     const requestId = ++galleryRequest.current;
     const limit = target === "studio" ? 16 : 15;
     try {
       const payload = await readJson(await fetch(`/api/grotto/images?museId=${target}&limit=${limit + 1}&offset=${page * limit}`, { cache: "no-store" }));
-      if (requestId !== galleryRequest.current) return;
+      if (requestId !== galleryRequest.current) return 0;
       const stored: GalleryItem[] = (Array.isArray(payload) ? payload.slice(0, limit) : []).map((item) => ({ ...item, alt: target === "studio" ? "Atelier image" : `${MUSE_NAMES[target]} gallery image`, private: true }));
       setItems((currentItems) => {
         if (!append) return target === "studio" ? stored : [canonicalItem(target), ...stored];
@@ -64,6 +64,7 @@ export default function GrottoPage() {
       });
       setHasNext(Array.isArray(payload) && payload.length > limit);
       setGalleryPage(page);
+      return stored.length;
     } finally {
       if (append) { loadMoreBusy.current = false; setLoadingMore(false); }
     }
@@ -81,6 +82,35 @@ export default function GrottoPage() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [space, galleryPage, hasNext, loadingMore, generating, uploading, status?.authenticated]);
+
+  const browseViewer = async (direction: -1 | 1) => {
+    if (activeIndex === null) return;
+    const targetIndex = activeIndex + direction;
+    if (targetIndex >= 0 && targetIndex < items.length) {
+      setActiveIndex(targetIndex);
+      return;
+    }
+    if (direction === 1 && hasNext && !loadMoreBusy.current) {
+      const previousLength = items.length;
+      try {
+        const loaded = await loadGallery(space, galleryPage + 1, true);
+        if (loaded && loaded > 0) setActiveIndex(previousLength);
+      } catch (error) {
+        setNote(error instanceof Error ? error.message : "More images could not be loaded.");
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (activeIndex === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") { event.preventDefault(); void browseViewer(-1); }
+      if (event.key === "ArrowRight") { event.preventDefault(); void browseViewer(1); }
+      if (event.key === "Escape") { event.preventDefault(); setActiveIndex(null); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeIndex, items.length, hasNext, galleryPage, space]);
 
   const putInTray = (item: GalleryItem, role: ReferenceRole, openAtelier: boolean) => { setTray((currentTray) => [...currentTray.filter((entry) => entry.id !== item.id && entry.role !== role), { ...item, role }].sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role))); if (item.studioInput) { setStudioEnvironment(item.studioInput.environmentId || "pony-v6"); setStudioPrompt(item.studioInput.prompt || item.prompt || ""); setStudioNegative(item.studioInput.negativePrompt || status?.studio.defaultNegative || ""); setStudioFormat(item.studioInput.format || "Portrait"); setStudioQuantity(item.studioInput.quantity === 4 ? 4 : 1); setStudioLoras(Array.isArray(item.studioInput.loras) ? item.studioInput.loras : []); } else if (item.prompt) setStudioPrompt(item.prompt); setActiveIndex(null); if (openAtelier) { setSpace("studio"); void loadGallery("studio"); } };
   const uploadImage = async (file?: File) => { if (!file || generating || uploading) return; setUploading(true); setNote(""); try { if (file.size > 3 * 1024 * 1024) throw new Error("Choose a JPG, PNG, or WebP under 3 MB."); const form = new FormData(); form.append("image", file); form.append("museId", space); const saved = await readJson(await fetch("/api/grotto/images", { method: "POST", body: form })); await loadGallery(space); if (space === "studio") setTray((currentTray) => [...currentTray.filter((entry) => entry.role !== "primary"), { ...saved, alt: "Uploaded reference", private: true, role: "primary" }]); setNote(space === "studio" ? "Reference added to Primary." : `Added to ${MUSE_NAMES[space]}’s gallery.`); } catch (error) { setNote(error instanceof Error ? error.message : "Upload failed."); } finally { setUploading(false); } };
@@ -106,5 +136,5 @@ export default function GrottoPage() {
       <section className={styles.collection}><div className={styles.sectionHeading}><h2>Your collection</h2><span>{items.length} loaded</span></div><div className={styles.gallery}>{items.map((item, index) => <button className={styles.tile} type="button" key={item.id} onClick={() => setActiveIndex(index)}><img src={item.src} alt={item.alt} loading="lazy"/>{item.favorite && <span className={styles.canon}>♥</span>}</button>)}</div>{!items.length && <div className={styles.emptyCollection}><span>◇</span><p>Your next image begins here.</p><small>Generate a scene or choose a Muse reference.</small></div>}<div ref={loadMoreSentinel} className={styles.scrollSentinel} aria-hidden="true"/>{loadingMore && <p className={styles.scrollStatus}>Loading more…</p>}</section></div>
       : <section className={styles.museGallerySection}><div className={styles.galleryToolbar}><div><h2>{MUSE_NAMES[space]} Gallery</h2><p>Choose an image for the Atelier or add an approved reference.</p></div><label className={styles.galleryUpload}>+ Add image<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void uploadImage(event.target.files?.[0]); event.target.value = ""; }}/></label></div><div className={styles.gallery}>{items.map((item, index) => <button className={styles.tile} type="button" key={item.id} onClick={() => setActiveIndex(index)}><img src={item.src} alt={item.alt} loading="lazy"/>{item.canonical && <span className={styles.canon}>Canon</span>}{item.favorite && !item.canonical && <span className={styles.canon}>♥</span>}</button>)}</div><div ref={loadMoreSentinel} className={styles.scrollSentinel} aria-hidden="true"/>{loadingMore && <p className={styles.scrollStatus}>Loading more…</p>}{note && <p className={styles.connectionNote}>{note}</p>}</section>}
     </>}
-  </section>{current && <div ref={viewer} className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Gallery viewer"><button className={styles.close} type="button" onClick={() => setActiveIndex(null)} aria-label="Close">×</button><img className={styles.lightboxImage} src={current.src} alt={current.alt}/>{itemMuseId(current) && <div className={styles.viewerProvenance}>{MUSE_NAMES[itemMuseId(current)!]} Gallery{current.canonical ? " · Canonical reference" : ""}</div>}<div className={styles.viewerActions}>{current.private && <button type="button" onClick={() => void toggleFavorite()}>{current.favorite ? "Favorited" : "Favorite"}</button>}{ROLES.map((role) => <button type="button" key={role} onClick={() => putInTray(current, role, role === "primary")}>{role === "primary" ? "Remix in Atelier" : `Use as ${ROLE_LABELS[role]}`}</button>)}<a href={current.src} download={`grotto-${current.id}`}>Download</a>{current.private && <button type="button" onClick={() => void deleteCurrent()}>Delete</button>}</div></div>}</main>;
+  </section>{current && <div ref={viewer} className={styles.lightbox} role="dialog" aria-modal="true" aria-label="Gallery viewer"><button className={styles.close} type="button" onClick={() => setActiveIndex(null)} aria-label="Close">×</button><button className={styles.prev} type="button" disabled={activeIndex === 0} onClick={() => void browseViewer(-1)} aria-label="Previous image">‹</button><img className={styles.lightboxImage} src={current.src} alt={current.alt}/><button className={styles.next} type="button" disabled={activeIndex === items.length - 1 && !hasNext} onClick={() => void browseViewer(1)} aria-label="Next image">›</button>{itemMuseId(current) && <div className={styles.viewerProvenance}>{MUSE_NAMES[itemMuseId(current)!]} Gallery{current.canonical ? " · Canonical reference" : ""}</div>}<div className={styles.viewerActions}>{current.private && <button type="button" onClick={() => void toggleFavorite()}>{current.favorite ? "Favorited" : "Favorite"}</button>}{ROLES.map((role) => <button type="button" key={role} onClick={() => putInTray(current, role, role === "primary")}>{role === "primary" ? "Remix in Atelier" : `Use as ${ROLE_LABELS[role]}`}</button>)}<a href={current.src} download={`grotto-${current.id}`}>Download</a>{current.private && <button type="button" onClick={() => void deleteCurrent()}>Delete</button>}</div></div>}</main>;
 }
