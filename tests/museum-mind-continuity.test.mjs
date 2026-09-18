@@ -89,3 +89,14 @@ test("mind-state API preserves omitted optional fields instead of clearing or re
   assert.match(source, /evidenceRefs: body\.evidenceRefs === undefined \? undefined : refs\(body\.evidenceRefs\)/);
   assert.doesNotMatch(source, /body\.status as MuseWorkingStateStatus\) \? body\.status as MuseWorkingStateStatus : "active"/);
 });
+
+
+test("Intelligence Chamber exposes Novy continuity through the existing mind-state API", () => {
+  const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /\/api\/museum\/mind-state\?muse=novy/);
+  assert.match(source, /NOVY MIND · REFERENCE ORGANISM/);
+  assert.match(source, /Mark complete/);
+  assert.match(source, /action: "verify"/);
+  assert.match(source, /action: "graduate"/);
+  assert.match(source, /Graduate lesson/);
+});
