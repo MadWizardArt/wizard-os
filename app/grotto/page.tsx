@@ -43,7 +43,7 @@ export default function GrottoPage() {
   const availableEnvironments: StudioEnvironment[] = GENERATOR_CATALOG.map((generator) => ({ ...generator, configured: status?.studio.environments.find((environment) => environment.id === generator.id)?.configured ?? false }));
   const selectedEnvironment = availableEnvironments.find((environment) => environment.id === studioEnvironment);
   const compatibleLoras = (status?.studio.loras ?? []).filter((lora) => lora.configured && loraFitsEnvironment(lora, studioEnvironment));
-  const maxLoras = status?.studio.maxLoras ?? 2;
+  const maxLoras = status?.studio.maxLoras ?? 5;
   const selectEnvironment = (environmentId: EnvironmentId) => { setStudioEnvironment(environmentId); setStudioLoras((current) => current.filter((selection) => { const lora = status?.studio.loras.find((item) => item.id === selection.id); return Boolean(lora && lora.configured && loraFitsEnvironment(lora, environmentId)); })); };
   const toggleLora = (lora: StudioLora) => { setStudioLoras((current) => { const exists = current.some((selection) => selection.id === lora.id); if (exists) return current.filter((selection) => selection.id !== lora.id); if (current.length >= maxLoras) { setNote(`The Atelier supports at most ${maxLoras} active LoRAs.`); return current; } setNote(""); return [...current, { id: lora.id, weight: lora.defaultWeight }]; }); };
   const setLoraWeight = (id: string, weight: number) => { setStudioLoras((current) => current.map((selection) => selection.id === id ? { ...selection, weight } : selection)); };
