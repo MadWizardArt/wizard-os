@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
@@ -23,11 +24,11 @@ const POSITIONS = [
   [75, 18],
   [89, 39],
   [82, 69],
-  [63, 82],
+  [25, 18],
   [37, 82],
   [18, 69],
   [11, 39],
-  [25, 18],
+  [63, 82],
 ] as const;
 
 function MusePortal({ muse, index, signal, onEnter }: {
@@ -93,6 +94,16 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
       <div className={styles.stars} aria-hidden="true" />
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
+
+      <div className={polish.centerpiece} aria-hidden="true">
+        <Image
+          src="/museum/council-centerpiece.webp"
+          alt=""
+          width={420}
+          height={825}
+          sizes="(max-width: 720px) 0px, (max-width: 980px) 33vw, 390px"
+        />
+      </div>
 
       <div className={`${styles.dais} ${polish.dais}`}>
         <button
