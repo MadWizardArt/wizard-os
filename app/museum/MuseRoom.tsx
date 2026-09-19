@@ -16,7 +16,8 @@ import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
   const room = MUSE_ROOMS[muse.id];
-  const [artworkSrc, setArtworkSrc] = useState(room.animatedImage ?? room.image);
+  // Hall portraits use durable local artwork; full rooms may opt into animation.
+  const [artworkSrc, setArtworkSrc] = useState(compact ? room.image : room.animatedImage ?? room.image);
   const [failed, setFailed] = useState(false);
 
   const handleArtworkError = () => {

@@ -1,53 +1,25 @@
-.shell {
-  padding-top: 12px;
-  padding-bottom: 40px;
-}
-
-.topbar {
+.shell.shell { width: 100%; padding: 10px 0 20px; }
+.topbar.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  min-height: 30px;
+  min-height: 44px;
+  padding: 0 clamp(18px, 4.3vw, 72px);
 }
-
-.titleBlock {
-  display: none;
+.titleBlock { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.gatewayCluster { display: flex; align-items: center; gap: 8px; }
+.museumNav.museumNav { width: max-content; position: relative; margin: -35px auto 19px; gap: 8px; }
+.museumNav.museumNav button { min-height: 36px; padding: 10px 17px; font-size: 10px; }
+.museumNav button:focus-visible { outline: 2px solid #e1b868; outline-offset: 3px; }
+.footerNote.footerNote { justify-content: center; gap: 14px; padding: 0 18px; font-size: 10px; }
+@media (max-width: 900px) {
+  .museumNav.museumNav { margin: 8px auto 16px; }
 }
-
-.museumNav {
-  margin: 8px 0 10px;
-  gap: 6px;
-}
-
-.museumNav button {
-  padding: 8px 12px;
-}
-
-.architectureNote {
-  margin-top: 10px;
-}
-
-@media (max-width: 1050px) {
-  .topbar {
-    gap: 12px;
-  }
-
-  .museumNav {
-    margin-top: 8px;
-  }
-}
-
-@media (max-width: 760px) {
-  .shell {
-    padding-top: 10px;
-  }
-
-  .topbar {
-    min-height: 28px;
-  }
-
-  .museumNav {
-    margin: 8px 0 10px;
-  }
+@media (max-width: 600px) {
+  .shell.shell { padding-top: 8px; }
+  .topbar.topbar { gap: 8px; padding: 0 12px; }
+  .museumNav.museumNav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: calc(100% - 24px); gap: 5px; }
+  .museumNav.museumNav button { padding: 10px 6px; font-size: 8px; line-height: 1.4; min-height: 44px; }
+  .footerNote.footerNote { align-items: center; text-align: center; gap: 7px; line-height: 1.6; }
 }
