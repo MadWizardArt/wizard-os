@@ -14,6 +14,7 @@ import {
 } from "../../../../../lib/grotto-civitai";
 import { DEFAULT_GROTTO_MODEL_ENVIRONMENT, isGrottoModelEnvironmentId } from "../../../../../lib/grotto-model-environments";
 import { resolveGrottoLoras, type GrottoLoraSelection } from "../../../../../lib/grotto-loras";
+import { resolveGrottoEmbeddings } from "../../../../../lib/grotto-embeddings";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { referenceUrl } from "../../../../../lib/grotto-reference";
 import { prisma } from "../../../../../lib/prisma";
@@ -54,6 +55,10 @@ function readInput(value: unknown): StudioGenerationInput | null {
     loras.push({ id, weight });
   }
   try { resolveGrottoLoras(loras, environmentId); } catch { return null; }
+  const embeddingValues = raw.embeddings === undefined ? [] : raw.embeddings;
+  if (!Array.isArray(embeddingValues) || embeddingValues.some((id) => typeof id !== "string" || !/^[a-z0-9-]{1,80}$/.test(id))) return null;
+  const embeddings = embeddingValues as string[];
+  try { resolveGrottoEmbeddings(embeddings, environmentId); } catch { return null; }
   const status = grottoStudioStatus();
   if (quantity > status.maxImages) return null;
 
@@ -61,12 +66,12 @@ function readInput(value: unknown): StudioGenerationInput | null {
   if (referenceId && !/^[a-zA-Z0-9_-]{1,100}$/.test(referenceId)) return null;
   const strength = raw.strength === undefined ? 0.35 : Number(raw.strength);
   if (!Number.isFinite(strength) || strength < 0.05 || strength > 0.9) return null;
-  return { environmentId, prompt, negativePrompt, format, quantity, ...(loras.length ? { loras } : {}), ...(referenceId ? { referenceId, strength } : {}) };
+  return { environmentId, prompt, negativePrompt, format, quantity, ...(loras.length ? { loras } : {}), ...(embeddings.length ? { embeddings } : {}), ...(referenceId ? { referenceId, strength } : {}) };
 }
 
 async function persistWorkflowImages(workflowId: string, input: StudioGenerationInput, snapshot: Awaited<ReturnType<typeof getGeneration>>) {
   const outputs = extractWorkflowImages(snapshot);
-  const { prompt, body, environment, loras } = buildStudioWorkflow(input);
+  const { prompt, body, environment, loras, embeddings } = buildStudioWorkflow(input);
   const saved = [];
   for (let index = 0; index < outputs.length; index += 1) {
     const output = outputs[index];
@@ -85,7 +90,7 @@ async function persistWorkflowImages(workflowId: string, input: StudioGeneration
     let image;
     try {
       image = await prisma.grottoImage.create({
-        data: { museId: "studio", contentType, blobUrl: blob.url, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, workflow: body }) },
+        data: { museId: "studio", contentType, blobUrl: blob.url, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, embeddings, workflow: body }) },
         select: { id: true, favorite: true, canonical: true, createdAt: true },
       });
     } catch (error) {

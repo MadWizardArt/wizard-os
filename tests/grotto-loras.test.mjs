@@ -17,6 +17,7 @@ test("Civitai LoRA AIR validation accepts only LoRA resources", () => {
 });
 
 test("Atelier LoRA stack fails closed for unknown resources and over-stacking", () => {
+  assert.equal(MAX_GROTTO_LORAS, 8);
   assert.throws(
     () => resolveGrottoLoras([{ id: "not-installed", weight: 0.5 }], "pony-v6"),
     /not installed/,
@@ -60,6 +61,13 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     GROTTO_LORAS.map(({ id, air, compatibility, defaultWeight, triggerWords }) => ({ id, air, compatibility, defaultWeight, triggerWords })),
     [
       {
+        id: "pony-amateur-standard-v2",
+        air: "urn:air:sdxl:lora:civitai:480835@717403",
+        compatibility: "both",
+        defaultWeight: 0.5,
+        triggerWords: [],
+      },
+      {
         id: "pony-realism-slider",
         air: "urn:air:sdxl:lora:civitai:1115064@1253021",
         compatibility: "pony-realism",
@@ -87,13 +95,6 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
         defaultWeight: 2.5,
         triggerWords: [],
       },
-      {
-        id: "better-faces",
-        air: "urn:air:sdxl:lora:civitai:301988@339112",
-        compatibility: "pony-realism",
-        defaultWeight: 0.7,
-        triggerWords: ["4ng3l face"],
-      },
     ],
   );
   assert.equal(grottoLoraList().every((lora) => lora.configured), true);
@@ -102,14 +103,11 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     () => resolveGrottoLoras([{ id: "pony-realism-enhancer", weight: 0.7 }], "pony-v6"),
     /not compatible/,
   );
-  assert.throws(
-    () => resolveGrottoLoras([{ id: "better-faces", weight: 0.7 }], "pony-v6"),
-    /not compatible/,
-  );
-
+  assert.equal(resolveGrottoLoras([{ id: "pony-amateur-standard-v2", weight: 0.2 }], "pony-v6")[0].weight, 0.2);
+  assert.equal(resolveGrottoLoras([{ id: "pony-amateur-standard-v2", weight: 0.9 }], "pony-realism")[0].weight, 0.9);
+  assert.throws(() => resolveGrottoLoras([{ id: "pony-amateur-standard-v2", weight: 0.95 }], "pony-realism"), /between 0.2 and 0.9/);
   assert.equal(resolveGrottoLoras([{ id: "epic-fantasy-style", weight: 0.8 }], "pony-v6")[0].weight, 0.8);
   assert.equal(resolveGrottoLoras([{ id: "epic-fantasy-style", weight: 0.8 }], "pony-realism")[0].weight, 0.8);
   assert.equal(resolveGrottoLoras([{ id: "real-skin-slider", weight: 2.5 }], "pony-v6")[0].weight, 2.5);
   assert.equal(resolveGrottoLoras([{ id: "real-skin-slider", weight: 2.5 }], "pony-realism")[0].weight, 2.5);
-  assert.equal(resolveGrottoLoras([{ id: "better-faces", weight: 0.7 }], "pony-realism")[0].weight, 0.7);
 });

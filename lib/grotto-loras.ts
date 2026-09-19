@@ -4,7 +4,7 @@ import {
   type GrottoModelEnvironmentId,
 } from "./grotto-model-environments.ts";
 
-export const MAX_GROTTO_LORAS = 5;
+export const MAX_GROTTO_LORAS = 8;
 
 export type GrottoLoraCategory =
   | "character"
@@ -44,6 +44,18 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  * verified. The Atelier caps active LoRAs at MAX_GROTTO_LORAS.
  */
 export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
+  {
+    id: "pony-amateur-standard-v2",
+    label: "Pony Amateur · Standard V2",
+    air: "urn:air:sdxl:lora:civitai:480835@717403",
+    compatibility: "both",
+    category: "style",
+    defaultWeight: 0.5,
+    minWeight: 0.2,
+    maxWeight: 0.9,
+    triggerWords: [],
+    enabled: true,
+  },
   {
     id: "pony-realism-slider",
     label: "Pony Realism Slider",
@@ -90,18 +102,6 @@ export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
     minWeight: 1.0,
     maxWeight: 4.0,
     triggerWords: [],
-    enabled: true,
-  },
-  {
-    id: "better-faces",
-    label: "Better Faces",
-    air: "urn:air:sdxl:lora:civitai:301988@339112",
-    compatibility: "pony-realism",
-    category: "anatomy",
-    defaultWeight: 0.7,
-    minWeight: 0.4,
-    maxWeight: 1.0,
-    triggerWords: ["4ng3l face"],
     enabled: true,
   },
 ];

@@ -15,6 +15,7 @@ import {
   resolveGrottoLoras,
   type GrottoLoraSelection,
 } from "./grotto-loras.ts";
+import { grottoEmbeddingList, grottoEmbeddingNetworks, resolveGrottoEmbeddings } from "./grotto-embeddings.ts";
 
 const ORCHESTRATION_BASE_URL = "https://orchestration.civitai.com";
 export type StudioFormat = "Portrait" | "Square" | "Landscape";
@@ -27,6 +28,7 @@ export type StudioGenerationInput = {
   referenceId?: string;
   strength?: number;
   loras?: GrottoLoraSelection[];
+  embeddings?: string[];
 };
 type CivitaiImage = { id?: string; url: string };
 export type WorkflowSnapshot = { id: string; status: string; cost?: { total?: number }; transactions?: Array<{ amount?: number; quantity?: number }>; steps?: Array<{ output?: { images?: Array<{ id?: string; url?: string; available?: boolean }>; blobs?: Array<{ url?: string; type?: string; mimeType?: string }> } }>; [key: string]: unknown };
@@ -43,7 +45,7 @@ export function grottoStudioStatus() {
   const providerConfigured = token().length > 0;
   const environments = grottoModelEnvironmentList().map((environment) => ({ ...environment, configured: isCivitaiCheckpointAir(grottoModelEnvironmentAir(environment.id)) }));
   const checkpointConfigured = environments.some((environment) => environment.configured);
-  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, defaultPrompts: GROTTO_MODEL_DEFAULT_PROMPTS, defaultNegativePrompts: { "pony-v6": studioDefaultNegative(), ...GROTTO_MODEL_DEFAULT_NEGATIVE_PROMPTS }, environments, loras: grottoLoraList(), maxLoras: MAX_GROTTO_LORAS, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
+  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, defaultPrompts: GROTTO_MODEL_DEFAULT_PROMPTS, defaultNegativePrompts: { "pony-v6": studioDefaultNegative(), ...GROTTO_MODEL_DEFAULT_NEGATIVE_PROMPTS }, environments, loras: grottoLoraList(), embeddings: grottoEmbeddingList(), maxLoras: MAX_GROTTO_LORAS, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
 }
 
 function studioDimensions(format:StudioFormat){ if(format==="Landscape") return {width:1216,height:832}; if(format==="Square") return {width:1024,height:1024}; return {width:832,height:1216}; }
@@ -55,12 +57,14 @@ export function buildStudioWorkflow(input:StudioGenerationInput,sourceImage?:str
   const model=grottoModelEnvironmentAir(environmentId);
   if(!isCivitaiCheckpointAir(model)) throw new Error(`${environment.label} is not configured with a valid Civitai checkpoint AIR.`);
   const resolvedLoras=resolveGrottoLoras(input.loras,environmentId);
-  const triggerWords=grottoLoraTriggerWords(resolvedLoras);
-  const prompt=[input.prompt.trim(),...triggerWords].filter(Boolean).join(", ");
-  const additionalNetworks=grottoAdditionalNetworks(resolvedLoras);
+  const resolvedEmbeddings=resolveGrottoEmbeddings(input.embeddings,environmentId);
+  const triggerWords=[...grottoLoraTriggerWords(resolvedLoras),...resolvedEmbeddings.map((embedding)=>embedding.triggerWord)];
+  const prompt=[input.prompt.trim(),...new Set(triggerWords)].filter(Boolean).join(", ");
+  const additionalNetworks={...grottoAdditionalNetworks(resolvedLoras),...grottoEmbeddingNetworks(resolvedEmbeddings)};
   const networkInput=Object.keys(additionalNetworks).length?{additionalNetworks}:{};
   const loras=resolvedLoras.map(({id,label,air,weight})=>({id,label,air,weight}));
-  return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, loras, prompt, body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...networkInput,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt,negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
+  const embeddings=resolvedEmbeddings.map(({id,label,air,triggerWord})=>({id,label,air,triggerWord}));
+  return { environment:{ id:environment.id,label:environment.label,family:environment.family,air:model }, loras, embeddings, prompt, body:{tags:["wizard-os","grotto","studio","pony",environment.id],steps:[{$type:"textToImage",name:"studio",timeout:"00:20:00",input:{model,...networkInput,...(sourceImage?{sourceImage,sourceImageDenoiseStrenght:input.strength??0.35}:{}),prompt,negativePrompt:input.negativePrompt.trim(),quantity:input.quantity,width,height,steps:studioSteps(),cfgScale:studioCfg(),scheduler:"EulerA",clipSkip:2}}]}};
 }
 
 export function civitaiOutputHeaders(){ const accessToken=token(); if(!accessToken) throw new Error("Civitai is not configured."); return {Accept:"image/*",Authorization:`Bearer ${accessToken}`}; }
