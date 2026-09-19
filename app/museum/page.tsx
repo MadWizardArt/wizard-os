@@ -11,25 +11,14 @@ import CouncilChamber from "./CouncilChamber";
 import MuseumGatewayStatus from "./MuseumGatewayStatus";
 import GrottoGate from "./GrottoGate";
 
-type SharedProject = {
-  id: string;
-  title: string;
-  kind?: string;
-  type?: string;
-  next?: string;
-  nextAction?: string | null;
-};
-
 type MuseumMode = "hall" | "chamber" | "council";
 
 export default function MuseumPage() {
   const [mode, setMode] = useState<MuseumMode>("hall");
   const [selectedId, setSelectedId] = useState<MuseId>("novy");
-  const [projects, setProjects] = useState<SharedProject[]>([]);
   const [councilIds, setCouncilIds] = useState<MuseId[]>([]);
   const [councilQuestion, setCouncilQuestion] = useState("");
   const [notice, setNotice] = useState("");
-  const [loading, setLoading] = useState(true);
 
   const selected = MUSE_BY_ID[selectedId];
   const viewClass = mode === "hall"
@@ -39,24 +28,9 @@ export default function MuseumPage() {
       : transitions.councilView;
   const viewKey = mode === "chamber" ? `${mode}-${selectedId}` : mode;
 
-  const loadMuseum = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/projects", { cache: "no-store" });
-      if (!response.ok) throw new Error("Wizard OS projects could not be read.");
-      const projectData = await response.json();
-      setProjects(Array.isArray(projectData) ? projectData : []);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Wizard OS projects could not be read.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     const savedMuse = localStorage.getItem("wizard-os-museum-selected-muse") as MuseId | null;
     if (savedMuse && MUSE_BY_ID[savedMuse]) setSelectedId(savedMuse);
-    void loadMuseum();
   }, []);
 
   const chooseMuse = (id: MuseId) => {
@@ -69,15 +43,6 @@ export default function MuseumPage() {
     setMode("chamber");
   };
 
-  const copyText = async (text: string, success: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setNotice(success);
-    } catch {
-      setNotice("Clipboard access was unavailable. Select and copy the text manually.");
-    }
-  };
-
   const toggleCouncilMuse = (id: MuseId) => {
     setCouncilIds((current) => {
       if (current.includes(id)) return current.filter((item) => item !== id);
@@ -86,21 +51,25 @@ export default function MuseumPage() {
     });
   };
 
-  const copyCouncilPacket = async () => {
-    if (councilIds.length < 2) {
-      setNotice("Choose two or three Muses for the Council discussion.");
+  const prepareCouncilReview = () => {
+    const question = councilQuestion.trim();
+    if (!question || councilIds.length === 0) {
+      setNotice("Choose an accountable Muse and enter a decision question.");
       return;
     }
-    const members = councilIds.map((id) => MUSE_BY_ID[id]);
-    const packet = [
-      "COUNCIL DISCUSSION",
-      `Muses: ${members.map((muse) => muse.name).join(", ")}`,
-      ...members.map((muse) => `- ${muse.name} · ${muse.role} · ${muse.coreQuestion}`),
-      `Question: ${councilQuestion.trim() || "[add discussion question]"}`,
-      "",
-      "Use the adopted Nine Muses Character & Operator 2.0 canon. Keep one accountable lead and include another Muse only where her perspective changes the outcome.",
-    ].join("\n");
-    await copyText(packet, "Council discussion copied. Paste it into the Nine Muses project.");
+    const lead = MUSE_BY_ID[councilIds[0]];
+    const supporting = councilIds.slice(1).map((id) => MUSE_BY_ID[id]);
+    // One accountable quest, not an implicit multi-Muse AI run. Additional
+    // perspectives are context only until the Artist separately fuels them.
+    const brief = [
+      "COUNCIL REVIEW",
+      `Accountable Muse: ${lead.name} — ${lead.role}`,
+      supporting.length ? `Perspectives to consider (not automatically consulted): ${supporting.map((muse) => `${muse.name} — ${muse.role}`).join("; ")}` : "",
+      `Decision question: ${question}`,
+      "Distinguish evidence, open questions, and the smallest useful next action. The Artist retains approval.",
+    ].filter(Boolean).join("\\n").slice(0, 1200);
+    const params = new URLSearchParams({ source: "council", muse: lead.id, brief });
+    window.location.assign(`/museum/intelligence?${params.toString()}`);
   };
 
   return (
@@ -122,8 +91,8 @@ export default function MuseumPage() {
 
         <nav className={`${styles.museumNav} ${polish.museumNav}`} aria-label="Museum rooms">
           <button className={mode === "hall" ? styles.navActive : ""} onClick={() => setMode("hall")}>Council Chamber</button>
-          <button className={mode === "chamber" ? styles.navActive : ""} onClick={() => setMode("chamber")}>{selected.name}&apos;s Room</button>
-          <button className={mode === "council" ? styles.navActive : ""} onClick={() => setMode("council")}>Council Table</button>
+          <button className={mode === "chamber" ? styles.navActive : ""} onClick={() => setMode("chamber")}>{selected.name}&apos;s Profile</button>
+          <button className={mode === "council" ? styles.navActive : ""} onClick={() => setMode("council")}>Convene Council</button>
         </nav>
 
         {notice && <button className={styles.notice} onClick={() => setNotice("")}>{notice}<span>×</span></button>}
@@ -139,22 +108,15 @@ export default function MuseumPage() {
 
               <MuseRoom muse={selected} onCouncil={() => setMode("council")} />
 
-              <section className={`${styles.panel} ${transitions.contextPanel}`}>
-                <div className={styles.panelHeader}><div><p className={styles.kicker}>WIZARD OS</p><h3>Nearby operational context</h3></div><strong>{projects.length}</strong></div>
-                <div className={styles.projectGrid}>
-                  {loading && <p className={styles.empty}>Reading Wizard OS…</p>}
-                  {!loading && projects.length === 0 && <p className={styles.empty}>No Wizard OS projects returned.</p>}
-                  {projects.slice(0, 8).map((project) => <article key={project.id}><span>{project.kind ?? project.type ?? "Project"}</span><strong>{project.title}</strong><small>{project.next ?? project.nextAction ?? "No next action"}</small></article>)}
-                </div>
-              </section>
+
             </>
           )}
 
           {mode === "council" && (
             <>
               <section className={`${styles.roomHeading} ${transitions.councilHeading}`}>
-                <div><p className={styles.kicker}>COUNCIL TABLE</p><h2>Choose the perspectives. Have the discussion here.</h2></div>
-                <div className={styles.zeroCallBadge}>Nothing is stored</div>
+                <div><p className={styles.kicker}>COUNCIL TABLE</p><h2>Bring a decision to the Council.</h2></div>
+                <div className={styles.zeroCallBadge}>Artist-gated intelligence</div>
               </section>
 
               <section className={`${styles.councilPanel} ${transitions.councilPanel}`}>
@@ -165,11 +127,11 @@ export default function MuseumPage() {
                   })}
                 </div>
                 <div className={styles.councilComposer}>
-                  <p className={styles.kicker}>TEMPORARY COUNCIL · {councilIds.length}/3</p>
-                  <h3>Choose two or three sisters.</h3>
-                  <p className={styles.panelCopy}>No Council object, no log, no assignment record. This simply prepares the discussion for the Nine Muses project.</p>
-                  <textarea className={styles.largeInput} value={councilQuestion} onChange={(event) => setCouncilQuestion(event.target.value)} placeholder="What should the Council consider?" />
-                  <button className={styles.primaryButton} onClick={copyCouncilPacket}>Copy Council Discussion</button>
+                  <p className={styles.kicker}>COUNCIL REVIEW · {councilIds.length}/3</p>
+                  <h3>Choose one lead, optionally two perspectives.</h3>
+                  <p className={styles.panelCopy}>The first selected Muse owns the question. Other selected perspectives provide context; they are not automatically contacted or fueled. Preparing the quest costs no AI tokens.</p>
+                  <label className={styles.councilQuestionLabel} htmlFor="council-question">Decision question</label><textarea id="council-question" className={styles.largeInput} maxLength={900} value={councilQuestion} onChange={(event) => setCouncilQuestion(event.target.value)} placeholder="What should we decide, test, or make?" />
+                  <p className={styles.councilLead}>{councilIds.length ? `Accountable: ${MUSE_BY_ID[councilIds[0]].name}` : "Select the accountable Muse first."}</p><button className={styles.primaryButton} disabled={!councilIds.length || !councilQuestion.trim()} onClick={prepareCouncilReview}>Continue to Intelligence →</button>
                   <button className={styles.textButton} onClick={() => { setCouncilIds([]); setCouncilQuestion(""); }}>Clear</button>
                 </div>
               </section>
@@ -179,7 +141,7 @@ export default function MuseumPage() {
 
         <footer className={`${styles.footerNote} ${polish.footerNote}`}>
           <span>THE MUSEUM</span>
-          <p>Character · Presence · Signals. Wizard OS remains the operational system.</p>
+          <p>Character · Presence · Real contributions. Wizard OS remains the operational system.</p>
         </footer>
       </section>
     </main>
