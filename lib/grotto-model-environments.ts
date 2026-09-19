@@ -22,6 +22,13 @@ export type GrottoModelEnvironmentId = keyof typeof GROTTO_MODEL_ENVIRONMENTS;
 export type GrottoLoraCompatibility = GrottoModelEnvironmentId | "both";
 
 export const DEFAULT_GROTTO_MODEL_ENVIRONMENT: GrottoModelEnvironmentId = "pony-v6";
+export const GROTTO_MODEL_DEFAULT_PROMPTS: Record<GrottoModelEnvironmentId, string> = {
+  "pony-v6": "",
+  "pony-realism": "score_9, score_8_up, score_8, photorealistic, photo (medium), realistic skin texture",
+};
+export const GROTTO_MODEL_DEFAULT_NEGATIVE_PROMPTS: Partial<Record<GrottoModelEnvironmentId, string>> = {
+  "pony-realism": "score_6, score_5, score_4, source_anime, cartoon, illustration, painting, cgi, airbrushed, deformed, bad anatomy",
+};
 
 export function isGrottoModelEnvironmentId(value: unknown): value is GrottoModelEnvironmentId {
   return typeof value === "string" && value in GROTTO_MODEL_ENVIRONMENTS;

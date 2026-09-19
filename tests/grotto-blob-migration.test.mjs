@@ -16,3 +16,17 @@ test("cleanup requires confirmation and refuses to run while copies are pending"
   assert.match(script, /Refusing cleanup:/);
   assert.match(script, /--cleanup --yes/);
 });
+
+test("browser cleanup verifies Blob size before releasing Neon bytes", () => {
+  assert.match(route, /inspectGrottoImage\(image\.blobUrl\)/);
+  assert.match(route, /Number\(remote\.size\) !== localSize/);
+  assert.match(route, /data: \{ imageData: null \}/);
+  assert.match(route, /Deleted-row purge blocked/);
+});
+
+test("Blob-backed file routes avoid selecting legacy bytea on their primary read", () => {
+  const fileRoute = readFileSync(new URL("../app/api/grotto/images/[id]/file/route.ts", import.meta.url), "utf8");
+  const referenceRoute = readFileSync(new URL("../app/api/grotto/reference/[id]/route.ts", import.meta.url), "utf8");
+  assert.match(fileRoute, /select: \{ blobUrl: true, contentType: true, byteSize: true \}/);
+  assert.match(referenceRoute, /select: \{ blobUrl: true, contentType: true \}/);
+});

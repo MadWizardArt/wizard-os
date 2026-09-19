@@ -1,5 +1,7 @@
 import {
   DEFAULT_GROTTO_MODEL_ENVIRONMENT,
+  GROTTO_MODEL_DEFAULT_NEGATIVE_PROMPTS,
+  GROTTO_MODEL_DEFAULT_PROMPTS,
   grottoModelEnvironment,
   grottoModelEnvironmentAir,
   grottoModelEnvironmentList,
@@ -41,7 +43,7 @@ export function grottoStudioStatus() {
   const providerConfigured = token().length > 0;
   const environments = grottoModelEnvironmentList().map((environment) => ({ ...environment, configured: isCivitaiCheckpointAir(grottoModelEnvironmentAir(environment.id)) }));
   const checkpointConfigured = environments.some((environment) => environment.configured);
-  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, environments, loras: grottoLoraList(), maxLoras: MAX_GROTTO_LORAS, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
+  return { enabled, provider: "civitai", providerConfigured, checkpointConfigured, checkpointLabel: grottoModelEnvironment(DEFAULT_GROTTO_MODEL_ENVIRONMENT).label, configured: enabled && providerConfigured && checkpointConfigured, defaultEnvironmentId: DEFAULT_GROTTO_MODEL_ENVIRONMENT, defaultPrompts: GROTTO_MODEL_DEFAULT_PROMPTS, defaultNegativePrompts: { "pony-v6": studioDefaultNegative(), ...GROTTO_MODEL_DEFAULT_NEGATIVE_PROMPTS }, environments, loras: grottoLoraList(), maxLoras: MAX_GROTTO_LORAS, defaultNegative: studioDefaultNegative(), maxImages: studioMaxImages() };
 }
 
 function studioDimensions(format:StudioFormat){ if(format==="Landscape") return {width:1216,height:832}; if(format==="Square") return {width:1024,height:1024}; return {width:832,height:1216}; }

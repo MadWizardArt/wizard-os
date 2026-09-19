@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   const query = request.nextUrl.searchParams;
   if (!verifyReference(id, query.get("expires") || "", query.get("signature") || ""))
     return NextResponse.json({ error: "Reference link expired or invalid." }, { status: 403 });
-  const image = await prisma.grottoImage.findFirst({ where: { id, deletedAt: null }, select: { imageData: true, blobUrl: true, contentType: true } });
+  const image = await prisma.grottoImage.findFirst({ where: { id, deletedAt: null }, select: { blobUrl: true, contentType: true } });
   if (!image) return NextResponse.json({ error: "Reference not found." }, { status: 404 });
   if (image.blobUrl) {
     const blob = await readGrottoImage(image.blobUrl);
@@ -18,8 +18,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       "Content-Type": blob.blob.contentType, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
     } });
   }
-  if (!image.imageData) return NextResponse.json({ error: "Reference not found." }, { status: 404 });
-  return new NextResponse(Buffer.from(image.imageData), { headers: {
+  const legacy = await prisma.grottoImage.findFirst({ where: { id, deletedAt: null, blobUrl: null }, select: { imageData: true } });
+  if (!legacy?.imageData) return NextResponse.json({ error: "Reference not found." }, { status: 404 });
+  return new NextResponse(Buffer.from(legacy.imageData), { headers: {
     "Content-Type": image.contentType, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
   } });
 }

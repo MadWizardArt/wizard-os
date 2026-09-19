@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
       checkpointLabel: "",
       configured: false,
       defaultEnvironmentId: "pony-v6",
+      defaultPrompts: {},
+      defaultNegativePrompts: {},
       environments: [],
       loras: [],
       maxLoras: MAX_GROTTO_LORAS,

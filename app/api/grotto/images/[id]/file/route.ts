@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const image = await prisma.grottoImage.findFirst({
     where: { id, deletedAt: null },
-    select: { imageData: true, blobUrl: true, contentType: true, byteSize: true },
+    select: { blobUrl: true, contentType: true, byteSize: true },
   });
 
   if (!image) return NextResponse.json({ error: "Image not found." }, { status: 404 });
@@ -34,8 +34,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
   }
-  if (!image.imageData) return NextResponse.json({ error: "Image file not found." }, { status: 404 });
-  return new NextResponse(Buffer.from(image.imageData), {
+  const legacy = await prisma.grottoImage.findFirst({
+    where: { id, deletedAt: null, blobUrl: null },
+    select: { imageData: true },
+  });
+  if (!legacy?.imageData) return NextResponse.json({ error: "Image file not found." }, { status: 404 });
+  return new NextResponse(Buffer.from(legacy.imageData), {
     status: 200,
     headers: {
       "Content-Type": image.contentType,

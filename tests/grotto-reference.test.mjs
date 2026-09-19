@@ -26,6 +26,8 @@ test('Pony remix uses the documented source-image field and denoise wire spellin
 });
 test('Atelier reports the active checkpoint and authorizes output retrieval', () => {
  assert.equal(grottoStudioStatus().checkpointLabel, 'Pony Diffusion V6 XL');
+ assert.equal(grottoStudioStatus().defaultPrompts['pony-realism'], 'score_9, score_8_up, score_8, photorealistic, photo (medium), realistic skin texture');
+ assert.equal(grottoStudioStatus().defaultNegativePrompts['pony-realism'], 'score_6, score_5, score_4, source_anime, cartoon, illustration, painting, cgi, airbrushed, deformed, bad anatomy');
  assert.deepEqual(civitaiOutputHeaders(), {
   Accept: 'image/*',
   Authorization: 'Bearer test-token',
