@@ -12,7 +12,7 @@ import polish from "./CouncilChamberPolish.module.css";
 import systemPortal from "./CouncilSystemsPortal.module.css";
 import presenceStyles from "./MusePresence.module.css";
 import signalStyles from "./MuseSignals.module.css";
-import { deriveDefaultPresence, PRESENCE_META, useMusePresence } from "./useMusePresence";
+import { deriveDefaultPresence, PRESENCE_META } from "./useMusePresence";
 import { SIGNAL_META, type MuseSignal, useMuseSignals } from "./useMuseSignals";
 
 type CouncilChamberProps = {
@@ -47,8 +47,8 @@ function MusePortal({ muse, index, signal, onEnter }: {
     "--portal-y": `${y}%`,
     "--portal-delay": `${index * -0.7}s`,
   } as CSSProperties;
-  const automaticPresence = signal?.visualState ?? deriveDefaultPresence(false);
-  const { presence } = useMusePresence(muse.id, automaticPresence);
+  // Presence represents current signals, not a manually staged agent status.
+  const presence = signal?.visualState ?? deriveDefaultPresence(false);
   const presenceMeta = PRESENCE_META[presence];
   const signalMeta = signal ? SIGNAL_META[signal.type] : null;
 
