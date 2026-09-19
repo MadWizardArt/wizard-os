@@ -7,6 +7,7 @@ import type { ProposalCategory } from "../../../lib/museum-proposal-storage";
 import type { CouncilKnowledgeRecord } from "../../../lib/museum-knowledge";
 import type { IntelligenceFuelUsage, IntelligenceQuestRecord } from "../../../lib/museum-intelligence";
 import styles from "./selective-intelligence.module.css";
+import SharedEvidence from "./SharedEvidence";
 
 const CATEGORIES: ProposalCategory[] = ["revenue", "product", "content", "system", "risk", "research", "capacity", "experiment"];
 
@@ -169,6 +170,7 @@ export default function SelectiveIntelligencePage() {
   const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<QuestDraft>(EMPTY_QUEST);
   const [incomingReview, setIncomingReview] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -590,7 +592,7 @@ export default function SelectiveIntelligencePage() {
             </details>
           </div>
 
-          <details className={styles.evidencePortal}><summary>Shared cognition · routed evidence &amp; Council patterns</summary><p>Inspect cross-Muse evidence when it materially informs a decision. This remains a read-only diagnostic view, not a separate daily workspace.</p><a href="/museum/cognition">Open evidence view →</a></details>
+          <details id="shared-cognition" className={styles.evidencePortal} onToggle={(event) => setEvidenceOpen(event.currentTarget.open)}><summary>Shared cognition · routed evidence &amp; Council patterns</summary>{evidenceOpen && <SharedEvidence />}</details>
 
           <section className={styles.board}>
             <div className={styles.boardHead}><div><p className={styles.kicker}>COUNCIL BOARD</p><h2>Threads</h2></div><span>{actionCount} need attention</span></div>
