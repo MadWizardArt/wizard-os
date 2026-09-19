@@ -98,7 +98,7 @@ export default function MuseumPage() {
         {notice && <button className={styles.notice} onClick={() => setNotice("")}>{notice}<span>×</span></button>}
 
         <div key={viewKey} className={`${transitions.view} ${viewClass}`}>
-          {mode === "hall" && <CouncilChamber onEnter={enterChamber} />}
+          {mode === "hall" && <CouncilChamber onEnter={enterChamber} onCouncil={() => setMode("council")} />}
 
           {mode === "chamber" && (
             <>
