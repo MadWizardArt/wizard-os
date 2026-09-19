@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { del, get, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 
 const EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
@@ -22,8 +22,24 @@ export async function storeGrottoImage(museId: string, bytes: Buffer, contentTyp
   });
 }
 
+export async function migrateGrottoImage(id: string, museId: string, bytes: Buffer, contentType: string) {
+  if (!grottoBlobConfigured()) throw new Error("Vercel Blob is not configured.");
+  const extension = EXTENSIONS[contentType] || "bin";
+  const safeMuseId = museId.toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "unknown";
+  return put(`grotto/${safeMuseId}/${id}.${extension}`, bytes, {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType,
+  });
+}
+
 export async function readGrottoImage(blobUrl: string) {
   return get(blobUrl, { access: "private" });
+}
+
+export async function inspectGrottoImage(blobUrl: string) {
+  return head(blobUrl);
 }
 
 export async function deleteGrottoImages(blobUrls: Array<string | null | undefined>) {
