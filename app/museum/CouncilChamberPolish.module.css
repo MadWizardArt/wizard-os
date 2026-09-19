@@ -108,7 +108,7 @@
 
 @media (max-width: 900px) {
   .chamber.chamber { height: auto; min-height: 0; padding: 28px 24px 34px; }
-  .centerpiece { top: 2%; height: 330px; opacity: .34; }
+  .centerpiece { top: -4px; height: 330px; opacity: .34; }
   .dais.dais { position: relative; left: auto; top: auto; transform: none; width: 100%; margin: 0 auto 210px; }
   .seal.seal { width: 92px; height: 92px; font-size: 46px; }
   .seal::before, .seal::after { top: 46px; }
@@ -123,8 +123,9 @@
 
 @media (max-width: 600px) {
   .chamber.chamber { padding: 26px 16px 30px; }
-  .portalRing.portalRing { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
-  .portal[data-muse="novy"] { order: -1; grid-column: 1 / -1; width: calc((100% - 16px) / 2); margin-top: 24px; }
+  .portalRing.portalRing { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+  .portal.portal { width: min(100%, 340px); }
+  .portal[data-muse="novy"] { order: -1; margin-top: 52px; }
   .nameplate.nameplate > strong { font-size: 22px; }
   .nameplate.nameplate > small { font-size: 7px; line-height: 1.5; }
 }

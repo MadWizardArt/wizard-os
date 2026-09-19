@@ -29,9 +29,10 @@ export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntr
     setFailed(true);
   };
 
-  if (!compact && room.animatedVideo && !videoFailed) {
+  if (room.animatedVideo && !videoFailed) {
     return (
-      <video className={styles.roomArt} poster={room.image} autoPlay loop muted playsInline
+      <video className={compact ? styles.cardArt : styles.roomArt} poster={room.image}
+        autoPlay loop muted playsInline preload="metadata"
         aria-label={`${muse.name} welcoming you into ${room.name}`}
         onError={() => setVideoFailed(true)}>
         <source src={room.animatedVideo} type="video/webm" />
