@@ -165,12 +165,13 @@ test("Counterweight Packet V1 prepares quests but never fuels AI implicitly", ()
 
 test("Counterweight Packet V1 is exposed in the Intelligence Chamber", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /COUNCIL COUNTERWEIGHT · V1/);
-  assert.match(source, /Create counterweight packet/);
+  assert.match(source, /New counterweight/);
+  assert.match(source, /Create packet/);
   assert.match(source, /prepare-counterweight/);
   assert.match(source, /prepare-synthesis/);
   assert.match(source, /Close packet/);
-  assert.match(source, /Preparing is free · fueling is explicit/);
+  assert.match(source, /Counterweight ·/);
+  assert.match(source, /threadRow/);
 });
 
 
