@@ -34,6 +34,7 @@ export type StoredIntelligenceQuest = {
   error?: string | null;
   errorCode?: IntelligenceQuestErrorCode | null;
   retryOf?: string | null;
+  sourceQuestIds?: string[];
   usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null } | null;
   contextRefs: string[];
   createdAt: string;
@@ -58,6 +59,11 @@ type IntelligenceDb = Pick<Prisma.TransactionClient, "project" | "painting" | "a
 
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function sourceQuestIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => text(item, 120)).filter(Boolean))].slice(0, 2);
 }
 
 export function describeIntelligenceFailure(message: string): IntelligenceFailure {
@@ -128,6 +134,7 @@ export async function createIntelligenceQuest(db: IntelligenceQuestWriteDb, inpu
   expectedValue: string;
   maxOutputTokens?: number;
   retryOf?: string | null;
+  sourceQuestIds?: string[];
 }) {
   const question = text(input.question, 1200);
   const reason = text(input.reason, 700);
@@ -149,6 +156,7 @@ export async function createIntelligenceQuest(db: IntelligenceQuestWriteDb, inpu
     error: null,
     errorCode: null,
     retryOf: input.retryOf ?? null,
+    sourceQuestIds: sourceQuestIds(input.sourceQuestIds),
     usage: null,
     contextRefs: [],
     createdAt: new Date().toISOString(),
@@ -185,6 +193,7 @@ export async function retryIntelligenceQuest(db: IntelligenceDb, id: string) {
     expectedValue: quest.expectedValue,
     maxOutputTokens: quest.maxOutputTokens,
     retryOf: id,
+    sourceQuestIds: quest.sourceQuestIds ?? [],
   });
 }
 
@@ -339,6 +348,22 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
   try {
     const charter = MUSE_AGENT_CHARTERS[running.museId];
     const mindKernel = getMuseMindKernel(running.museId);
+    const relatedQuestIds = sourceQuestIds(running.sourceQuestIds);
+    const relatedRows = relatedQuestIds.length
+      ? await db.museumIntelligenceQuest.findMany({
+          where: { id: { in: relatedQuestIds } },
+          select: { id: true, payload: true },
+        })
+      : [];
+    const relatedById = new Map(relatedRows.map((row) => [row.id, decodeIntelligenceQuest(row.payload)]));
+    const relatedQuests = relatedQuestIds.map((sourceId) => {
+      const sourceQuest = relatedById.get(sourceId);
+      if (!sourceQuest || sourceQuest.status !== "completed" || !sourceQuest.answer) {
+        throw new Error(`Referenced intelligence source ${sourceId} is missing or incomplete.`);
+      }
+      return { id: sourceId, quest: sourceQuest };
+    });
+
     const [knowledge, cognition, liveContext, personalContinuity] = await Promise.all([
       readRelevantCouncilKnowledge(db, running.museId, running.category, 8),
       readSharedCouncilCognition(db, running.museId),
@@ -356,6 +381,11 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
       : "No routed cross-Muse outcomes yet.";
     const patternBlock = relevantPatterns.length ? relevantPatterns.map((item) => item.summary).join("\n") : "No Council-level pattern has enough evidence yet.";
     const continuityBlock = personalContinuity ? formatMuseMindContinuity(personalContinuity) : "No persistent personal continuity is enabled for this Muse yet.";
+    const relatedIntelligenceBlock = relatedQuests.length
+      ? relatedQuests.map(({ id: sourceId, quest: sourceQuest }, index) =>
+          `${index + 1}. SOURCE QUEST ${sourceId} · ${sourceQuest.museId} · ${sourceQuest.category}\n${sourceQuest.answer}`
+        ).join("\n\n")
+      : "No completed intelligence quest was explicitly attached as source context.";
     const responseShape = mindKernel
       ? mindKernel.outputContract.requiredSections.join(", ")
       : "Insight, Recommendation, Evidence used, Unknowns, and Proposed next step for Artist approval";
@@ -365,7 +395,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
     const system = mindKernel
       ? `${buildMuseMindSystemPrompt(mindKernel)}\nCOUNCIL POLICY: ${STAGE_THREE_POLICY.objective} ${STAGE_THREE_POLICY.authority}`
       : legacySystem;
-    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nPERSONAL MIND CONTINUITY\n${continuityBlock}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: ${responseShape}.`;
+    const user = `INTELLIGENCE QUEST\nQuestion: ${running.question}\nWhy this merits AI: ${running.reason}\nExpected value: ${running.expectedValue}\n\nRELATED COMPLETED INTELLIGENCE\nThese are attributed completed Muse syntheses, not automatically verified outcomes. Preserve their provenance and evaluate them rather than silently adopting them.\n${relatedIntelligenceBlock}\n\nLIVE WIZARD OS CONTEXT · generated ${liveContext.generatedAt}\n${liveContext.text}\n\nPERSONAL MIND CONTINUITY\n${continuityBlock}\n\nRELEVANT KNOWLEDGE VAULT\n${knowledgeBlock}\n\nROUTED COUNCIL EVIDENCE\n${memoryBlock}\n\nCOUNCIL PATTERNS\n${patternBlock}\n\nReturn a compact response with: ${responseShape}.`;
 
     const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
       method: "POST",
@@ -404,6 +434,7 @@ export async function runIntelligenceQuest(db: IntelligenceDb, id: string, auth:
           `Muse mind:${mindKernel.museId}:v${mindKernel.version}`,
           `Artist relationship:${mindKernel.museId}:v${mindKernel.relationships.artist.version}`,
         ] : []),
+        ...relatedQuests.map(({ id: sourceId }) => `Intelligence source:${sourceId}`),
         ...liveContext.refs.slice(0, 6).map((ref) => `Live state:${ref}`),
         ...(personalContinuity ? personalContinuity.workingStates.slice(0, 4).map((item) => `Working state:${item.id}`) : []),
         ...(personalContinuity ? personalContinuity.durableMemories.slice(0, 4).map((item) => `Personal memory:${item.id}`) : []),
