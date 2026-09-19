@@ -455,3 +455,14 @@
 .evidencePortal summary { cursor:pointer; color:#e4cfaa; font:500 15px/1.5 Georgia,serif; }
 .evidencePortal p { color:rgba(244,239,231,.64); font-size:13px; line-height:1.6; }
 .evidencePortal a { color:#e0c897; font-size:13px; }
+
+
+.evidenceBody { display:grid; gap:10px; margin-top:13px; color:#e7e0d5; }
+.evidenceBody label { display:grid; gap:6px; max-width:340px; color:rgba(244,239,231,.73); font-size:12px; }
+.evidenceBody select { padding:10px 12px; color:#f4efe7; background:#1a1621; border:1px solid rgba(208,183,134,.3); border-radius:8px; font:inherit; }
+.evidenceBody h3 { margin:13px 0 0; color:#ead7b4; font:500 19px/1.4 Georgia,serif; }
+.evidenceItem { padding:13px 15px; background:rgba(0,0,0,.16); border:1px solid rgba(255,255,255,.085); border-radius:10px; }
+.evidenceItem strong { display:block; color:#f2e4cf; font:500 16px/1.35 Georgia,serif; }
+.evidenceItem small { display:block; margin-top:6px; color:#bfa982; font:12px/1.5 system-ui,sans-serif; text-transform:capitalize; }
+.evidenceItem p { margin:7px 0; }
+.evidenceItem details summary { color:#e0c897; font:12px/1.5 system-ui,sans-serif; }
