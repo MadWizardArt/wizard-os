@@ -515,7 +515,7 @@ export default function Home() {
   const activeNav = (item: typeof nav[number]) => item === "The Crucible" && view === "dashboard" || item === "Money" && view === "money" || item === "Ventures" && view === "ventures" || item === "Clients" && view === "customers" || item === "Projects" && (view === "projects" || view === "project");
 
   return <main className="shell">
-    <aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => navigate(item)} className={activeNav(item) ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarBottom"><a className="primary warlockLink" href="/etsy">Warlock</a><div className="sidebarFoot"><span>System</span><strong>All clear</strong></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="sigil">✦</span><div><h1>Wizard OS</h1><p>Operations Console</p></div></div><nav>{nav.map((item) => <button key={item} onClick={() => navigate(item)} className={activeNav(item) ? "navItem active" : "navItem"}>{item}</button>)}</nav><div className="sidebarBottom"><a className="primary warlockLink" href="/etsy">Warlock</a></div></aside>
     <section className="workspace">{view === "dashboard" ? <Dashboard /> : view === "projects" ? <ProjectsWorkspace /> : view === "money" ? <MoneyWorkspace /> : view === "ventures" ? <VenturesWorkspace /> : view === "customers" ? <CustomersWorkspace /> : <ProjectWorkspace />}</section>
 
     {editingStage && selectedProject && <StageEditor stage={editingStage} projectId={selectedProject.id} close={() => setEditingStage(null)} saved={refreshProject} />}

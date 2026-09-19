@@ -22,49 +22,6 @@ type HandoffPayload = {
   categorySearch?: string;
 };
 
-function parseNotes(notes: string | null) {
-  if (!notes) return null;
-  try {
-    return JSON.parse(notes) as HandoffPayload;
-  } catch {
-    return null;
-  }
-}
-
-export async function GET() {
-  const projects = await prisma.project.findMany({
-    where: {
-      type: ProjectType.DIGITAL_PRODUCT,
-      archivedAt: null,
-      notes: { contains: `\"source\":\"${SOURCE}\"` },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
-
-  const drafts = projects
-    .map((project) => {
-      const payload = parseNotes(project.notes);
-      if (!payload || payload.source !== SOURCE) return null;
-      return {
-        id: project.id,
-        internalName: payload.internalName || project.title,
-        status: payload.status || "handoff_ready",
-        collection: payload.collection || "",
-        title: payload.title || project.title,
-        description: payload.description || "",
-        price: Number.isFinite(payload.price) ? payload.price : null,
-        launchPrice: Number.isFinite(payload.launchPrice) ? payload.launchPrice : null,
-        tags: Array.isArray(payload.tags) ? payload.tags : [],
-        categorySearch: payload.categorySearch || "",
-        createdAt: project.createdAt,
-      };
-    })
-    .filter(Boolean);
-
-  return NextResponse.json({ drafts });
-}
-
 export async function POST(request: NextRequest) {
   const expected = process.env.MUSE_HANDOFF_SECRET;
   const supplied = request.headers.get("x-muse-handoff-secret");

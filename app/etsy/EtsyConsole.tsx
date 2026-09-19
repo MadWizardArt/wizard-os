@@ -4,15 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type TaxonomyNode = { id: number; name: string; children?: TaxonomyNode[] };
 type TaxonomyOption = { id: number; label: string; name: string; isLeaf: boolean };
-type AureliaDraft = {
-  id: string;
-  title: string;
-  description: string;
-  price: number | null;
-  tags: string[];
-  categorySearch: string;
-};
-
 function normalize(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -54,22 +45,6 @@ export default function EtsyConsole() {
   const [categorySearch, setCategorySearch] = useState("");
   const [taxonomy, setTaxonomy] = useState<TaxonomyNode[]>([]);
   const [taxonomyError, setTaxonomyError] = useState("");
-  const [aureliaDrafts, setAureliaDrafts] = useState<AureliaDraft[]>([]);
-  const [selectedAureliaDraftId, setSelectedAureliaDraftId] = useState("");
-  const [aureliaError, setAureliaError] = useState("");
-
-  async function loadAureliaDrafts() {
-    try {
-      const response = await fetch("/api/etsy/aurelia-drafts", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Unable to load Aurelia drafts");
-      setAureliaDrafts((data.drafts ?? []).slice(0, 5));
-      setAureliaError("");
-    } catch (error) {
-      setAureliaError(error instanceof Error ? error.message : "Unable to load Aurelia drafts");
-    }
-  }
-
   useEffect(() => {
     fetch("/api/etsy/taxonomy", { cache: "no-store" })
       .then(async (response) => {
@@ -79,7 +54,6 @@ export default function EtsyConsole() {
       })
       .then((data) => setTaxonomy(data.results ?? []))
       .catch((error) => setTaxonomyError(error.message));
-    loadAureliaDrafts();
   }, []);
 
   const taxonomyOptions = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);
@@ -95,26 +69,12 @@ export default function EtsyConsole() {
   const selectedCategory = taxonomyOptions.find((option) => String(option.id) === taxonomyId);
 
   function reset() {
-    setSelectedAureliaDraftId("");
     setTitle("");
     setDescription("");
     setPrice("");
     setTags("");
     setTaxonomyId("");
     setCategorySearch("");
-  }
-
-  function loadAureliaDraft(id: string) {
-    setSelectedAureliaDraftId(id);
-    const draft = aureliaDrafts.find((item) => item.id === id);
-    if (!draft) return;
-    setTitle(draft.title ?? "");
-    setDescription(draft.description ?? "");
-    setPrice(draft.price == null ? "" : draft.price.toFixed(2));
-    setTags((draft.tags ?? []).join(", "));
-    setCategorySearch(draft.categorySearch ?? "");
-    setTaxonomyId("");
-    setResult(null);
   }
 
   async function createDraft(event: FormEvent) {
@@ -165,19 +125,6 @@ export default function EtsyConsole() {
         + New Etsy Draft
       </summary>
       <form onSubmit={createDraft} style={{ padding: "0 18px 18px", display: "grid", gap: 13 }}>
-        {aureliaDrafts.length > 0 && (
-          <label>
-            <span style={label}>Aurelia handoff <span style={{ color: "#7f8b98", fontWeight: 500 }}>(optional)</span></span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select style={input} value={selectedAureliaDraftId} onChange={(event) => loadAureliaDraft(event.target.value)}>
-                <option value="">Start blank…</option>
-                {aureliaDrafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.title}</option>)}
-              </select>
-              <button type="button" onClick={loadAureliaDrafts} style={{ border: "1px solid #34404d", borderRadius: 8, background: "#18232e", color: "#d9e0e7", padding: "0 11px", cursor: "pointer" }}>↻</button>
-            </div>
-          </label>
-        )}
-
         <label><span style={label}>Title</span><input style={input} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
         <label><span style={label}>Description</span><textarea style={{ ...input, minHeight: 130, resize: "vertical" }} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
 
@@ -213,7 +160,6 @@ export default function EtsyConsole() {
           </button>
         </div>
 
-        {aureliaError && <p style={{ color: "#e08aa2", fontSize: 12, margin: 0 }}>Aurelia: {aureliaError}</p>}
         {result?.error && <p style={{ color: "#e08aa2", fontSize: 12, margin: 0 }}>{result.error}</p>}
         {result?.listing && <p style={{ color: "#9bc8aa", fontSize: 12, margin: 0 }}>Draft {result.listing.listing_id} created and loaded into the lifecycle.</p>}
       </form>

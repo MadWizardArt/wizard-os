@@ -26,8 +26,7 @@
   gap: 12px;
 }
 
-.back,
-.name {
+.back {
   color: rgba(239, 232, 220, 0.46);
   text-decoration: none;
   font: 600 9px/1 system-ui, sans-serif;
@@ -35,40 +34,9 @@
   text-transform: uppercase;
 }
 
-.name {
-  justify-self: end;
-}
-
 .mark {
   color: rgba(185, 154, 102, 0.72);
   font: 400 16px/1 Georgia, serif;
-}
-
-.spaceSwitch {
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.spaceSwitch button {
-  padding: 6px 7px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  color: rgba(239,232,220,.25);
-  cursor: pointer;
-  font: 700 8px/1 system-ui, sans-serif;
-  letter-spacing: .11em;
-  text-transform: uppercase;
-}
-
-.spaceSwitch button:hover,
-.spaceSwitch button:focus-visible,
-.spaceSwitch button.spaceActive {
-  color: rgba(239,232,220,.68);
-  border-bottom-color: rgba(185,154,102,.36);
-  outline: none;
 }
 
 .hero {
@@ -169,42 +137,13 @@
 }
 .headerUpload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-.tabs {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  margin: 18px 0;
-}
-
-.tabs button {
-  min-width: 86px;
-  padding: 9px 14px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  color: rgba(239,232,220,.36);
-  cursor: pointer;
-  font: 700 8px/1 system-ui, sans-serif;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-}
-
-.tabs button:hover,
-.tabs button:focus-visible,
-.tabs button.active {
-  color: rgba(239,232,220,.83);
-  border-bottom-color: rgba(185,154,102,.48);
-  outline: none;
-}
-
 .gallery {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
 }
 
-.tile,
-.emptyTile {
+.tile {
   position: relative;
   aspect-ratio: 1 / 1.16;
   overflow: hidden;
@@ -250,25 +189,7 @@
   backdrop-filter: blur(8px);
 }
 
-.emptyTile {
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(132,89,104,.065), transparent 42%),
-    linear-gradient(160deg, rgba(255,255,255,.013), transparent 62%);
-}
-
-.emptyTile::after {
-  content: "";
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgba(239,232,220,.08);
-  border-radius: 50%;
-  box-shadow: 0 0 24px rgba(185,154,102,.035);
-}
-
-.create,
-.session {
+.create {
   min-height: 320px;
   border-top: 1px solid var(--line);
   padding-top: 26px;
@@ -393,44 +314,6 @@
   text-align: center;
 }
 
-.session {
-  display: grid;
-  place-items: center;
-}
-
-.sessionFrame {
-  width: min(880px, 100%);
-  text-align: center;
-}
-
-.sessionPortrait {
-  width: min(410px, 76vw);
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  object-position: center 30%;
-  border-radius: 16px;
-  border: 1px solid rgba(237,222,202,.08);
-  box-shadow: 0 30px 80px rgba(0,0,0,.34);
-}
-
-.sessionActions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 18px;
-}
-
-.sessionActions button {
-  padding: 9px 12px;
-  border: 1px solid rgba(237,222,202,.075);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(239,232,220,.46);
-  cursor: pointer;
-  font: 600 9px/1 system-ui, sans-serif;
-}
-
 .lightbox {
   position: fixed;
   inset: 0;
@@ -550,9 +433,7 @@
 /* Atelier: a working surface, with the collection always within reach. */
 .page { --line: #ffffff18; background: radial-gradient(ellipse at 0 0, #34213255, transparent 60%), #0d0c10; }
 .shell { width: min(1640px, calc(100% - 64px)); padding-top: 20px; }
-.back, .spaceSwitch button, .tabs button { font-size: 13px; color: #c4b9b5; min-height: 44px; letter-spacing: .05em; }
-.spaceSwitch { flex-direction: row-reverse; gap: 18px; }
-.spaceSwitch button.spaceActive { color: #f4e5c9; border-bottom-color: #d4ae79; }
+.back { font-size: 13px; color: #c4b9b5; min-height: 44px; letter-spacing: .05em; }
 .studioHero { min-height: 0; margin: 28px 0; padding: 0; border: 0; background: none; box-shadow: none; overflow: visible; }
 .studioHero::after, .studioHero .heroVeil { display: none; }
 .studioHero .heroCopy { position: static; }
@@ -580,13 +461,6 @@
 .generate { width: 100%; border-radius: 8px; min-height: 48px; font-size: 14px; letter-spacing: .03em; background: #d4b78a; color: #211b17; border: 0; margin: 20px 0 0; }
 .generate:hover:not(:disabled) { background: #e7cda6; }
 .connectionNote { color: #c6b6bf; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
-.reference { margin-bottom: 24px; padding: 14px; border: 1px dashed #705d6d; border-radius: 10px; background: #100d1355; text-align: center; }
-.reference img { display: block; width: 100%; height: 160px; object-fit: contain; margin-bottom: 12px; }
-.reference button { color: #d6c4cd; border: 0; background: transparent; cursor: pointer; font-size: 13px; min-height: 32px; }
-.reference small { display: block; font: 12px/1.6 system-ui; color: #a798a3; }
-.upload { position: relative; display: block; padding: 22px 6px; cursor: pointer; font: 14px/1.8 system-ui; }
-.upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.upload:focus-within { outline: 2px solid #d4b78a; outline-offset: 4px; }
 .strength { display: block; margin: 12px 0 0; font: 13px/1.6 system-ui; color: #d2c2cc; }
 .strength input { display: block; width: 100%; accent-color: #d4b78a; }
 .collection { min-width: 0; }
@@ -597,9 +471,6 @@
 .emptyCollection > span { font: 44px Georgia; color: #bd9567; }
 .emptyCollection p { font: 24px Georgia; margin-bottom: 12px; }
 .emptyCollection small { font: 14px system-ui; }
-.pagination { display: flex; justify-content: space-between; margin-top: 24px; }
-.pagination button { color: #d0c0ca; background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 10px 16px; font: 14px system-ui; cursor: pointer; }
-.pagination button:disabled { opacity: .3; cursor: default; }
 .viewerActions { flex-wrap: wrap; justify-content: center; width: min(95%, 650px); }
 .viewerActions button, .viewerActions a { font: 13px/1.4 system-ui; min-height: 40px; padding: 10px 14px; box-sizing: border-box; color: #e4d4de; text-decoration: none; }
 .viewerActions a { border: 1px solid #ffffff20; border-radius: 999px; }

@@ -12,34 +12,35 @@ The goal is simple: reduce dependence on active labor by making revenue, recurri
 - **Human judgment, automated administration** — Brandon owns taste, relationships, creation, and capital allocation; software handles repetitive work.
 - **Private by default** — this begins as a personal operating system, not a public SaaS product.
 
-## MVP modules
+## Active modules
 
-1. **Command Center** — cashflow snapshot, recurring-income ratio, active ventures, urgent tasks, and next-best actions.
-2. **Money** — income, expenses, profit, source mix, recurring vs active income.
-3. **Ventures** — score and compare business ideas using demand, margin, recurrence, automation, defensibility, startup cost, and required hours.
-4. **Customers** — lightweight CRM for collectors, clients, leads, and future customers.
-5. **Operations** — FlightDeck-inspired job board for quotes, deposits, production, fulfillment, and follow-up.
-6. **Inventory** — artwork, products, digital assets, supplies, and sellable inventory.
-7. **Projects** — active work, milestones, owners, due dates, and status.
-8. **Content** — ideas, production state, publishing, and performance notes.
-9. **Automations** — recurring workflows and integration status.
-10. **Analytics** — trends across income sources, ventures, customers, and time.
+1. **The Crucible** — monthly cashflow, qualifying-income milestones, active projects, and next-best actions.
+2. **Projects** — reusable workflows, stages, progress, contacts, dates, value, and archive state.
+3. **Money** — received income, expenses, refunds, and active/recurring/passive-like classification.
+4. **Ventures** — opportunity scoring across demand, margin, recurrence, automation, defensibility, cost, and weekly effort.
+5. **Clients** — lightweight relationship records connected to projects and transactions.
+6. **Campaigns + Calendar** — sale windows, tasks, content, production batches, and results.
+7. **Artwork lifecycle** — works in progress, available inventory, sold archive, sales, receipts, costs, and fulfillment.
+8. **Warlock** — Etsy connection, draft creation, listing completion, files, and images.
+9. **The Museum** — Council rooms, governed intelligence, memory, cognition, counterweights, and Artist Gate.
+10. **The Grotto / Atelier** — private Muse galleries, references, headers, and Civitai image generation.
 
-## Current prototype
+## Current application
 
-The current deployable prototype is intentionally narrow: a FlightDeck-style Command Center with demo queue data, operational status chips, core metrics, next-best actions, and income mix. Big Cartel product ingestion and persistent business data come after the UI/workflow review.
+Wizard OS is a live-data application. Operational screens read and write the PostgreSQL ledger through server routes; they do not substitute demo records when storage is unavailable. The Museum and Grotto are private extensions of the same system, with model execution and image generation gated independently by environment configuration and the Artist session.
 
 ## Tech stack
 
 - Next.js 15 + TypeScript
 - React 19
-- Plain CSS for the current visual prototype
+- Plain CSS and CSS modules
 - Next.js App Router
 - Web app manifest for installable/standalone behavior
 - Vercel-ready configuration
 - GitHub Actions build check
-
-Planned data layer: Prisma with SQLite for initial local development and a clean path to Postgres/Supabase later.
+- Prisma 7 with PostgreSQL on Neon
+- Vercel Blob for private Grotto image storage
+- Etsy API and Civitai orchestration integrations
 
 ## Run locally
 
@@ -67,18 +68,6 @@ npm start
 5. After deployment, `/api/health` should return a JSON response with `ok: true`.
 
 Future pushes to `main` can automatically redeploy once the Vercel project is linked.
-
-## Milestone 1
-
-Build a usable local MVP that can:
-
-- create and edit ventures
-- record income and expenses
-- classify income as active, recurring, or passive-like
-- track projects/jobs through a simple workflow
-- show a command-center dashboard
-- calculate recurring-income percentage and venture opportunity scores
-- persist data locally
 
 ## Financial objective
 
@@ -111,4 +100,4 @@ Status corrections preserve artwork IDs, production stages, images, campaign lin
 
 ### The Grotto
 
-The Grotto is a separate, quiet image-first space beneath the Museum. Its first implementation is Tessa-first and uses the existing Artist Gate for access. Generated gallery images are stored privately through authenticated application routes rather than committed to the public repository. Civitai generation remains feature-gated until the private orchestration token and Tessa LoRA AIR are configured in the deployment environment.
+The Grotto is a separate, image-first space beneath the Museum and uses the existing Artist Gate for access. The Atelier supports Pony model environments, curated LoRA stacks, private gallery references, uploads, and generated images. Gallery bytes live in Vercel Blob and metadata lives in PostgreSQL; neither belongs in the public repository. Civitai generation remains feature-gated until the orchestration token and at least one valid checkpoint AIR are configured in the deployment environment.

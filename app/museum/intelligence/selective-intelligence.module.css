@@ -245,7 +245,7 @@
 .boardHead {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: flex-end;
   gap: 14px;
   padding: 17px 18px 12px;
 }

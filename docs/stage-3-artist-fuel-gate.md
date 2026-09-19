@@ -14,7 +14,7 @@ Selective Intelligence remains advisory and token-controlled.
 
 Defaults can be overridden by environment variables:
 
-- `MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY=3`
+- `MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY=4`
 - `MUSE_INTELLIGENCE_DAILY_TOKEN_BUDGET=15000`
 - `MUSE_INTELLIGENCE_MAX_OUTPUT_TOKENS=1000`
 - `MUSE_INTELLIGENCE_MODEL=openai/gpt-5.6-sol`
