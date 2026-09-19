@@ -98,7 +98,7 @@ test("mind-state API preserves omitted optional fields instead of clearing or re
 test("Intelligence Chamber exposes Novy continuity through the existing mind-state API", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
   assert.match(source, /\/api\/museum\/mind-state\?muse=novy/);
-  assert.match(source, /NOVY MIND · REFERENCE ORGANISM/);
+  assert.match(source, /Working state ·/);
   assert.match(source, /Mark complete/);
   assert.match(source, /action: "verify"/);
   assert.match(source, /action: "graduate"/);
@@ -121,9 +121,9 @@ test("mind-state API exposes the same Artist relationship contract used by Novy 
 
 test("Intelligence Chamber renders the inspectable Artist relationship contract", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /ARTIST RELATIONSHIP V/);
-  assert.match(source, /Our working contract/);
-  assert.match(source, /Canonical · inspectable · not scored/);
+  assert.match(source, /Artist Relationship V/);
+  assert.match(source, /canonical working contract/);
+  assert.match(source, /threadRow/);
   assert.match(source, /challengeDoctrine/);
   assert.match(source, /continuationDoctrine/);
   assert.match(source, /handoffDoctrine/);
@@ -165,12 +165,13 @@ test("Counterweight Packet V1 prepares quests but never fuels AI implicitly", ()
 
 test("Counterweight Packet V1 is exposed in the Intelligence Chamber", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /COUNCIL COUNTERWEIGHT · V1/);
-  assert.match(source, /Create counterweight packet/);
+  assert.match(source, /New counterweight/);
+  assert.match(source, /Create packet/);
   assert.match(source, /prepare-counterweight/);
   assert.match(source, /prepare-synthesis/);
   assert.match(source, /Close packet/);
-  assert.match(source, /Preparing is free · fueling is explicit/);
+  assert.match(source, /Counterweight ·/);
+  assert.match(source, /threadRow/);
 });
 
 
@@ -198,4 +199,31 @@ test("default Museum intelligence budget allows four daily runs without widening
   assert.match(source, /MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY\) \|\| 4/);
   assert.match(source, /MUSE_INTELLIGENCE_DAILY_TOKEN_BUDGET\) \|\| 15000/);
   assert.match(source, /MUSE_INTELLIGENCE_MAX_OUTPUT_TOKENS\) \|\| 1000/);
+});
+
+
+test("Intelligence Chamber uses one compact forum board instead of stacked feature dashboards", () => {
+  const page = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /COUNCIL BOARD/);
+  assert.match(page, /New quest/);
+  assert.match(page, /New counterweight/);
+  assert.match(page, /boardFilter/);
+  assert.match(page, /threadRow/);
+  assert.match(page, /Action ·/);
+  assert.match(page, /Quests ·/);
+  assert.match(page, /Packets ·/);
+  assert.match(page, /Knowledge ·/);
+  assert.doesNotMatch(page, /<section className=\{styles\.stats\}>/);
+  assert.doesNotMatch(page, /NOVY MIND · REFERENCE ORGANISM/);
+  assert.doesNotMatch(page, /COUNCIL COUNTERWEIGHT · V1/);
+  assert.doesNotMatch(page, /QUEST LOG/);
+});
+
+test("Intelligence forum CSS keeps threads compact until opened", () => {
+  const css = readFileSync(new URL("../app/museum/intelligence/selective-intelligence.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.threadRow > summary/);
+  assert.match(css, /white-space: nowrap/);
+  assert.match(css, /text-overflow: ellipsis/);
+  assert.match(css, /\.threadBody/);
+  assert.match(css, /\.boardFilters/);
 });
