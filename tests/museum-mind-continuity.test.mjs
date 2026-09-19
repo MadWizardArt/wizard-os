@@ -172,3 +172,22 @@ test("Counterweight Packet V1 is exposed in the Intelligence Chamber", () => {
   assert.match(source, /Close packet/);
   assert.match(source, /Preparing is free · fueling is explicit/);
 });
+
+
+test("intelligence source quests are loaded as attributed context instead of stuffed into the capped question field", () => {
+  const source = readFileSync(new URL("../lib/museum-intelligence.ts", import.meta.url), "utf8");
+  assert.match(source, /sourceQuestIds\?: string\[\]/);
+  assert.match(source, /sourceQuestIds: sourceQuestIds\(input\.sourceQuestIds\)/);
+  assert.match(source, /Referenced intelligence source .* is missing or incomplete/);
+  assert.match(source, /RELATED COMPLETED INTELLIGENCE/);
+  assert.match(source, /attributed completed Muse syntheses, not automatically verified outcomes/i);
+  assert.match(source, /Intelligence source:/);
+  assert.match(source, /sourceQuestIds: quest\.sourceQuestIds \?\? \[\]/);
+});
+
+test("counterweight synthesis references the completed counterweight quest directly", () => {
+  const source = readFileSync(new URL("../lib/museum-counterweight.ts", import.meta.url), "utf8");
+  assert.match(source, /sourceQuestIds: \[packet\.counterweightQuestId\]/);
+  assert.match(source, /attached as authoritative source-quest context/i);
+  assert.doesNotMatch(source, /"COUNTERWEIGHT RESPONSE"[\s\S]{0,120}counterweightQuest\.answer/);
+});
