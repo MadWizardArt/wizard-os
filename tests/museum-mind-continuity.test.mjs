@@ -199,3 +199,30 @@ test("default Museum intelligence budget allows four daily runs without widening
   assert.match(source, /MUSE_INTELLIGENCE_DAILY_TOKEN_BUDGET\) \|\| 15000/);
   assert.match(source, /MUSE_INTELLIGENCE_MAX_OUTPUT_TOKENS\) \|\| 1000/);
 });
+
+
+test("Intelligence Chamber uses one compact forum board instead of stacked feature dashboards", () => {
+  const page = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /COUNCIL BOARD/);
+  assert.match(page, /New quest/);
+  assert.match(page, /New counterweight/);
+  assert.match(page, /boardFilter/);
+  assert.match(page, /threadRow/);
+  assert.match(page, /Action ·/);
+  assert.match(page, /Quests ·/);
+  assert.match(page, /Packets ·/);
+  assert.match(page, /Knowledge ·/);
+  assert.doesNotMatch(page, /<section className=\{styles\.stats\}>/);
+  assert.doesNotMatch(page, /NOVY MIND · REFERENCE ORGANISM/);
+  assert.doesNotMatch(page, /COUNCIL COUNTERWEIGHT · V1/);
+  assert.doesNotMatch(page, /QUEST LOG/);
+});
+
+test("Intelligence forum CSS keeps threads compact until opened", () => {
+  const css = readFileSync(new URL("../app/museum/intelligence/selective-intelligence.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.threadRow > summary/);
+  assert.match(css, /white-space: nowrap/);
+  assert.match(css, /text-overflow: ellipsis/);
+  assert.match(css, /\.threadBody/);
+  assert.match(css, /\.boardFilters/);
+});
