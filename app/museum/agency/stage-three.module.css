@@ -117,3 +117,7 @@
   .decisionArea button { flex: 1; }
   .outcomeFields { grid-template-columns: 1fr; }
 }
+
+
+.profileHint { margin:23px 0 10px; padding:13px 17px; border:1px solid rgba(208,183,134,.17); border-radius:12px; background:rgba(208,183,134,.035); color:rgba(244,239,231,.69); line-height:1.5; font-size:13px; }
+.profileHint a { color:#e0c897; }
