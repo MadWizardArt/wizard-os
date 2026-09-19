@@ -190,13 +190,13 @@ export async function prepareCounterweightSynthesis(db: CounterweightDb, id: str
       `Counterweight Muse: ${packet.counterweightMuseId}`,
       `Canonical relationship: ${packet.relationship}`,
       "",
-      "COUNTERWEIGHT RESPONSE",
-      counterweightQuest.answer,
+      "The completed counterweight reasoning is attached as authoritative source-quest context. Read and attribute that source directly; do not infer its contents from summaries or memory.",
       "",
       "As the accountable primary Muse, synthesize rather than vote. Preserve useful disagreement. State what changed, what did not change, what evidence supports each side, what remains unknown, and the single next action you recommend to the Artist. Do not claim the counterweight Muse executed anything beyond the completed intelligence quest.",
     ].join("\n"),
     reason: "A completed canonical counterweight response now needs one accountable synthesis rather than an unresolved multi-Muse debate.",
     expectedValue: "One primary-Muse synthesis that shows what the counterweight changed, preserves unresolved disagreement, and returns a bounded next action to the Artist.",
+    sourceQuestIds: [packet.counterweightQuestId],
   });
 
   const updated: StoredCounterweightPacket = {
