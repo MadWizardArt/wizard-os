@@ -67,7 +67,7 @@ export default function MuseumPage() {
       supporting.length ? `Perspectives to consider (not automatically consulted): ${supporting.map((muse) => `${muse.name} — ${muse.role}`).join("; ")}` : "",
       `Decision question: ${question}`,
       "Distinguish evidence, open questions, and the smallest useful next action. The Artist retains approval.",
-    ].filter(Boolean).join("\\n").slice(0, 1200);
+    ].filter(Boolean).join("\n").slice(0, 1200);
     const params = new URLSearchParams({ source: "council", muse: lead.id, brief });
     window.location.assign(`/museum/intelligence?${params.toString()}`);
   };
