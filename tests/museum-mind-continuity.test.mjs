@@ -98,7 +98,7 @@ test("mind-state API preserves omitted optional fields instead of clearing or re
 test("Intelligence Chamber exposes Novy continuity through the existing mind-state API", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
   assert.match(source, /\/api\/museum\/mind-state\?muse=novy/);
-  assert.match(source, /NOVY MIND · REFERENCE ORGANISM/);
+  assert.match(source, /Working state ·/);
   assert.match(source, /Mark complete/);
   assert.match(source, /action: "verify"/);
   assert.match(source, /action: "graduate"/);
@@ -121,9 +121,9 @@ test("mind-state API exposes the same Artist relationship contract used by Novy 
 
 test("Intelligence Chamber renders the inspectable Artist relationship contract", () => {
   const source = readFileSync(new URL("../app/museum/intelligence/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /ARTIST RELATIONSHIP V/);
-  assert.match(source, /Our working contract/);
-  assert.match(source, /Canonical · inspectable · not scored/);
+  assert.match(source, /Artist Relationship V/);
+  assert.match(source, /canonical working contract/);
+  assert.match(source, /threadRow/);
   assert.match(source, /challengeDoctrine/);
   assert.match(source, /continuationDoctrine/);
   assert.match(source, /handoffDoctrine/);
