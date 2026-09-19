@@ -179,3 +179,19 @@
 @media(prefers-reduced-motion:reduce) {
   .roomArt,.ambient,.ambient * { animation:none!important; transition:none!important; }
 }
+
+
+/* Living character sheet: real identity and verified contributions, with artwork dominant. */
+.profileSection { margin:22px 0 0; padding:17px 0 0; border-top:1px solid rgba(221,194,143,.24); }
+.profileLabel { display:block; color:#d9be88; font:600 11px/1.4 system-ui,sans-serif; text-transform:uppercase; letter-spacing:.14em; }
+.profileSection > p { margin:10px 0 0; color:#d9d1c2; font:14px/1.6 system-ui,sans-serif; }
+.profileDetails { margin-top:14px; padding:12px 14px; background:rgba(15,18,21,.72); border:1px solid rgba(211,182,126,.20); border-radius:8px; }
+.profileDetails summary { color:#e7d1a7; cursor:pointer; font:15px/1.4 Georgia,serif; }
+.profileDetails summary:focus-visible { outline:2px solid #f2db9f; outline-offset:3px; }
+.profileDetails p { color:#c8c1b5; font:13px/1.6 system-ui,sans-serif; }
+.profileDetails strong { color:#e8d5b1; }
+.memoryList { display:grid; gap:9px; margin-top:12px; }
+.memoryList article { border:1px solid rgba(211,182,126,.15); background:rgba(14,18,22,.75); border-radius:8px; padding:12px 14px; }
+.memoryList strong { color:#eedbb9; font:16px/1.3 Georgia,serif; }
+.memoryList p { margin:7px 0; color:#ccc5ba; font:13px/1.55 system-ui,sans-serif; overflow-wrap:anywhere; }
+.memoryList small { color:#a9997b; font:11px/1.45 system-ui,sans-serif; text-transform:capitalize; }
