@@ -168,6 +168,7 @@ export default function SelectiveIntelligencePage() {
   const [counterweightDraft, setCounterweightDraft] = useState<CounterweightDraft>(EMPTY_COUNTERWEIGHT);
   const [lessonDrafts, setLessonDrafts] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<QuestDraft>(EMPTY_QUEST);
+  const [incomingReview, setIncomingReview] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -220,7 +221,17 @@ export default function SelectiveIntelligencePage() {
     }
   };
 
-  useEffect(() => { void loadSession(); }, []);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("source") === "council" || query.get("source") === "profile") {
+      const muse = query.get("muse");
+      const requested = muse && MUSE_DIRECTORY.some((entry) => entry.id === muse) ? muse as MuseId : EMPTY_QUEST.museId;
+      const brief = (query.get("brief") ?? "").trim().slice(0, 1200);
+      setDraft({ museId: requested, category: EMPTY_QUEST.category, brief });
+      setIncomingReview(true);
+    }
+    void loadSession();
+  }, []);
 
   const unlock = async () => {
     setBusy("unlock");
@@ -518,7 +529,7 @@ export default function SelectiveIntelligencePage() {
             <h1>Selective Intelligence</h1>
             <p>A compact Council board. Open only the thread you need; completed work stays available without filling the room.</p>
           </div>
-          <div className={styles.links}><a href="/museum/cognition">Cognition</a><a href="/museum/agency">Agency</a><a href="/museum">Museum</a></div>
+          <div className={styles.links}><a href="/museum/agency">Agency</a><a href="/museum">Museum</a></div>
         </header>
 
         {notice && <button className={styles.notice} onClick={() => setNotice("")}>{notice}<span>×</span></button>}
@@ -551,8 +562,8 @@ export default function SelectiveIntelligencePage() {
           </section>
 
           <div className={styles.quickActions}>
-            <details className={styles.newThread}>
-              <summary><span>＋</span> New quest</summary>
+            <details key={incomingReview ? "review" : "normal"} defaultOpen={incomingReview} className={styles.newThread}>
+              <summary><span>＋</span> {incomingReview ? "Prepare Council question" : "New quest"}</summary>
               <div className={styles.threadComposer}>
                 <div className={styles.twoCol}>
                   <label>Muse<select value={draft.museId} onChange={(event) => setDraft({ ...draft, museId: event.target.value as MuseId })}>{MUSE_DIRECTORY.map((muse) => <option key={muse.id} value={muse.id}>{muse.name}</option>)}</select></label>
@@ -578,6 +589,8 @@ export default function SelectiveIntelligencePage() {
               </div>
             </details>
           </div>
+
+          <details className={styles.evidencePortal}><summary>Shared cognition · routed evidence &amp; Council patterns</summary><p>Inspect cross-Muse evidence when it materially informs a decision. This remains a read-only diagnostic view, not a separate daily workspace.</p><a href="/museum/cognition">Open evidence view →</a></details>
 
           <section className={styles.board}>
             <div className={styles.boardHead}><div><p className={styles.kicker}>COUNCIL BOARD</p><h2>Threads</h2></div><span>{actionCount} need attention</span></div>
