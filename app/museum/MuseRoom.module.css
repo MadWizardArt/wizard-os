@@ -1,6 +1,6 @@
 .room { position:relative; isolation:isolate; min-height:650px; overflow:hidden; margin:24px 0; border:1px solid #77613b66; border-radius:12px; background:#141310; }
 .roomArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:30% center; z-index:-4; }
-.cardArt { width:100%; height:100%; display:block; object-fit:cover; object-position:25% 30%; }
+.cardArt { width:100%; height:100%; display:block; object-fit:cover; object-position:center center; }
 .scrim { position:absolute; inset:0; z-index:-2; background:linear-gradient(90deg,transparent 20%,#0c101330 40%,#0c1013e8 70%,#0c1013f2),linear-gradient(0deg,#0c1013a0,transparent 25%); }
 .roomCaption { position:absolute; left:28px; bottom:26px; color:#f2dfb6; font:italic 19px/1.4 Georgia,serif; text-shadow:0 2px 8px #000; }
 .roomCaption span { margin-right:8px; }

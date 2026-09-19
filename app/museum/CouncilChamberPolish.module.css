@@ -23,8 +23,8 @@
 .centerpiece {
   position: absolute;
   left: 50%;
-  top: 25%;
-  height: 101%;
+  top: 0;
+  height: 70%;
   aspect-ratio: 938 / 1677;
   transform: translateX(-57%);
   z-index: 0;
@@ -37,17 +37,17 @@
 .centerpiece img { display: block; width: 100%; height: 100%; }
 
 .dais.dais {
-  top: calc(48% - 62px);
+  top: calc(16% - 44px);
   width: 320px;
   transform: translateX(-50%);
   z-index: 4;
 }
 
 .seal.seal {
-  width: 124px;
-  height: 124px;
+  width: 88px;
+  height: 88px;
   margin: 0 auto;
-  font-size: 63px;
+  font-size: 45px;
   color: #f2d18b;
   border-color: rgba(220, 175, 98, .75);
   background:
@@ -61,14 +61,14 @@
   content: "";
   position: absolute;
   left: 50%;
-  top: 62px;
+  top: 44px;
   z-index: -1;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, #c2a273, #f7d89b, #c2a273, transparent);
   transform: translate(-50%, -50%);
 }
 .seal::before { width: 400px; height: 1px; }
-.seal::after { width: 1px; height: 290px; background: linear-gradient(transparent, #dbb77c, transparent); }
+.seal::after { width: 1px; height: 230px; background: linear-gradient(transparent, #dbb77c, transparent); }
 
 .dais.dais p {
   margin-top: 12px !important;
@@ -87,10 +87,10 @@
   z-index: 5;
 }
 
-.portal.portal { width: clamp(102px, 8.1vw, 136px); }
+.portal.portal { width: clamp(126px, 10.2vw, 174px); }
 .arch.arch {
   height: auto;
-  aspect-ratio: 5 / 6;
+  aspect-ratio: 4 / 3;
   border-color: rgba(199, 156, 82, .57);
   box-shadow: 0 12px 32px #0009, 0 0 0 4px rgba(91,67,35,.14);
 }
@@ -98,18 +98,18 @@
 .nameplate.nameplate { gap: 4px; margin-top: 8px; }
 .nameplate.nameplate > strong { font-size: clamp(17px, 1.3vw, 22px); }
 .nameplate.nameplate > small { color: #d0c2a8; font-size: 7px; letter-spacing: .1em; }
-.portal[data-muse="callista"] .roomWindow img { object-position: 38% 18%; }
+.portal[data-muse="callista"] .roomWindow img { object-position: 38% center; }
 
 @media (max-width: 1100px) and (min-width: 901px) {
-  .portal.portal { width: clamp(96px, 10vw, 110px); }
+  .portal.portal { width: clamp(112px, 13vw, 142px); }
   .nameplate.nameplate > strong { font-size: 17px; }
   .nameplate.nameplate > small { font-size: 6px; }
 }
 
 @media (max-width: 900px) {
   .chamber.chamber { height: auto; min-height: 0; padding: 28px 24px 34px; }
-  .centerpiece { top: 4%; height: 330px; opacity: .3; }
-  .dais.dais { position: relative; left: auto; top: auto; transform: none; width: 100%; margin: 0 auto 52px; }
+  .centerpiece { top: 2%; height: 330px; opacity: .34; }
+  .dais.dais { position: relative; left: auto; top: auto; transform: none; width: 100%; margin: 0 auto 210px; }
   .seal.seal { width: 92px; height: 92px; font-size: 46px; }
   .seal::before, .seal::after { top: 46px; }
   .seal::before { width: 270px; }
@@ -117,14 +117,14 @@
   .systemsMenu.systemsMenu { top: 126px; }
   .portalRing.portalRing { position: relative; inset: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 22px; }
   .portal.portal { position: relative; left: auto; top: auto; transform: none; width: min(100%, 230px); justify-self: center; }
-  .arch.arch { height: auto; aspect-ratio: 5 / 6; }
+  .arch.arch { height: auto; aspect-ratio: 4 / 3; }
   .nameplate.nameplate > strong { font-size: 23px; }
 }
 
 @media (max-width: 600px) {
   .chamber.chamber { padding: 26px 16px 30px; }
   .portalRing.portalRing { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
-  .portal:last-child { grid-column: 1 / -1; width: calc((100% - 16px) / 2); }
+  .portal[data-muse="novy"] { order: -1; grid-column: 1 / -1; width: calc((100% - 16px) / 2); margin-top: 24px; }
   .nameplate.nameplate > strong { font-size: 22px; }
   .nameplate.nameplate > small { font-size: 7px; line-height: 1.5; }
 }
