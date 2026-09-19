@@ -641,3 +641,8 @@
 .roomSwitcher button[aria-pressed="true"] { background:#493b24; border-color:#bea16a; color:#fff0cc; }
 .roomSwitcher button:focus-visible { outline:2px solid #f2db9f; outline-offset:3px; }
 @media(max-width:600px) { .characterFrame { height:250px; } }
+
+/* Council table reuses existing Intelligence; no copy-only or duplicate ledger. */
+.councilQuestionLabel { display:block; margin:18px 0 8px; color:#d8bc85; font:600 11px/1.4 system-ui,sans-serif; text-transform:uppercase; letter-spacing:.12em; }
+.councilLead { color:#dac394; font:italic 16px/1.5 Georgia,serif; }
+.councilComposer .primaryButton { margin-top:8px; }
