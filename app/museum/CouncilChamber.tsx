@@ -21,15 +21,15 @@ type CouncilChamberProps = {
 
 // Key the composition by identity so directory reordering cannot move a Muse.
 const POSITIONS: Record<MuseId, readonly [number, number]> = {
-  callista: [50, 14],
-  aurelia: [77, 18],
+  callista: [50, 84],
+  aurelia: [78, 20],
   lyra: [91.5, 38],
-  cleo: [84.5, 67],
-  melina: [64, 83],
-  seraphine: [36, 83],
-  tessa: [15.5, 67],
+  cleo: [86, 65],
+  melina: [69, 80],
+  seraphine: [31, 80],
+  tessa: [14, 65],
   thalia: [8.5, 38],
-  novy: [23, 18],
+  novy: [22, 20],
 };
 
 const PORTAL_ORDER: MuseId[] = ["callista", "aurelia", "lyra", "cleo", "melina", "seraphine", "tessa", "thalia", "novy"];

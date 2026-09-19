@@ -16,8 +16,9 @@ import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
   const room = MUSE_ROOMS[muse.id];
-  // Hall portraits use durable local artwork; full rooms may opt into animation.
+  // Hall portraits use still artwork; full rooms may opt into a durable local animation.
   const [artworkSrc, setArtworkSrc] = useState(compact ? room.image : room.animatedImage ?? room.image);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [failed, setFailed] = useState(false);
 
   const handleArtworkError = () => {
@@ -27,6 +28,16 @@ export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntr
     }
     setFailed(true);
   };
+
+  if (!compact && room.animatedVideo && !videoFailed) {
+    return (
+      <video className={styles.roomArt} poster={room.image} autoPlay loop muted playsInline
+        aria-label={`${muse.name} welcoming you into ${room.name}`}
+        onError={() => setVideoFailed(true)}>
+        <source src={room.animatedVideo} type="video/webm" />
+      </video>
+    );
+  }
 
   return failed ? (
     <div className={styles.artFallback} role="img" aria-label={`${muse.name} — room illustration unavailable`}>
