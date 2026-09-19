@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
 import type { MuseId } from "../../lib/museum";
-import { MUSE_DIRECTORY } from "../../lib/museum-directory";
+import { MUSE_BY_ID } from "../../lib/museum-directory";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import { RoomArtwork } from "./MuseRoom";
 import styles from "./CouncilChamber.module.css";
@@ -19,17 +19,21 @@ type CouncilChamberProps = {
   onEnter: (id: MuseId) => void;
 };
 
-const POSITIONS = [
-  [50, 16],
-  [75, 18],
-  [89, 39],
-  [82, 69],
-  [25, 18],
-  [37, 82],
-  [18, 69],
-  [11, 39],
-  [63, 82],
-] as const;
+// Key the composition by identity so directory reordering cannot move a Muse.
+const POSITIONS: Record<MuseId, readonly [number, number]> = {
+  callista: [50, 14],
+  aurelia: [77, 18],
+  lyra: [91.5, 38],
+  cleo: [84.5, 67],
+  melina: [64, 83],
+  seraphine: [36, 83],
+  tessa: [15.5, 67],
+  thalia: [8.5, 38],
+  novy: [23, 18],
+};
+
+const PORTAL_ORDER: MuseId[] = ["callista", "aurelia", "lyra", "cleo", "melina", "seraphine", "tessa", "thalia", "novy"];
+const PORTAL_MUSES = PORTAL_ORDER.map((id) => MUSE_BY_ID[id]);
 
 function MusePortal({ muse, index, signal, onEnter }: {
   muse: MuseDirectoryEntry;
@@ -37,7 +41,7 @@ function MusePortal({ muse, index, signal, onEnter }: {
   signal?: MuseSignal;
   onEnter: (id: MuseId) => void;
 }) {
-  const [x, y] = POSITIONS[index];
+  const [x, y] = POSITIONS[muse.id];
   const style = {
     "--portal-x": `${x}%`,
     "--portal-y": `${y}%`,
@@ -65,7 +69,7 @@ function MusePortal({ muse, index, signal, onEnter }: {
         <span className={styles.portalShade} />
         <span className={styles.lintel}>{muse.symbol}</span>
       </span>
-      <span className={styles.nameplate}>
+      <span className={`${styles.nameplate} ${polish.nameplate}`}>
         <strong>{muse.name}</strong>
         <small>{MUSE_ROOMS[muse.id].name}</small>
         <span className={`${presenceStyles.portalBadge} ${presenceStyles[presence]}`}>{presenceMeta.label}</span>
@@ -90,22 +94,27 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
 
   return (
     <section className={`${styles.chamber} ${polish.chamber}`} aria-label="Council Chamber">
-      <div className={styles.vault} aria-hidden="true" />
+      <div className={`${styles.vault} ${polish.vault}`} aria-hidden="true" />
       <div className={styles.stars} aria-hidden="true" />
       <div className={styles.floor} aria-hidden="true" />
       <div className={styles.centralGlow} aria-hidden="true" />
 
       <div className={polish.centerpiece} aria-hidden="true">
         <Image
-          src="/museum/council-centerpiece.webp"
+          src="/museum/council-centerpiece-clean.png"
           alt=""
-          width={420}
-          height={825}
-          sizes="(max-width: 720px) 0px, (max-width: 980px) 33vw, 390px"
+          width={938}
+          height={1677}
+          sizes="(max-width: 1200px) 220px, 550px"
         />
       </div>
 
-      <div className={`${styles.dais} ${polish.dais}`}>
+      <div className={`${styles.dais} ${polish.dais}`} onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setSystemsOpen(false);
+          event.currentTarget.querySelector("button")?.focus();
+        }
+      }}>
         <button
           type="button"
           className={`${styles.seal} ${polish.seal} ${systemPortal.sealButton}`}
@@ -119,7 +128,7 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
         </button>
         <nav
           id="museum-systems-portal"
-          className={`${systemPortal.menu} ${systemsOpen ? systemPortal.menuOpen : ""}`}
+          className={`${systemPortal.menu} ${polish.systemsMenu} ${systemsOpen ? systemPortal.menuOpen : ""}`}
           aria-label="Council systems"
           aria-hidden={!systemsOpen}
         >
@@ -130,8 +139,8 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
         <p className={`${systemPortal.hint} ${systemsOpen ? systemPortal.hintOpen : ""}`}>{systemsOpen ? "Choose a Council system" : "Council systems"}</p>
       </div>
 
-      <div className={styles.portalRing}>
-        {MUSE_DIRECTORY.map((muse, index) => (
+      <div className={`${styles.portalRing} ${polish.portalRing}`}>
+        {PORTAL_MUSES.map((muse, index) => (
           <MusePortal
             key={muse.id}
             muse={muse}

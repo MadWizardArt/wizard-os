@@ -114,7 +114,7 @@ export default function MuseumPage() {
             <h1>The Museum</h1>
             <p>A living council of nine rooms. Enter quietly; someone is usually working.</p>
           </div>
-          <div>
+          <div className={polish.gatewayCluster}>
             <MuseumGatewayStatus />
             <GrottoGate />
           </div>
@@ -177,7 +177,7 @@ export default function MuseumPage() {
           )}
         </div>
 
-        <footer className={styles.footerNote}>
+        <footer className={`${styles.footerNote} ${polish.footerNote}`}>
           <span>THE MUSEUM</span>
           <p>Character · Presence · Signals. Wizard OS remains the operational system.</p>
         </footer>
