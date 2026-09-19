@@ -448,3 +448,10 @@
   .threadBody { margin-left: 48px; }
   .boardStatus { grid-template-columns: 1fr 1fr; }
 }
+
+
+/* Shared cognition is discoverable from Intelligence without another top-level tab. */
+.evidencePortal { margin:15px 0 22px; padding:12px 16px; border:1px solid rgba(208,183,134,.2); border-radius:12px; background:rgba(208,183,134,.045); }
+.evidencePortal summary { cursor:pointer; color:#e4cfaa; font:500 15px/1.5 Georgia,serif; }
+.evidencePortal p { color:rgba(244,239,231,.64); font-size:13px; line-height:1.6; }
+.evidencePortal a { color:#e0c897; font-size:13px; }
