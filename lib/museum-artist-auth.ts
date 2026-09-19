@@ -98,7 +98,7 @@ export function intelligenceFuelEnabled() {
 }
 
 export function intelligenceBudget() {
-  const maxRuns = Math.min(Math.max(Number(process.env.MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY) || 3, 1), 12);
+  const maxRuns = Math.min(Math.max(Number(process.env.MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY) || 4, 1), 12);
   const dailyTokens = Math.min(Math.max(Number(process.env.MUSE_INTELLIGENCE_DAILY_TOKEN_BUDGET) || 15000, 2000), 200000);
   const maxOutputTokens = Math.min(Math.max(Number(process.env.MUSE_INTELLIGENCE_MAX_OUTPUT_TOKENS) || 1000, 300), 2400);
   return { maxRuns, dailyTokens, maxOutputTokens };

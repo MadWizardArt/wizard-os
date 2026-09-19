@@ -191,3 +191,11 @@ test("counterweight synthesis references the completed counterweight quest direc
   assert.match(source, /attached as authoritative source-quest context/i);
   assert.doesNotMatch(source, /"COUNTERWEIGHT RESPONSE"[\s\S]{0,120}counterweightQuest\.answer/);
 });
+
+
+test("default Museum intelligence budget allows four daily runs without widening token ceilings", () => {
+  const source = readFileSync(new URL("../lib/museum-artist-auth.ts", import.meta.url), "utf8");
+  assert.match(source, /MUSE_INTELLIGENCE_MAX_RUNS_PER_DAY\) \|\| 4/);
+  assert.match(source, /MUSE_INTELLIGENCE_DAILY_TOKEN_BUDGET\) \|\| 15000/);
+  assert.match(source, /MUSE_INTELLIGENCE_MAX_OUTPUT_TOKENS\) \|\| 1000/);
+});
