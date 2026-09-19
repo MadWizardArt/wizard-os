@@ -17,6 +17,7 @@ import { SIGNAL_META, type MuseSignal, useMuseSignals } from "./useMuseSignals";
 
 type CouncilChamberProps = {
   onEnter: (id: MuseId) => void;
+  onCouncil: () => void;
 };
 
 // Key the composition by identity so directory reordering cannot move a Muse.
@@ -83,7 +84,7 @@ function MusePortal({ muse, index, signal, onEnter }: {
   );
 }
 
-export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
+export default function CouncilChamber({ onEnter, onCouncil }: CouncilChamberProps) {
   const { active } = useMuseSignals();
   const [systemsOpen, setSystemsOpen] = useState(false);
   const signalByMuse = useMemo(() => {
@@ -133,7 +134,7 @@ export default function CouncilChamber({ onEnter }: CouncilChamberProps) {
           aria-hidden={!systemsOpen}
         >
           <a href="/museum/agency" tabIndex={systemsOpen ? 0 : -1}>Agency</a>
-          <a href="/museum/cognition" tabIndex={systemsOpen ? 0 : -1}>Cognition</a>
+          <button type="button" tabIndex={systemsOpen ? 0 : -1} onClick={onCouncil}>Convene Council</button>
           <a href="/museum/intelligence" tabIndex={systemsOpen ? 0 : -1}>Intelligence</a>
         </nav>
         <p className={`${systemPortal.hint} ${systemsOpen ? systemPortal.hintOpen : ""}`}>{systemsOpen ? "Choose a Council system" : "Council systems"}</p>
