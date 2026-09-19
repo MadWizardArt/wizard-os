@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MUSE_AGENT_CHARTERS, STAGE_THREE_POLICY } from "../../../lib/museum-agent-charters";
-import { MUSE_BY_ID, MUSE_DIRECTORY } from "../../../lib/museum-directory";
-import type { MuseId } from "../../../lib/museum";
+import { STAGE_THREE_POLICY } from "../../../lib/museum-agent-charters";
+import { MUSE_BY_ID } from "../../../lib/museum-directory";
 import type { MuseOutcomeRating, StoredMuseMemory } from "../../../lib/museum-memory-storage";
 import type { ProposalStatus, StoredMuseProposal } from "../../../lib/museum-proposal-storage";
 import styles from "./stage-three.module.css";
@@ -15,42 +14,21 @@ type OutcomeDraft = { rating: MuseOutcomeRating | ""; note: string; actualValue:
 
 const EMPTY_OUTCOME: OutcomeDraft = { rating: "", note: "", actualValue: "" };
 
-function memoryDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Recently";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
-}
-
 export default function AgencyConsolePage() {
-  const [selectedMuse, setSelectedMuse] = useState<MuseId>("callista");
   const [proposals, setProposals] = useState<ProposalRecord[]>([]);
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
   const [status, setStatus] = useState<ProposalStatus | "all">("proposed");
   const [loading, setLoading] = useState(true);
-  const [memoryLoading, setMemoryLoading] = useState(true);
   const [observing, setObserving] = useState(false);
   const [notice, setNotice] = useState("");
   const [decisionNote, setDecisionNote] = useState<Record<string, string>>({});
   const [outcomeDraft, setOutcomeDraft] = useState<Record<string, OutcomeDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const selected = MUSE_BY_ID[selectedMuse];
-  const charter = MUSE_AGENT_CHARTERS[selectedMuse];
-
   const filtered = useMemo(() => {
     return proposals.filter((proposal) => status === "all" || proposal.status === status);
   }, [proposals, status]);
 
-  const selectedMemories = useMemo(
-    () => memories.filter((memory) => memory.museId === selectedMuse),
-    [memories, selectedMuse],
-  );
-  const selectedOutcomes = useMemo(
-    () => selectedMemories.filter((memory) => memory.kind === "outcome" && memory.outcomeRating),
-    [selectedMemories],
-  );
-  const positiveOutcomes = selectedOutcomes.filter((memory) => memory.outcomeRating === "strong" || memory.outcomeRating === "useful").length;
-  const weakOutcomes = selectedOutcomes.filter((memory) => memory.outcomeRating === "weak").length;
   const outcomeByProposal = useMemo(() => {
     const map = new Map<string, MemoryRecord>();
     for (const memory of memories) {
@@ -74,7 +52,6 @@ export default function AgencyConsolePage() {
   };
 
   const loadMemories = async () => {
-    setMemoryLoading(true);
     try {
       const response = await fetch("/api/museum/memory", { cache: "no-store" });
       const payload = await response.json();
@@ -82,8 +59,6 @@ export default function AgencyConsolePage() {
       setMemories(Array.isArray(payload) ? payload : []);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Muse memory could not be read.");
-    } finally {
-      setMemoryLoading(false);
     }
   };
 
@@ -197,64 +172,7 @@ export default function AgencyConsolePage() {
           </div>
         </section>
 
-        <section className={styles.rosterSection}>
-          <div className={styles.sectionHeading}>
-            <div><p className={styles.kicker}>AGENT CHARTERS</p><h2>Nine specialties. One economic objective.</h2></div>
-            <small>Charters define initiative before autonomy.</small>
-          </div>
-          <div className={styles.roster}>
-            {MUSE_DIRECTORY.map((muse) => (
-              <button key={muse.id} className={selectedMuse === muse.id ? styles.selectedMuse : ""} onClick={() => setSelectedMuse(muse.id)}>
-                <span>{muse.symbol}</span><strong>{muse.name}</strong><small>{muse.role}</small>
-              </button>
-            ))}
-          </div>
-
-          <article className={styles.charter} data-palette={selected.palette}>
-            <div className={styles.charterTitle}>
-              <div><p className={styles.kicker}>{selected.name.toUpperCase()} · AGENT CHARTER</p><h3>{charter.mission}</h3></div>
-              <div className={styles.authority}>{charter.may.map((item) => <span key={item}>{item}</span>)}</div>
-            </div>
-            <div className={styles.charterGrid}>
-              <div><strong>Economic objective</strong><p>{charter.economicObjective}</p></div>
-              <div><strong>Creative objective</strong><p>{charter.creativeObjective}</p></div>
-              <div><strong>Brandon retains</strong><p>{charter.commitRule}</p></div>
-            </div>
-            <div className={styles.charterLists}>
-              <div><strong>Watches</strong>{charter.watches.map((item) => <span key={item}>{item}</span>)}</div>
-              <div><strong>May propose</strong>{charter.proposes.map((item) => <span key={item}>{item}</span>)}</div>
-              <div><strong>Measures</strong>{charter.kpis.map((item) => <span key={item}>{item}</span>)}</div>
-            </div>
-          </article>
-        </section>
-
-        <section className={styles.memorySection}>
-          <div className={styles.sectionHeading}>
-            <div><p className={styles.kicker}>STAGE III-C · MEMORY</p><h2>{selected.name}&apos;s Memory Ledger</h2></div>
-            <small>Decisions are remembered. Only verified outcomes calibrate confidence.</small>
-          </div>
-          <div className={styles.memoryStats}>
-            <article><strong>{selectedMemories.length}</strong><span>memories</span></article>
-            <article><strong>{selectedOutcomes.length}</strong><span>verified outcomes</span></article>
-            <article><strong>{positiveOutcomes}</strong><span>strong / useful</span></article>
-            <article><strong>{weakOutcomes}</strong><span>weak outcomes</span></article>
-          </div>
-          {memoryLoading && <p className={styles.empty}>Reading Council memory…</p>}
-          {!memoryLoading && selectedMemories.length === 0 && (
-            <div className={styles.emptyState}><strong>No memories yet.</strong><p>{selected.name} will begin retaining your proposal decisions immediately. Performance learning starts only after you rate a completed outcome.</p></div>
-          )}
-          <div className={styles.memoryGrid}>
-            {selectedMemories.slice(0, 6).map((memory) => (
-              <article key={memory.id} className={styles.memoryCard}>
-                <div><span>{memory.kind}</span><span>{memory.category}</span>{memory.outcomeRating && <span>{memory.outcomeRating}</span>}</div>
-                <strong>{memory.title}</strong>
-                <p>{memory.summary}</p>
-                {memory.actualValue && <small>Actual value · {memory.actualValue}</small>}
-                <time dateTime={memory.createdAt}>{memoryDate(memory.createdAt)}</time>
-              </article>
-            ))}
-          </div>
-        </section>
+        <p className={styles.profileHint}>Looking for Muse identities or verified memories? Open a Muse profile in <a href="/museum">the Museum</a>. Agency is reserved for proposals, approval, execution and outcomes.</p>
 
         <section className={styles.proposalSection}>
           <div className={styles.sectionHeading}>
