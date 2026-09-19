@@ -562,7 +562,7 @@ export default function SelectiveIntelligencePage() {
           </section>
 
           <div className={styles.quickActions}>
-            <details key={incomingReview ? "review" : "normal"} defaultOpen={incomingReview} className={styles.newThread}>
+            <details key={incomingReview ? "review" : "normal"} open={incomingReview} className={styles.newThread}>
               <summary><span>＋</span> {incomingReview ? "Prepare Council question" : "New quest"}</summary>
               <div className={styles.threadComposer}>
                 <div className={styles.twoCol}>
