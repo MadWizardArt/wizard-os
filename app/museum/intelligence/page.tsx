@@ -225,6 +225,7 @@ export default function SelectiveIntelligencePage() {
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    if (query.get("source") === "cognition") setEvidenceOpen(true);
     if (query.get("source") === "council" || query.get("source") === "profile") {
       const muse = query.get("muse");
       const requested = muse && MUSE_DIRECTORY.some((entry) => entry.id === muse) ? muse as MuseId : EMPTY_QUEST.museId;
@@ -592,7 +593,7 @@ export default function SelectiveIntelligencePage() {
             </details>
           </div>
 
-          <details id="shared-cognition" className={styles.evidencePortal} onToggle={(event) => setEvidenceOpen(event.currentTarget.open)}><summary>Shared cognition · routed evidence &amp; Council patterns</summary>{evidenceOpen && <SharedEvidence />}</details>
+          <details id="shared-cognition" className={styles.evidencePortal} open={evidenceOpen} onToggle={(event) => setEvidenceOpen(event.currentTarget.open)}><summary>Shared cognition · routed evidence &amp; Council patterns</summary>{evidenceOpen && <SharedEvidence />}</details>
 
           <section className={styles.board}>
             <div className={styles.boardHead}><div><p className={styles.kicker}>COUNCIL BOARD</p><h2>Threads</h2></div><span>{actionCount} need attention</span></div>
