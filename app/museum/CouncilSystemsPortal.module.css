@@ -35,7 +35,7 @@
   pointer-events: auto;
 }
 
-.menu a {
+.menu a, .menu button {
   min-width: 76px;
   padding: 8px 10px;
   border: 1px solid rgba(225, 194, 128, .22);
@@ -51,7 +51,9 @@
 }
 
 .menu a:hover,
-.menu a:focus-visible {
+.menu button:hover,
+.menu a:focus-visible,
+.menu button:focus-visible {
   color: #f0dba7;
   border-color: rgba(225, 194, 128, .55);
   background: rgba(79, 60, 31, .30);
@@ -75,12 +77,15 @@
   }
 
   .menuOpen { max-height: 96px; }
-  .menu a { min-width: 82px; }
+  .menu a, .menu button { min-width: 82px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sealButton,
   .menu,
   .menu a,
+  .menu button,
   .hint { transition: none; }
 }
+
+.menu button { appearance:none; cursor:pointer; }
