@@ -143,3 +143,308 @@
 .counterweightHint { color: rgba(224,200,151,.68); font-size: .78rem; align-self: center; }
 .counterweightComplete { color: rgba(127,190,153,.82); font-size: .78rem; }
 @media (max-width: 760px) { .counterweightSteps { grid-template-columns: 1fr; } }
+
+.boardStatus {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(5,minmax(0,1fr));
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255,255,255,.015);
+}
+.boardStatus > div {
+  min-width: 0;
+  padding: 11px 13px;
+  border-right: 1px solid rgba(255,255,255,.06);
+  display: grid;
+  gap: 2px;
+}
+.boardStatus > div:last-child { border-right: 0; }
+.statusLabel {
+  color: rgba(244,239,231,.36);
+  font-size: .63rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.boardStatus strong {
+  min-width: 0;
+  color: rgba(244,239,231,.82);
+  font-size: .84rem;
+  font-weight: 560;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quickActions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.newThread {
+  position: relative;
+}
+.newThread > summary {
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.025);
+  color: rgba(244,239,231,.72);
+  font-size: .78rem;
+  user-select: none;
+}
+.newThread > summary::-webkit-details-marker { display: none; }
+.newThread > summary span { color: #d0b786; margin-right: 4px; }
+.newThread[open] {
+  width: min(760px,100%);
+}
+.newThread[open] > summary {
+  width: fit-content;
+  margin-bottom: 8px;
+}
+.threadComposer {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background: rgba(12,10,16,.96);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.threadComposer label {
+  display: grid;
+  gap: 6px;
+  color: rgba(244,239,231,.55);
+  font-size: .75rem;
+}
+.threadComposer input,
+.threadComposer select,
+.threadComposer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.25);
+  color: #f4efe7;
+  border-radius: 9px;
+  padding: 9px 10px;
+  font: inherit;
+}
+.threadComposer textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+.board {
+  margin-top: 26px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255,255,255,.012);
+}
+.boardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 14px;
+  padding: 17px 18px 12px;
+}
+.boardHead h2 {
+  margin: 4px 0 0;
+  font-size: 1.35rem;
+  font-weight: 520;
+}
+.boardHead > span {
+  color: rgba(244,239,231,.38);
+  font-size: .72rem;
+}
+.boardFilters {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0 12px 11px;
+  border-bottom: 1px solid rgba(255,255,255,.065);
+}
+.boardFilters button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(244,239,231,.46);
+  padding: 7px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: .72rem;
+}
+.boardFilters button:hover,
+.boardFilters .filterActive {
+  background: rgba(255,255,255,.055);
+  color: rgba(244,239,231,.88);
+}
+.threadList {
+  display: grid;
+}
+.threadRow {
+  border-bottom: 1px solid rgba(255,255,255,.055);
+  background: rgba(255,255,255,.005);
+}
+.threadRow:last-child { border-bottom: 0; }
+.threadRow[open] { background: rgba(255,255,255,.025); }
+.threadAction { background: rgba(208,183,134,.022); }
+.threadRow > summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 55px;
+  padding: 8px 13px;
+}
+.threadRow > summary::-webkit-details-marker { display: none; }
+.threadRow > summary:hover { background: rgba(255,255,255,.025); }
+.threadVote {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: rgba(208,183,134,.72);
+  background: rgba(208,183,134,.055);
+  font-size: .75rem;
+}
+.threadMain {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.threadMain strong {
+  color: rgba(244,239,231,.88);
+  font-size: .86rem;
+  font-weight: 555;
+  line-height: 1.28;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.threadMain small {
+  color: rgba(244,239,231,.38);
+  font-size: .69rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.threadMeta {
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: rgba(244,239,231,.42);
+  font-size: .63rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.threadBody {
+  margin-left: 51px;
+  padding: 4px 16px 18px 0;
+  max-width: 900px;
+  color: rgba(244,239,231,.66);
+  line-height: 1.5;
+  font-size: .82rem;
+}
+.threadBody > p { margin: 8px 0; }
+.threadBody > small { color: rgba(244,239,231,.38); }
+.threadLead { color: rgba(224,200,151,.72); }
+.threadActions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.threadActions > span {
+  color: rgba(224,200,151,.65);
+  font-size: .75rem;
+}
+.compactGrid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.compactGrid > div,
+.compactPair > div {
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(0,0,0,.10);
+}
+.compactGrid strong,
+.compactPair strong {
+  color: rgba(224,200,151,.76);
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.compactGrid p,
+.compactPair p {
+  color: rgba(244,239,231,.55);
+  margin: 6px 0 0;
+  font-size: .76rem;
+}
+.compactPair {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.miniSteps {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+.miniSteps span {
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: rgba(244,239,231,.38);
+  font-size: .66rem;
+}
+.miniSteps .done {
+  color: rgba(154,207,173,.82);
+  border-color: rgba(127,190,153,.17);
+  background: rgba(127,190,153,.035);
+}
+.nestedDetails {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  padding-top: 8px;
+}
+.nestedDetails > summary {
+  cursor: pointer;
+  color: rgba(244,239,231,.52);
+  font-size: .74rem;
+}
+.nestedDetails ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: rgba(244,239,231,.42);
+  font-size: .72rem;
+}
+.emptyBoard {
+  padding: 22px 16px;
+  color: rgba(244,239,231,.42);
+  font-size: .8rem;
+}
+@media (max-width: 800px) {
+  .boardStatus { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .boardStatus > div { border-bottom: 1px solid rgba(255,255,255,.06); }
+  .boardStatus > div:nth-child(even) { border-right: 0; }
+  .compactGrid, .compactPair { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .threadRow > summary { grid-template-columns: 25px minmax(0,1fr); }
+  .threadMeta { grid-column: 2; justify-self: start; }
+  .threadBody { margin-left: 48px; }
+  .boardStatus { grid-template-columns: 1fr 1fr; }
+}
