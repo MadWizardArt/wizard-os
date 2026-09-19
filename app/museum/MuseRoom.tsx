@@ -1,17 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MuseDirectoryEntry } from "../../lib/museum-directory";
+import { MUSE_AGENT_CHARTERS } from "../../lib/museum-agent-charters";
+import type { StoredMuseMemory } from "../../lib/museum-memory-storage";
 import { MUSE_ROOMS } from "../../lib/museum-rooms";
 import styles from "./MuseRoom.module.css";
 import presenceStyles from "./MusePresence.module.css";
 import signalStyles from "./MuseSignals.module.css";
-import {
-  deriveDefaultPresence,
-  PRESENCE_META,
-  type MusePresenceState,
-  useMusePresence,
-} from "./useMusePresence";
+import { deriveDefaultPresence, PRESENCE_META } from "./useMusePresence";
 import { SIGNAL_META, useMuseSignals } from "./useMuseSignals";
 
 export function RoomArtwork({ muse, compact = false }: { muse: MuseDirectoryEntry; compact?: boolean }) {
@@ -74,13 +71,37 @@ function signalTime(value: string) {
 
 export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry; onCouncil: () => void }) {
   const room = MUSE_ROOMS[muse.id];
+  const charter = MUSE_AGENT_CHARTERS[muse.id];
   const { latestActive, markRead, acknowledge } = useMuseSignals(muse.id);
-  const automaticPresence = latestActive?.visualState ?? deriveDefaultPresence(false);
-  const { presence, overridden, setPresence } = useMusePresence(muse.id, automaticPresence);
+  const presence = latestActive?.visualState ?? deriveDefaultPresence(false);
   const presenceMeta = PRESENCE_META[presence];
   const signalMeta = latestActive ? SIGNAL_META[latestActive.type] : null;
   const [signalError, setSignalError] = useState("");
-  const changePresence = (value: string) => setPresence(value === "auto" ? null : value as MusePresenceState);
+  const [memories, setMemories] = useState<Array<StoredMuseMemory & { id: string }>>([]);
+  const [memoryError, setMemoryError] = useState("");
+  const [memoryLoading, setMemoryLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setMemories([]);
+    setMemoryError("");
+    setMemoryLoading(true);
+    fetch(`/api/museum/memory?muse=${muse.id}`, { cache: "no-store", signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Verified memory could not be read.");
+        return response.json();
+      })
+      .then((data: unknown) => {
+        if (!controller.signal.aborted) setMemories(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setMemoryError("Memory is unavailable right now.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setMemoryLoading(false);
+      });
+    return () => controller.abort();
+  }, [muse.id]);
   const updateSignal = async (action: "read" | "acknowledge") => {
     if (!latestActive) return;
     setSignalError("");
@@ -99,9 +120,23 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
       <div className={styles.roomCaption}><span aria-hidden="true">{muse.symbol}</span> {room.name}</div>
       <div className={styles.identity}>
         <p className={styles.eyebrow}>{muse.role}</p><h2 id="muse-room-name">{muse.name}</h2><p className={styles.description}>{room.description}</p><blockquote>“{muse.coreLine}”</blockquote>
+        <div className={styles.profileSection}>
+          <span className={styles.profileLabel}>Her purpose</span>
+          <p>{charter.mission}</p>
+          <details className={styles.profileDetails}>
+            <summary>Identity &amp; operating charter</summary>
+            <p><strong>Creative objective</strong><br />{charter.creativeObjective}</p>
+            <p><strong>Economic objective</strong><br />{charter.economicObjective}</p>
+            <p><strong>May propose</strong><br />{charter.proposes.join(" · ")}</p>
+            <p><strong>Artist authority</strong><br />{charter.commitRule}</p>
+          </details>
+        </div>
+        <div className={styles.profileSection}>
+          <span className={styles.profileLabel}>Verified memory · {memories.length}</span>
+          {memoryLoading ? <p>Reading her record…</p> : memoryError ? <p role="status">{memoryError}</p> : memories.length === 0 ? <p>No verified outcomes recorded yet.</p> : <div className={styles.memoryList}>{memories.slice(0, 3).map((memory) => <article key={memory.id}><strong>{memory.title}</strong><p>{memory.summary}</p><small>{memory.kind} · {memory.category} · verified by {memory.verifiedBy}</small></article>)}</div>}
+        </div>
         {latestActive && signalMeta && <section className={`${signalStyles.signalCard} ${latestActive.readAt ? "" : signalStyles.unread}`} aria-label={`Latest signal for ${muse.name}`}><div className={signalStyles.signalHeader}><span className={signalStyles.signalType}><i aria-hidden="true">{signalMeta.symbol}</i>{signalMeta.label}</span><time className={signalStyles.signalTime} dateTime={latestActive.occurredAt}>{signalTime(latestActive.occurredAt)}</time></div><h4>{latestActive.title}</h4><p>{latestActive.summary}</p><span className={signalStyles.signalArea}>{latestActive.area}</span><div className={signalStyles.signalActions}>{!latestActive.readAt && <button onClick={() => void updateSignal("read")}>Mark seen</button>}<button onClick={() => void updateSignal("acknowledge")}>Acknowledge</button></div>{signalError && <p role="alert">{signalError}</p>}</section>}
-        <div className={presenceStyles.control}><label><span>Presence</span><select aria-label={`${muse.name} visual presence`} value={overridden ? presence : "auto"} onChange={(event) => changePresence(event.target.value)}><option value="auto">Auto · {PRESENCE_META[automaticPresence].label}</option><option value="working">Working</option><option value="available">Available</option><option value="waiting">Waiting on Brandon</option><option value="council">In Council</option><option value="quiet">Quiet</option></select></label><small>Visual only. Manual presence overrides Wizard OS signals until returned to Auto.</small></div>
-        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><button onClick={onCouncil}>Council <span>Return to the council chamber</span></button><a href="/museum/agency">Agency <span>Review Muse proposals</span></a><a href="/">Wizard OS <span>Open your workspace</span></a></nav>
+        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><a href={`/museum/intelligence?source=profile&muse=${muse.id}`}>Consult {muse.name} <span>Prepare a question in Intelligence</span></a><a href={`/grotto?muse=${muse.id}`}>Her Gallery <span>Visual canon and references</span></a><button onClick={onCouncil}>Convene Council <span>Bring a question to the table</span></button><a href="/museum/agency">Proposals <span>Review work awaiting approval</span></a></nav>
       </div>
     </section>
   );
