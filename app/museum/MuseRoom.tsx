@@ -110,6 +110,7 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
   };
 
   return (
+    <>
     <section className={`${styles.room} ${styles[`${muse.id}Room`] ?? ""}`} data-muse={muse.id} data-presence={presence} data-signal={latestActive?.type ?? "none"} aria-labelledby="muse-room-name">
       <RoomArtwork key={muse.id} muse={muse} />
       <AmbientLayers muse={muse} />
@@ -120,6 +121,12 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
       <div className={styles.roomCaption}><span aria-hidden="true">{muse.symbol}</span> {room.name}</div>
       <div className={styles.identity}>
         <p className={styles.eyebrow}>{muse.role}</p><h2 id="muse-room-name">{muse.name}</h2><p className={styles.description}>{room.description}</p><blockquote>“{muse.coreLine}”</blockquote>
+        {latestActive && signalMeta && <section className={`${signalStyles.signalCard} ${latestActive.readAt ? "" : signalStyles.unread}`} aria-label={`Latest signal for ${muse.name}`}><div className={signalStyles.signalHeader}><span className={signalStyles.signalType}><i aria-hidden="true">{signalMeta.symbol}</i>{signalMeta.label}</span><time className={signalStyles.signalTime} dateTime={latestActive.occurredAt}>{signalTime(latestActive.occurredAt)}</time></div><h4>{latestActive.title}</h4><p>{latestActive.summary}</p><span className={signalStyles.signalArea}>{latestActive.area}</span><div className={signalStyles.signalActions}>{!latestActive.readAt && <button onClick={() => void updateSignal("read")}>Mark seen</button>}<button onClick={() => void updateSignal("acknowledge")}>Acknowledge</button></div>{signalError && <p role="alert">{signalError}</p>}</section>}
+
+      </div>
+    </section>
+    <section className={styles.profileBody} aria-label={`${muse.name} character sheet`}>
+      <div className={styles.profileColumns}>
         <div className={styles.profileSection}>
           <span className={styles.profileLabel}>Her purpose</span>
           <p>{charter.mission}</p>
@@ -135,9 +142,9 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
           <span className={styles.profileLabel}>Recorded memory · {memories.length}</span>
           {memoryLoading ? <p>Reading her record…</p> : memoryError ? <p role="status">{memoryError}</p> : memories.length === 0 ? <p>No Council memory recorded yet.</p> : <div className={styles.memoryList}>{memories.slice(0, 3).map((memory) => <article key={memory.id}><strong>{memory.title}</strong><p>{memory.summary}</p><small>{memory.kind} · {memory.category} · verified by {memory.verifiedBy}</small></article>)}</div>}
         </div>
-        {latestActive && signalMeta && <section className={`${signalStyles.signalCard} ${latestActive.readAt ? "" : signalStyles.unread}`} aria-label={`Latest signal for ${muse.name}`}><div className={signalStyles.signalHeader}><span className={signalStyles.signalType}><i aria-hidden="true">{signalMeta.symbol}</i>{signalMeta.label}</span><time className={signalStyles.signalTime} dateTime={latestActive.occurredAt}>{signalTime(latestActive.occurredAt)}</time></div><h4>{latestActive.title}</h4><p>{latestActive.summary}</p><span className={signalStyles.signalArea}>{latestActive.area}</span><div className={signalStyles.signalActions}>{!latestActive.readAt && <button onClick={() => void updateSignal("read")}>Mark seen</button>}<button onClick={() => void updateSignal("acknowledge")}>Acknowledge</button></div>{signalError && <p role="alert">{signalError}</p>}</section>}
-        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><a href={`/museum/intelligence?source=profile&muse=${muse.id}`}>Consult {muse.name} <span>Prepare a question in Intelligence</span></a><a href={`/grotto?muse=${muse.id}`}>Her Gallery <span>Visual canon and references</span></a><button onClick={onCouncil}>Convene Council <span>Bring a question to the table</span></button><a href="/museum/agency">Proposals <span>Review work awaiting approval</span></a></nav>
       </div>
+        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><a href={`/museum/intelligence?source=profile&muse=${muse.id}`}>Consult {muse.name} <span>Prepare a question in Intelligence</span></a><a href={`/grotto?muse=${muse.id}`}>Her Gallery <span>Visual canon and references</span></a><button onClick={onCouncil}>Convene Council <span>Bring a question to the table</span></button><a href="/museum/agency">Proposals <span>Review work awaiting approval</span></a></nav>
     </section>
+    </>
   );
 }
