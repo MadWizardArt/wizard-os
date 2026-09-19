@@ -195,3 +195,12 @@
 .memoryList strong { color:#eedbb9; font:16px/1.3 Georgia,serif; }
 .memoryList p { margin:7px 0; color:#ccc5ba; font:13px/1.55 system-ui,sans-serif; overflow-wrap:anywhere; }
 .memoryList small { color:#a9997b; font:11px/1.45 system-ui,sans-serif; text-transform:capitalize; }
+
+
+/* Keep cinematic video/portrait at its approved height; place the sheet below. */
+.profileBody { margin:-10px 0 27px; padding:23px 30px 27px; border:1px solid rgba(197,162,104,.25); border-top:0; border-radius:0 0 12px 12px; background:linear-gradient(145deg,#17191e,#121619 68%,#17161a); color:#efe3ce; }
+.profileColumns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:26px; }
+.profileBody .profileSection { margin:0; padding:14px 0 0; }
+.profileBody .actions { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media(max-width:900px) { .profileBody { padding:22px; } .profileBody .actions { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) { .profileColumns { grid-template-columns:1fr; gap:18px; } .profileBody { padding:18px; } }
