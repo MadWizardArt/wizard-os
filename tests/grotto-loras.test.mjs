@@ -61,6 +61,13 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     GROTTO_LORAS.map(({ id, air, compatibility, defaultWeight, triggerWords }) => ({ id, air, compatibility, defaultWeight, triggerWords })),
     [
       {
+        id: "novy-official-v1",
+        air: "urn:air:sdxl:lora:civitai:2957193@3349845",
+        compatibility: "both",
+        defaultWeight: 0.7,
+        triggerWords: ["novymuse_v1"],
+      },
+      {
         id: "pony-amateur-standard-v2",
         air: "urn:air:sdxl:lora:civitai:480835@717403",
         compatibility: "both",
@@ -98,6 +105,23 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     ],
   );
   assert.equal(grottoLoraList().every((lora) => lora.configured), true);
+
+  const novy = grottoLoraList().find((lora) => lora.id === "novy-official-v1");
+  assert.equal(novy?.category, "character");
+  assert.equal(novy?.minWeight, 0.3);
+  assert.equal(novy?.maxWeight, 1.2);
+  assert.deepEqual(novy?.triggerWords, ["novymuse_v1"]);
+  for (const environment of ["pony-v6", "pony-realism"]) {
+    const selected = resolveGrottoLoras([{ id: "novy-official-v1", weight: 0.7 }], environment);
+    assert.equal(selected[0].air, "urn:air:sdxl:lora:civitai:2957193@3349845");
+    assert.deepEqual(grottoAdditionalNetworks(selected), {
+      "urn:air:sdxl:lora:civitai:2957193@3349845": { type: "Lora", strength: 0.7 },
+    });
+  }
+  assert.throws(
+    () => resolveGrottoLoras([{ id: "novy-official-v1", weight: 1.25 }], "pony-v6"),
+    /between 0.3 and 1.2/,
+  );
 
   assert.throws(
     () => resolveGrottoLoras([{ id: "pony-realism-enhancer", weight: 0.7 }], "pony-v6"),
