@@ -45,6 +45,19 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  */
 export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
   {
+    id: "novy-official-v1",
+    label: "Novy · Official V1",
+    air: "urn:air:sdxl:lora:civitai:2957193@3349845",
+    compatibility: "both",
+    category: "character",
+    defaultWeight: 0.7,
+    minWeight: 0.3,
+    maxWeight: 1.2,
+    // The published V1 sample prompts use this trigger; Civitai's trainedWords field is empty.
+    triggerWords: ["novymuse_v1"],
+    enabled: true,
+  },
+  {
     id: "pony-amateur-standard-v2",
     label: "Pony Amateur · Standard V2",
     air: "urn:air:sdxl:lora:civitai:480835@717403",
