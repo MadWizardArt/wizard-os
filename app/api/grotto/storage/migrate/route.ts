@@ -63,7 +63,20 @@ export async function POST(request: NextRequest) {
   if (body.action === "purge-deleted") {
     const activeLegacy = await prisma.grottoImage.count({ where: { deletedAt: null, imageData: { not: null } } });
     if (activeLegacy) return NextResponse.json({ error: `Deleted-row purge blocked until ${activeLegacy} active legacy binaries are cleaned.` }, { status: 409 });
-    const result = await prisma.grottoImage.deleteMany({ where: { deletedAt: { not: null } } });
+    // Allow 30 days for Undo; never purge recently deleted private images.
+    const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const expired = await prisma.grottoImage.findMany({
+      where: { deletedAt: { lt: retentionCutoff } },
+      orderBy: [{ deletedAt: "asc" }, { id: "asc" }],
+      take: 200,
+      select: { id: true, blobUrl: true },
+    });
+    // Delete old Blob bytes before dropping the record; fail safely if Blob removal fails.
+    try { await deleteGrottoImages(expired.map((image) => image.blobUrl)); }
+    catch { return NextResponse.json({ error: "Blob removal failed; deleted records were preserved." }, { status: 502 }); }
+    const result = expired.length
+      ? await prisma.grottoImage.deleteMany({ where: { id: { in: expired.map((image) => image.id) }, deletedAt: { lt: retentionCutoff } } })
+      : { count: 0 };
     const status = await migrationStatus();
     return NextResponse.json({ action: "purge-deleted", purged: result.count, ...status });
   }
