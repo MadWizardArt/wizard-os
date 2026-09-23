@@ -44,13 +44,15 @@ try {
   await page.getByRole("combobox", { name: "Catalog product" }).selectOption("77");
   await page.getByRole("combobox", { name: "Exact variant" }).selectOption("1234");
   await page.getByRole("button", { name: "Get live shipping estimate" }).click();
-  await page.getByText("Flat Rate", { exact: false }).waitFor();
+  const shippingService = page.getByRole("combobox", { name: "Shipping service" });
+  await shippingService.waitFor();
+  assert.equal(await shippingService.inputValue(), "STANDARD");
   assert.equal(submitted.length, 1, "request exactly one quote");
   assert.deepEqual(submitted[0], {
     storeId: 2222222, variantId: 1234, quantity: 1,
     countryCode: "US", stateCode: "NJ", zip: "",
   });
   await store.selectOption("1111111");
-  assert.equal(await page.getByText("Flat Rate", { exact: false }).count(), 0, "changing stores invalidates quoted shipping");
+  assert.equal(await shippingService.count(), 0, "changing stores invalidates quoted shipping");
   console.log("PASS: multi-store selection required, shipping scoped to Spellmark, switching stores clears previous quote.");
 } finally { await browser.close(); }
