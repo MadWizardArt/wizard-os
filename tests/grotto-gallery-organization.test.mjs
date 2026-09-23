@@ -10,9 +10,10 @@ const remove = source("app/api/grotto/images/bulk-delete/route.ts");
 const restore = source("app/api/grotto/images/bulk-restore/route.ts");
 const storage = source("app/api/grotto/storage/migrate/route.ts");
 
-test("Favorites is a global filtered view; normal galleries sort by creation, not favorite rank", () => {
+test("Favorites is a global filtered view; regular galleries order by placement, not favorite rank", () => {
   assert.match(gallery, /museId === "favorites" \? \{ favorite: true \} : \{ museId \}/);
-  assert.match(gallery, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}]/);
+  assert.match(gallery, /galleryAddedAt: "desc"/);
+  assert.match(gallery, /museId === "favorites" \? \[\{ createdAt: "desc" \}/);
   assert.doesNotMatch(gallery, /favorite: "desc"/);
   assert.match(gallery, /provider: \{ not: "header" \}/);
   assert.match(gallery, /UPLOAD_GALLERIES\.has\(museId\)/);
@@ -38,7 +39,7 @@ test("Batch moves check every ID atomically and only change gallery membership",
   assert.match(move, /prisma\.\$transaction/);
   assert.match(move, /images\.length !== ids\.length/);
   assert.match(move, /canonical: false, provider: \{ not: "header" \}/);
-  assert.match(move, /data: \{ museId: destination \}/);
+  assert.match(move, /data: \{ museId: destination, galleryAddedAt: new Date\(\) \}/);
   assert.doesNotMatch(move, /deleteGrottoImages|storeGrottoImage/);
 });
 
@@ -51,4 +52,17 @@ test("Batch deletes are undoable and purge retained private Blob bytes after thi
   assert.match(restore, /data: \{ deletedAt: null \}/);
   assert.match(storage, /deletedAt: \{ lt: retentionCutoff \}/);
   assert.match(storage, /deleteGrottoImages\(expired\.map/);
+});
+
+test("Older images moved to a Muse are placed at the front and the destination opens", () => {
+  const migration = source("prisma/migrations/20260923065000_grotto_gallery_added_at/migration.sql");
+  const schema = source("prisma/schema.prisma");
+  assert.match(migration, /SET "galleryAddedAt" = "updatedAt"/);
+  assert.match(schema, /galleryAddedAt\s+DateTime @default\(now\(\)\)/);
+  assert.match(gallery, /galleryAddedAt: "desc"/);
+  assert.match(move, /galleryAddedAt: new Date\(\)/);
+  assert.match(page, /setGalleryPage\(0\); setHasNext\(false\); setSpace\(next\)/);
+  assert.match(page, /await selectSpace\(destination, true\)/);
+  assert.match(page, /getElementById\("grotto-gallery"\)/);
+  assert.doesNotMatch(gallery, /favorite: "desc"/);
 });
