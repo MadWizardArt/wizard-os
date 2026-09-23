@@ -1,8 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "./prisma";
-import { decryptSession, etsyUserId } from "./etsy";
-import { EtsySession, getOwnedEtsyShop, getValidEtsySession } from "./etsy-client";
+import { decryptSession } from "./etsy";
+import { EtsySession, etsyUserId, getOwnedEtsyShop, getValidEtsySession } from "./etsy-client";
 
 // Warlock is a single-owner private application. A server-side encrypted grant
 // is shared by the owner's browser and by explicitly authorized API clients.
@@ -35,7 +35,7 @@ export async function getEtsyRequestContext(request: NextRequest) {
   const suppliedKey = request.headers.get(OPERATOR_HEADER);
   const cookieValue = request.cookies.get("etsy_session")?.value;
   const isOperator = suppliedKey !== null;
-  if (isOperator ? !keyMatches(suppliedKey) : !cookieValue) return null;
+  if (isOperator ? !keyMatches(suppliedKey ?? "") : !cookieValue) return null;
 
   // A browser cookie proves the owner's prior Etsy OAuth authorization. Always
   // decrypt it before accepting the browser request, even when using a newer
