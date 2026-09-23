@@ -67,3 +67,4 @@ jobs:
           node tests/campaign-browser.mjs
           node tests/mobile-navigation.mjs
           node tests/warlock-products-browser.mjs
+          node tests/printful-store-browser.mjs
