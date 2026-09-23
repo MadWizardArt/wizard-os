@@ -18,6 +18,17 @@ function keyMatches(supplied: string) {
 }
 
 export async function saveEtsyConnection(encryptedSession: string) {
+  // Prevent an unauthenticated visitor from binding a different Etsy shop
+  // to the operator's persistent grant via the public OAuth connect URL.
+  const allowedShopId = Number(process.env.WARLOCK_SHOP_ID);
+  if (!Number.isSafeInteger(allowedShopId) || allowedShopId <= 0) {
+    throw new Error("WARLOCK_SHOP_ID must be configured before storing the Etsy grant");
+  }
+  const session = decryptSession<EtsySession>(encryptedSession);
+  const shop = await getOwnedEtsyShop(session.access_token);
+  if (Number(shop?.shop_id) !== allowedShopId) {
+    throw new Error("etsy_shop_not_allowed");
+  }
   await prisma.etsyConnection.upsert({
     where: { id: CONNECTION_ID },
     create: { id: CONNECTION_ID, encryptedSession },
@@ -66,5 +77,6 @@ export async function getEtsyRequestContext(request: NextRequest) {
   const shop = await getOwnedEtsyShop(auth.session.access_token);
   const shopId = Number(shop?.shop_id);
   if (!shopId) throw new Error("etsy_shop_id_missing");
+  if (isOperator && shopId !== Number(process.env.WARLOCK_SHOP_ID)) return null;
   return { auth, shop, shopId };
 }
