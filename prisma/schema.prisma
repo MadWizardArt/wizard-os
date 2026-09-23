@@ -384,3 +384,10 @@ model GrottoImage {
   @@index([museId, favorite])
   @@index([providerWorkflowId])
 }
+
+// One encrypted, private Etsy OAuth grant shared by the owner and authorized Warlock API clients.
+model EtsyConnection {
+  id               String   @id
+  encryptedSession String
+  updatedAt        DateTime @updatedAt
+}
