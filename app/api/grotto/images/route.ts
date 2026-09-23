@@ -6,7 +6,8 @@ import { deleteGrottoImages, storeGrottoImage } from "../../../../lib/grotto-blo
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_GALLERIES = new Set(["studio", "novy", "aurelia", "callista", "cleo", "lyra", "melina", "seraphine", "tessa", "thalia"]);
+const ALLOWED_GALLERIES = new Set(["studio", "favorites", "novy", "aurelia", "callista", "cleo", "lyra", "melina", "seraphine", "tessa", "thalia"]);
+const UPLOAD_GALLERIES = new Set([...ALLOWED_GALLERIES].filter((id) => id !== "favorites"));
 
 function studioInputFromRecipe(recipeJson: string) {
   try {
@@ -32,8 +33,8 @@ export async function GET(request: NextRequest) {
 
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(request.nextUrl.searchParams.get("offset")) || 0)));
   const images = await prisma.grottoImage.findMany({
-    where: { museId, deletedAt: null, provider: { not: "header" } },
-    orderBy: [{ favorite: "desc" }, { createdAt: "desc" }],
+    where: { ...(museId === "favorites" ? { favorite: true } : { museId }), deletedAt: null, provider: { not: "header" } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit,
     skip: offset,
     select: {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     canonical: image.canonical,
     provider: image.provider,
     prompt: image.prompt,
-    studioInput: image.museId === "studio" ? studioInputFromRecipe(image.recipeJson) : null,
+    studioInput: studioInputFromRecipe(image.recipeJson),
     createdAt: image.createdAt,
     src: `/api/grotto/images/${image.id}/file`,
   })));
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       : bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP" ? "image/webp" : null;
     if (!contentType) return NextResponse.json({ error: "Choose a JPG, PNG, or WebP image." }, { status: 400 });
     const museId = String(form.get("museId") || "studio").trim().toLowerCase();
-    if (!ALLOWED_GALLERIES.has(museId)) return NextResponse.json({ error: "That Grotto gallery is not available." }, { status: 400 });
+    if (!UPLOAD_GALLERIES.has(museId)) return NextResponse.json({ error: "That Grotto gallery is not available." }, { status: 400 });
     const blob = await storeGrottoImage(museId, bytes, contentType);
     let image;
     try {
