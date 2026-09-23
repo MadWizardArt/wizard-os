@@ -376,9 +376,11 @@ model GrottoImage {
   canonical          Boolean  @default(false)
   deletedAt          DateTime?
   createdAt          DateTime @default(now())
+  galleryAddedAt     DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([museId, deletedAt, createdAt])
+  @@index([museId, deletedAt, galleryAddedAt])
   @@index([museId, favorite])
   @@index([providerWorkflowId])
 }
