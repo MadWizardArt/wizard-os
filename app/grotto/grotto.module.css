@@ -490,7 +490,7 @@
 }
 .galleryRail {
   display: grid;
-  grid-template-columns: repeat(10, minmax(76px, 1fr));
+  grid-template-columns: repeat(11, minmax(76px, 1fr));
   gap: 8px;
   margin: 0 0 28px;
   padding: 10px;
@@ -564,7 +564,7 @@
 .selectMark { position: absolute; z-index: 2; right: 9px; top: 9px; display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #d4b78a; border-radius: 50%; background: #09080bd9; color: #f6dfbf; font: 700 15px/1 system-ui, sans-serif; }
 .viewerProvenance { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); color: #d8c9d0; font: 13px/1.4 system-ui, sans-serif; }
 @media (max-width: 1050px) { .atelierLayout { grid-template-columns: 300px minmax(0, 1fr); gap: 20px; } .collection .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(10, 82px); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } .headerUpload { right: 10px; bottom: 10px; min-height: 36px; font-size: 11px; } }
+@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(11, 82px); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } .headerUpload { right: 10px; bottom: 10px; min-height: 36px; font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) { .tile img { transition: none; } }
 
 .loraPanel {
@@ -677,4 +677,46 @@
 .next:not(:disabled):focus-visible {
   color: #f1ddbf;
   outline: none;
+}
+
+/* Consistent bulk image management across the Atelier, Favorites and Muse galleries. */
+.galleryActions select,
+.viewerActions select {
+  min-height: 40px;
+  max-width: min(100%, 210px);
+  padding: 0 12px;
+  border: 1px solid #ffffff30;
+  border-radius: 7px;
+  background: #1e1922;
+  color: #eadbdc;
+  font: 600 13px/1.3 system-ui, sans-serif;
+  cursor: pointer;
+}
+.galleryActions select:disabled,
+.viewerActions select:disabled { opacity: .45; cursor: default; }
+.selectionCount { color: #e4cba6; font: 600 13px/1.4 system-ui, sans-serif; }
+.tile:disabled { cursor: default; }
+.tile:disabled:not(.tileSelected) img { filter: brightness(.65); }
+.tileOrigin {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #f4e5dc;
+  background: #09080be8;
+  font: 600 11px/1.2 system-ui, sans-serif;
+}
+.viewerActions { max-height: 27vh; overflow-y: auto; }
+@media (max-width: 720px) {
+  .galleryActions { width: 100%; }
+  .galleryActions select { flex: 1 1 130px; }
+  .viewerActions { bottom: 8px; width: calc(100% - 24px); max-height: 30vh; gap: 4px; }
+  .viewerActions button, .viewerActions a, .viewerActions select { min-height: 36px; padding: 7px 9px; font-size: 12px; }
+  .lightboxImage { max-height: 60vh; }
+  .viewerProvenance { bottom: 31vh; }
 }
