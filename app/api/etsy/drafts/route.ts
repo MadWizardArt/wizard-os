@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders, getOwnedEtsyShop, getValidEtsySession } from "../../../../lib/etsy-client";
+import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../lib/etsy-client";
+import { getEtsyRequestContext } from "../../../../lib/warlock-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,21 +14,15 @@ type DraftInput = {
 };
 
 export async function POST(request: NextRequest) {
-  const cookieValue = request.cookies.get("etsy_session")?.value;
-  if (!cookieValue) {
-    return NextResponse.json({ error: "etsy_not_connected" }, { status: 401 });
-  }
-
   const input = (await request.json()) as DraftInput;
   if (!input.title || !input.description || !input.price || !input.taxonomyId) {
     return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
   }
 
   try {
-    const auth = await getValidEtsySession(cookieValue);
-    const shop = await getOwnedEtsyShop(auth.session.access_token);
-    const shopId = Number(shop?.shop_id);
-    if (!shopId) throw new Error("etsy_shop_id_missing");
+    const context = await getEtsyRequestContext(request);
+    if (!context) return NextResponse.json({ error: "etsy_not_connected" }, { status: 401 });
+    const { auth, shopId } = context;
 
     const body = new URLSearchParams({
       quantity: String(input.quantity ?? 999),
