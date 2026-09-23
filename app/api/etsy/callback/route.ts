@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encryptSession, EtsyTokenResponse, requireEnv } from "../../../../lib/etsy";
+import { saveEtsyConnection } from "../../../../lib/warlock-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,15 @@ export async function GET(request: NextRequest) {
     refresh_token: token.refresh_token,
     expires_at: Date.now() + token.expires_in * 1000,
   });
+
+  // Persist the encrypted grant server-side; otherwise a separate API client
+  // cannot reuse the browser-only Etsy session.
+  try {
+    await saveEtsyConnection(session);
+  } catch (error) {
+    console.error("Etsy connection persistence failed", error);
+    return NextResponse.redirect(new URL("/etsy?status=error&reason=connection_save_failed", request.url));
+  }
 
   const response = NextResponse.redirect(new URL("/etsy?status=connected", request.url));
   const secure = process.env.NODE_ENV === "production";
