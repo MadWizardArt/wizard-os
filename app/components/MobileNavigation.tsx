@@ -8,7 +8,7 @@ const destinations = [
   ["Projects", "/?view=projects"], ["Inventory & Sold", "/inventory"],
   ["Calendar", "/calendar"], ["Money", "/?view=money"],
   ["Ventures", "/?view=ventures"], ["Clients", "/?view=customers"],
-  ["Warlock", "/etsy"],
+  ["Warlock", "/etsy"], ["Printful Costs", "/printful"],
 ];
 
 export default function MobileNavigation() {

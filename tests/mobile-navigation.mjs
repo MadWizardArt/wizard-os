@@ -50,7 +50,8 @@ try {
  const menu=page.getByRole('dialog',{name:'Explore Wizard OS'});
  await menu.waitFor({state:'visible'});
  const labels=(await menu.getByRole('link').allTextContents()).map(label=>label.replace('›','').trim());
- assert.equal(labels.length,9);
+ assert.equal(labels.length,10);
+ assert.ok(labels.includes('Printful Costs'));
  assert.equal(labels.includes('Queue'),false);
  assert.equal(labels.includes('The Museum'),false);
  assert.ok(labels.indexOf('Campaigns') < labels.indexOf('Money'));
@@ -67,7 +68,7 @@ try {
  assert.equal(await menu.getByRole('link',{name:'Money',exact:true}).getAttribute('aria-current'),'page');
  await page.keyboard.press('Escape');
  await menu.waitFor({state:'hidden'});
- for(const name of ['Inventory & Sold','Campaigns','Calendar','Warlock']) {
+ for(const name of ['Inventory & Sold','Campaigns','Calendar','Warlock','Printful Costs']) {
   await page.getByRole('button',{name:'☰ Menu',exact:true}).click();
   await Promise.all([page.waitForEvent('load'),menu.getByRole('link',{name,exact:true}).click()]);
   await page.getByRole('button',{name:'☰ Menu',exact:true}).waitFor();
