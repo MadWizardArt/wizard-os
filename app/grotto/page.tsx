@@ -121,11 +121,54 @@ export default function GrottoPage() {
 
   const putInTray = (item: GalleryItem, role: ReferenceRole, openAtelier: boolean) => { setTray((currentTray) => [...currentTray.filter((entry) => entry.id !== item.id && entry.role !== role), { ...item, role }].sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role))); if (item.studioInput) { setStudioEnvironment(item.studioInput.environmentId || "pony-v6"); setStudioPrompt(item.studioInput.prompt || item.prompt || ""); setStudioNegative(item.studioInput.negativePrompt || status?.studio.defaultNegative || ""); setStudioFormat(item.studioInput.format || "Portrait"); setStudioQuantity(item.studioInput.quantity === 4 ? 4 : 1); setStudioLoras(Array.isArray(item.studioInput.loras) ? item.studioInput.loras : []); setStudioEmbeddings(Array.isArray(item.studioInput.embeddings) ? item.studioInput.embeddings : []); } else if (item.prompt) setStudioPrompt(item.prompt); setActiveIndex(null); if (openAtelier) { setSpace("studio"); void loadGallery("studio"); } };
   const uploadImage = async (file?: File) => { if (!file || generating || uploading || isFavorites) return; setUploading(true); setNote(""); try { if (file.size > 3 * 1024 * 1024) throw new Error("Choose a JPG, PNG, or WebP under 3 MB."); const form = new FormData(); form.append("image", file); form.append("museId", space); const saved = await readJson(await fetch("/api/grotto/images", { method: "POST", body: form })); await loadGallery(space); if (space === "studio") setTray((currentTray) => [...currentTray.filter((entry) => entry.role !== "primary"), { ...saved, alt: "Uploaded reference", private: true, role: "primary" }]); setNote(space === "studio" ? "Reference added to Primary." : `Added to ${MUSE_NAMES[space]}’s gallery.`); } catch (error) { setNote(error instanceof Error ? error.message : "Upload failed."); } finally { setUploading(false); } };
-  const toggleFavorite = async () => { if (!current?.private) return; try { const payload = await readJson(await fetch(`/api/grotto/images/${current.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ favorite: !current.favorite }) })); setItems((currentItems) => currentItems.map((item) => item.id === current.id ? { ...item, favorite: Boolean(payload.favorite) } : item)); } catch (error) { setNote(error instanceof Error ? error.message : "Favorite could not be changed."); } };
-  const deleteCurrent = async () => { if (!current?.private || current.canonical || !window.confirm("Remove this image from the Grotto?")) return; try { await readJson(await fetch(`/api/grotto/images/${current.id}`, { method: "DELETE" })); setTray((t) => t.filter((item) => item.id !== current.id)); setActiveIndex(null); await loadGallery(space); } catch (error) { setNote(error instanceof Error ? error.message : "Image could not be removed."); } };
-  const uploadHeader = async (file?: File) => { if (!file || !isMuse || uploading) return; setUploading(true); setNote(""); try { const form = new FormData(); form.append("header", file); const saved = await readJson(await fetch(`/api/grotto/headers/${space}`, { method: "POST", body: form })); setHeaderSrc(saved.src); setNote(`Updated ${MUSE_NAMES[space]}’s header.`); } catch (error) { setNote(error instanceof Error ? error.message : "Header upload failed."); } finally { setUploading(false); } };
+  const toggleFavorite = async () => {
+    if (!current?.private || managing) return;
+    const image = current;
+    try {
+      const payload = await readJson(await fetch(`/api/grotto/images/${image.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ favorite: !image.favorite }) }));
+      setItems((existing) => existing.map((item) => item.id === image.id ? { ...item, favorite: Boolean(payload.favorite) } : item));
+      if (isFavorites && !payload.favorite) { setActiveIndex(null); await loadGallery(space); }
+    } catch (error) { setNote(error instanceof Error ? error.message : "Favorite could not be changed."); }
+  };
+  const uploadHeader = async (file?: File) => { if (!file || !isMuse || uploading) return; setUploading(true); setNote(""); try { const form = new FormData(); form.append("header", file); const saved = await readJson(await fetch(`/api/grotto/headers/${space}`, { method: "POST", body: form })); setHeaderSrc(saved.src); setNote(`Updated ${MUSE_NAMES[space as MuseId]}’s header.`); } catch (error) { setNote(error instanceof Error ? error.message : "Header upload failed."); } finally { setUploading(false); } };
   const toggleSelected = (id: string) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
-  const deleteSelected = async () => { if (!selectedIds.length || !window.confirm(`Remove ${selectedIds.length} selected image${selectedIds.length === 1 ? "" : "s"} from the Grotto?`)) return; try { const payload = await readJson(await fetch("/api/grotto/images/bulk-delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: selectedIds }) })); setTray((currentTray) => currentTray.filter((item) => !selectedIds.includes(item.id))); setSelectedIds([]); setSelecting(false); await loadGallery(space); setNote(`Removed ${payload.deleted} image${payload.deleted === 1 ? "" : "s"}.`); } catch (error) { setNote(error instanceof Error ? error.message : "Selected images could not be removed."); } };
+  const deleteImages = async (ids: string[]) => {
+    if (managing || !ids.length || !window.confirm(`Remove ${ids.length} image${ids.length === 1 ? "" : "s"} from the Grotto? You can undo this removal.`)) return;
+    setManaging(true); setNote("");
+    try {
+      const payload = await readJson(await fetch("/api/grotto/images/bulk-delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }) }));
+      setTray((existing) => existing.filter((item) => !ids.includes(item.id)));
+      setActiveIndex(null); setSelectedIds([]); setSelecting(false); setMoveTarget("");
+      setRecentlyDeleted(ids);
+      await loadGallery(space);
+      setNote(`Removed ${payload.deleted} image${payload.deleted === 1 ? "" : "s"}. Undo is available below.`);
+    } catch (error) { setNote(error instanceof Error ? error.message : "Selected images could not be removed."); }
+    finally { setManaging(false); }
+  };
+  const deleteCurrent = async () => { if (current?.private && !current.canonical) await deleteImages([current.id]); };
+  const deleteSelected = async () => { await deleteImages(selectedIds); };
+  const undoDelete = async () => {
+    if (!recentlyDeleted.length || managing) return;
+    setManaging(true);
+    try {
+      const payload = await readJson(await fetch("/api/grotto/images/bulk-restore", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: recentlyDeleted }) }));
+      setRecentlyDeleted([]); await loadGallery(space);
+      setNote(`Restored ${payload.restored} image${payload.restored === 1 ? "" : "s"}.`);
+    } catch (error) { setNote(error instanceof Error ? error.message : "Images could not be restored."); }
+    finally { setManaging(false); }
+  };
+  const moveImages = async (ids: string[], destination: "studio" | MuseId | "") => {
+    if (managing || !ids.length || !destination) return;
+    setManaging(true); setNote("");
+    try {
+      const payload = await readJson(await fetch("/api/grotto/images/bulk-move", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, destination }) }));
+      setTray((existing) => existing.map((item) => ids.includes(item.id) ? { ...item, museId: destination } : item));
+      setActiveIndex(null); setSelectedIds([]); setSelecting(false); setMoveTarget(""); setViewerTarget("");
+      await loadGallery(space);
+      setNote(`Moved ${payload.moved} image${payload.moved === 1 ? "" : "s"} to ${destination === "studio" ? "the Atelier" : MUSE_NAMES[destination]}.`);
+    } catch (error) { setNote(error instanceof Error ? error.message : "Images could not be moved."); }
+    finally { setManaging(false); }
+  };
   const copyPrompt = async () => { if (!current?.prompt) return; try { await navigator.clipboard.writeText(current.prompt); setNote("Prompt copied."); } catch { setNote("Prompt could not be copied."); } };
   const migrateStorage = async () => { if (!status?.storage.configured || migratingStorage) return; setMigratingStorage(true); setNote("Verifying Blob copies and releasing legacy Neon storage…"); try { let statusPayload = await readJson(await fetch("/api/grotto/storage/migrate", { cache: "no-store" })); let migrated = 0; while (Number(statusPayload.pending) > 0) { const payload = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "migrate" }) })); migrated += Number(payload.migrated) || 0; statusPayload = payload; setNote(`Copied and verified ${migrated} images · ${Number(payload.pending) || 0} remaining…`); } let cleaned = 0; let releasedBytes = 0; while (Number(statusPayload.activeLegacy) > 0) { const payload = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cleanup" }) })); cleaned += Number(payload.cleaned) || 0; releasedBytes += Number(payload.releasedBytes) || 0; statusPayload = payload; setNote(`Verified and released ${cleaned} Neon duplicates…`); } const purged = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "purge-deleted" }) })); setNote(`Blob cleanup complete · ${cleaned} binaries verified · ${(releasedBytes / 1024 / 1024).toFixed(1)} MB released · ${Number(purged.purged) || 0} deleted records purged.`); } catch (error) { setNote(error instanceof Error ? error.message : "Storage cleanup stopped safely; it can be resumed."); } finally { setMigratingStorage(false); } };
 
