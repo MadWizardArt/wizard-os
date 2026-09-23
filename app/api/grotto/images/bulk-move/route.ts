@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       if (images.length !== ids.length) return null; // Fail closed: no partial moves or canonical/header changes.
       const result = await tx.grottoImage.updateMany({
         where: { id: { in: ids }, deletedAt: null, canonical: false, provider: { not: "header" } },
-        data: { museId: destination },
+        data: { museId: destination, galleryAddedAt: new Date() },
       });
       if (result.count !== ids.length) throw new Error("A selected image changed during the move.");
       return result.count;
