@@ -391,3 +391,46 @@ model EtsyConnection {
   encryptedSession String
   updatedAt        DateTime @updatedAt
 }
+
+
+enum SpellmarkFulfillment {
+  DIGITAL
+  PHYSICAL
+}
+
+// Spellmark identity is owned here, not by Etsy listings or Printful sync products.
+model SpellmarkProduct {
+  id               String             @id @default(cuid())
+  title            String
+  collection       String             @default("")
+  description      String             @default("")
+  artworkReference String             @default("")
+  status           String             @default("DESIGN")
+  notes            String             @default("")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  variants         SpellmarkVariant[]
+
+  @@index([collection, status])
+}
+
+model SpellmarkVariant {
+  id                  String               @id @default(cuid())
+  productId           String
+  product             SpellmarkProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fulfillment         SpellmarkFulfillment
+  label               String
+  printfulProductId   Int?
+  printfulVariantId   Int?
+  etsyListingId       String?
+  retailPriceCents    Int?
+  productionBaseCents Int?
+  productionQuotedAt  DateTime?
+  currency            String               @default("USD")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([productId, fulfillment])
+  @@index([printfulVariantId])
+  @@index([etsyListingId])
+}
