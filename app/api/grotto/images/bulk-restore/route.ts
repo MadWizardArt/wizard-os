@@ -16,8 +16,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Select between 1 and 200 distinct images." }, { status: 400 });
   }
 
+  const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const restored = await prisma.grottoImage.updateMany({
-    where: { id: { in: ids }, deletedAt: { not: null }, canonical: false, provider: { not: "header" } },
+    where: { id: { in: ids }, deletedAt: { gte: retentionCutoff }, canonical: false, provider: { not: "header" } },
     data: { deletedAt: null },
   });
   if (restored.count !== ids.length) {
