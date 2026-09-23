@@ -36,7 +36,8 @@ export function readVariant(raw: unknown): VariantInput | null {
   const printfulVariantId = id(v.printfulVariantId);
   if (v.fulfillment === "DIGITAL" && (v.printfulProductId != null || v.printfulVariantId != null)) return null;
   if (v.fulfillment === "PHYSICAL" && ((v.printfulProductId != null) !== (v.printfulVariantId != null))) return null;
-  if (v.printfulProductId && !printfulProductId || v.printfulVariantId && !printfulVariantId) return null;
+  if ((v.printfulProductId !== undefined && v.printfulProductId !== null && printfulProductId === null) ||
+      (v.printfulVariantId !== undefined && v.printfulVariantId !== null && printfulVariantId === null)) return null;
   return { fulfillment: v.fulfillment, label, printfulProductId, printfulVariantId };
 }
 export function sameOrigin(request: { headers: { get(name: string): string | null }; nextUrl: URL }) {
