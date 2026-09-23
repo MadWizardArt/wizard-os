@@ -67,12 +67,16 @@ export async function getEtsyRequestContext(request: NextRequest) {
   }
 
   const auth = await getValidEtsySession(encryptedSession);
-  if (auth.refreshedCookieValue) {
-    await saveEtsyConnection(auth.refreshedCookieValue);
-  } else if (!saved) {
-    // Upgrade an existing valid browser session without a new OAuth login.
-    await saveEtsyConnection(encryptedSession);
+  if (process.env.WARLOCK_SHOP_ID) {
+    if (auth.refreshedCookieValue) {
+      await saveEtsyConnection(auth.refreshedCookieValue);
+    } else if (!saved) {
+      // Upgrade an existing valid browser session without a new OAuth login.
+      await saveEtsyConnection(encryptedSession);
+    }
   }
+  // Without the one-time shop allowlist, preserve ordinary browser access
+  // but do not create a persistent grant available to direct API clients.
 
   const shop = await getOwnedEtsyShop(auth.session.access_token);
   const shopId = Number(shop?.shop_id);
