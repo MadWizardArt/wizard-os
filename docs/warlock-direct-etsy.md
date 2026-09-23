@@ -5,7 +5,7 @@ Warlock is a **thin API bridge** between a single-owner ChatGPT connector and Et
 ## One-time setup
 
 1. Deploy the Prisma migration for `EtsyConnection`.
-2. Generate a random secret of at least 32 characters and configure it as `WARLOCK_API_KEY` in Vercel. Never commit it, paste it into a conversation, or expose it to the browser.
+2. Configure `WARLOCK_SHOP_ID` in Vercel with the numeric Etsy shop ID of the **owner’s shop**; persistence fails closed if it is unset or the OAuth account differs. This prevents an unrelated OAuth login from replacing the shared grant. Generate a random secret of at least 32 characters and configure it as `WARLOCK_API_KEY` in Vercel. Never commit it, paste it into a conversation, or expose it to the browser.
 3. Visit `/api/etsy/connect` in your **own** browser and authorize the Etsy shop once. The OAuth callback encrypts and saves the grant to PostgreSQL. An existing valid browser cookie also migrates on the next Warlock request.
 4. Install/configure an actual ChatGPT-compatible connector exposing the Warlock operations below and storing the API key as an integration secret. A website endpoint alone does not grant ChatGPT a new callable tool. No browser automation is needed for subsequent API operations once the connector is connected.
 
