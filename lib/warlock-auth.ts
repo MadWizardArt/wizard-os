@@ -1,0 +1,70 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import { NextRequest } from "next/server";
+import { prisma } from "./prisma";
+import { decryptSession, etsyUserId } from "./etsy";
+import { EtsySession, getOwnedEtsyShop, getValidEtsySession } from "./etsy-client";
+
+// Warlock is a single-owner private application. A server-side encrypted grant
+// is shared by the owner's browser and by explicitly authorized API clients.
+const CONNECTION_ID = "primary";
+const OPERATOR_HEADER = "x-warlock-api-key";
+
+function keyMatches(supplied: string) {
+  const expected = process.env.WARLOCK_API_KEY;
+  if (!expected || expected.length < 32 || !supplied) return false;
+  const actualHash = createHash("sha256").update(supplied).digest();
+  const expectedHash = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(actualHash, expectedHash);
+}
+
+export async function saveEtsyConnection(encryptedSession: string) {
+  await prisma.etsyConnection.upsert({
+    where: { id: CONNECTION_ID },
+    create: { id: CONNECTION_ID, encryptedSession },
+    update: { encryptedSession },
+  });
+}
+
+/**
+ * Authenticate an Etsy API request through exactly one of:
+ * - the existing authenticated Warlock browser cookie, or
+ * - the separate, rotatable WARLOCK_API_KEY (intended for a direct connector).
+ * A supplied invalid operator key is never downgraded to cookie access.
+ */
+export async function getEtsyRequestContext(request: NextRequest) {
+  const suppliedKey = request.headers.get(OPERATOR_HEADER);
+  const cookieValue = request.cookies.get("etsy_session")?.value;
+  const isOperator = suppliedKey !== null;
+  if (isOperator ? !keyMatches(suppliedKey) : !cookieValue) return null;
+
+  // A browser cookie proves the owner's prior Etsy OAuth authorization. Always
+  // decrypt it before accepting the browser request, even when using a newer
+  // refreshed token from the database.
+  const browserSession = !isOperator && cookieValue
+    ? decryptSession<EtsySession>(cookieValue)
+    : null;
+
+  const saved = await prisma.etsyConnection.findUnique({ where: { id: CONNECTION_ID } });
+  if (isOperator && !saved) return null; // OAuth has not been completed.
+
+  const encryptedSession = saved?.encryptedSession ?? cookieValue;
+  if (!encryptedSession) return null;
+  const storedSession = decryptSession<EtsySession>(encryptedSession);
+  if (browserSession && etsyUserId(browserSession.access_token) !== etsyUserId(storedSession.access_token)) {
+    // Never give a different Etsy account the existing saved shop's grant.
+    return null;
+  }
+
+  const auth = await getValidEtsySession(encryptedSession);
+  if (auth.refreshedCookieValue) {
+    await saveEtsyConnection(auth.refreshedCookieValue);
+  } else if (!saved) {
+    // Upgrade an existing valid browser session without a new OAuth login.
+    await saveEtsyConnection(encryptedSession);
+  }
+
+  const shop = await getOwnedEtsyShop(auth.session.access_token);
+  const shopId = Number(shop?.shop_id);
+  if (!shopId) throw new Error("etsy_shop_id_missing");
+  return { auth, shop, shopId };
+}
