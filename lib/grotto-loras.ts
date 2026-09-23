@@ -45,6 +45,19 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  */
 export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
   {
+    id: "eyesponyxl-v1",
+    label: "EyesPonyXL · v1.0",
+    air: "urn:air:sdxl:lora:civitai:964638@1080037",
+    compatibility: "both",
+    category: "anatomy",
+    defaultWeight: 0.65,
+    minWeight: 0.2,
+    maxWeight: 1.0,
+    // A subset of the eye-detail prompt terms recommended by the model author.
+    triggerWords: ["detailed eyes", "even eyes", "sharp iris", "sharp pupil"],
+    enabled: true,
+  },
+  {
     id: "novy-official-v1",
     label: "Novy · Official V1",
     air: "urn:air:sdxl:lora:civitai:2957193@3349845",
