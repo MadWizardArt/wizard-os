@@ -26,11 +26,11 @@ function guard(request: NextRequest) {
   if (!configured()) return NextResponse.json({ error: "printful_token_missing" }, { status: 503, headers: noStore });
   return null;
 }
-async function printful(path: string, body?: Json): Promise<unknown> {
+async function printful(path: string, body?: Json, selectedStoreId?: number): Promise<unknown> {
   const token = process.env.PRINTFUL_PRIVATE_TOKEN?.trim();
   if (!token) throw new PrintfulError(503, "printful_token_missing");
   const headers: Record<string, string> = { Authorization: `Bearer ${token}`, "X-PF-Language": "en_US" };
-  const storeId = process.env.PRINTFUL_STORE_ID?.trim();
+  const storeId = selectedStoreId ? String(selectedStoreId) : process.env.PRINTFUL_STORE_ID?.trim();
   if (storeId) headers["X-PF-Store-Id"] = storeId;
   if (body) headers["Content-Type"] = "application/json";
   let response: Response;
@@ -44,6 +44,8 @@ async function printful(path: string, body?: Json): Promise<unknown> {
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) throw new PrintfulError(502, "printful_token_invalid_or_insufficient_scope");
     if (response.status === 429) throw new PrintfulError(503, "printful_rate_limited");
+    if (path === "/shipping/rates" && response.status === 400) throw new PrintfulError(422, "printful_shipping_rejected");
+    if (path === "/shipping/rates" && response.status === 404) throw new PrintfulError(422, "printful_shipping_variant_unavailable");
     if (response.status === 404) throw new PrintfulError(404, "printful_product_not_found");
     // Do not forward arbitrary upstream error bodies (or credentials).
     throw new PrintfulError(502, "printful_request_failed");
@@ -114,28 +116,38 @@ export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "cross_origin_request" }, { status: 403, headers: noStore });
   const data = await request.json().catch(() => null);
   const variantId = positiveId(data?.variantId);
+  const storeId = positiveId(data?.storeId);
   const quantity = Number(data?.quantity ?? 1);
   const countryCode = String(data?.countryCode || "").toUpperCase();
   const stateCode = String(data?.stateCode || "").toUpperCase();
   const zip = String(data?.zip || "").trim();
+  if (!storeId) return NextResponse.json({ error: "printful_store_selection_required" }, { status: 400, headers: noStore });
   if (!variantId || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 20 ||
       !/^[A-Z]{2}$/.test(countryCode) || (["US", "CA", "AU"].includes(countryCode) && !/^[A-Z0-9-]{2,5}$/.test(stateCode)) ||
       zip.length > 16 || (zip && !/^[A-Z0-9 -]+$/i.test(zip))) {
     return NextResponse.json({ error: "invalid_shipping_input" }, { status: 400, headers: noStore });
   }
   try {
+    // Account-scoped tokens can see several stores. Only quote for a store
+    // returned to this token; never silently use another brand or env default.
+    const accessible = await printful("/stores");
+    if (!Array.isArray(accessible)) throw new PrintfulError(502, "printful_invalid_stores_response");
+    if (!accessible.some((store: Json) => positiveId(store.id) === storeId)) {
+      throw new PrintfulError(403, "printful_store_not_accessible");
+    }
     const recipient: Json = { country_code: countryCode };
     if (stateCode) recipient.state_code = stateCode;
     if (zip) recipient.zip = zip;
     const rates = await printful("/shipping/rates", {
       recipient, items: [{ variant_id: variantId, quantity }], currency: "USD",
-    });
+    }, storeId);
     if (!Array.isArray(rates)) throw new PrintfulError(502, "printful_invalid_response");
     return NextResponse.json({
       rates: rates.map((rate: Json) => ({
         id: rate.id, name: rate.name, rate: numberString(rate.rate), currency: rate.currency || "USD",
       })).filter((rate) => rate.rate !== null),
       quotedAt: new Date().toISOString(),
+      storeId,
       note: "Live shipping estimates are not locked; Printful may charge a different final amount. Taxes and additional product options are not included.",
     }, { headers: noStore });
   } catch (error) { return fail(error); }

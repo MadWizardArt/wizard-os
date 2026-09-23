@@ -422,6 +422,7 @@ model SpellmarkVariant {
   label               String
   printfulProductId   Int?
   printfulVariantId   Int?
+  printfulStoreId     Int?
   etsyListingId       String?
   retailPriceCents    Int?
   productionBaseCents Int?

@@ -1,7 +1,7 @@
 export const PRODUCT_STATUSES = ["DESIGN", "PRODUCTION", "PRICING", "LISTING", "READY"] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 export type ProductInput = { title: string; collection: string; description: string; artworkReference: string; notes: string; status: ProductStatus };
-export type VariantInput = { fulfillment: "DIGITAL" | "PHYSICAL"; label: string; printfulProductId: number | null; printfulVariantId: number | null };
+export type VariantInput = { fulfillment: "DIGITAL" | "PHYSICAL"; label: string; printfulProductId: number | null; printfulVariantId: number | null; printfulStoreId: number | null };
 
 function record(raw: unknown): Record<string, unknown> | null {
   return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
@@ -34,11 +34,15 @@ export function readVariant(raw: unknown): VariantInput | null {
   if (!label || (v.fulfillment !== "DIGITAL" && v.fulfillment !== "PHYSICAL")) return null;
   const printfulProductId = id(v.printfulProductId);
   const printfulVariantId = id(v.printfulVariantId);
-  if (v.fulfillment === "DIGITAL" && (v.printfulProductId != null || v.printfulVariantId != null)) return null;
+  const printfulStoreId = id(v.printfulStoreId);
+  if (v.fulfillment === "DIGITAL" && (v.printfulProductId != null || v.printfulVariantId != null || v.printfulStoreId != null)) return null;
   if (v.fulfillment === "PHYSICAL" && ((v.printfulProductId != null) !== (v.printfulVariantId != null))) return null;
+  if (v.fulfillment === "PHYSICAL" && printfulProductId !== null && printfulStoreId === null) return null;
+  if (v.fulfillment === "PHYSICAL" && printfulProductId === null && printfulStoreId !== null) return null;
+  if (v.printfulStoreId !== undefined && v.printfulStoreId !== null && printfulStoreId === null) return null;
   if ((v.printfulProductId !== undefined && v.printfulProductId !== null && printfulProductId === null) ||
       (v.printfulVariantId !== undefined && v.printfulVariantId !== null && printfulVariantId === null)) return null;
-  return { fulfillment: v.fulfillment, label, printfulProductId, printfulVariantId };
+  return { fulfillment: v.fulfillment, label, printfulProductId, printfulVariantId, printfulStoreId };
 }
 export function sameOrigin(request: { headers: { get(name: string): string | null }; nextUrl: URL }) {
   const origin = request.headers.get("origin");

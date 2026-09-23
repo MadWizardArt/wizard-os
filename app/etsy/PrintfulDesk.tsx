@@ -19,6 +19,11 @@ function errorLabel(code: string) {
     printful_rate_limited: "Printful rate limit reached. Wait and try again.",
     printful_unavailable: "Printful is temporarily unreachable. Retry in a moment.",
     invalid_shipping_input: "Choose a variant and enter a valid shipping destination.",
+    printful_store_selection_required: "Choose the Spellmark Printful store before requesting shipping.",
+    printful_store_not_accessible: "This store is no longer available to the connected Printful token. Refresh the page and select Spellmark again.",
+    printful_invalid_stores_response: "Printful did not return an accessible store list. Please try again.",
+    printful_shipping_rejected: "Printful rejected this shipping quote. Confirm the selected Spellmark store, exact poster variant and destination; the quote was not charged or saved.",
+    printful_shipping_variant_unavailable: "Printful cannot quote this variant in the selected store or destination. Check the variant and try another size.",
   };
   return map[code] || "Printful could not complete this request. Please try again.";
 }
@@ -27,6 +32,7 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
   const [status, setStatus] = useState("Checking secure connection…");
   const [connected, setConnected] = useState(false);
   const [stores, setStores] = useState<{ id: number; name: string }[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState("");
   const [masterProducts, setMasterProducts] = useState<{ id: string; title: string; collection: string }[]>([]);
   const [masterProductId, setMasterProductId] = useState("");
   const [mapping, setMapping] = useState(false);
@@ -60,7 +66,7 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
   }
   useEffect(() => {
     read("/api/printful?action=status")
-      .then((data) => { setConnected(true); setStores(data.stores || []); setStatus("Printful connected · read-only"); })
+      .then((data) => { const accessible = data.stores || []; setConnected(true); setStores(accessible); setSelectedStoreId(accessible.length === 1 ? String(accessible[0].id) : ""); setStatus("Printful connected · read-only"); })
       .catch((error) => setStatus(errorLabel(error.message)));
   }, []);
 
@@ -77,12 +83,12 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
     return () => window.removeEventListener("warlock:products-changed", refresh);
   }, []);
   async function attachVariant() {
-    if (!variant || !productId || !masterProductId) return;
+    if (!variant || !productId || !masterProductId || !selectedStoreId) return;
     setMapping(true); setMapNotice("");
     try {
       const response = await fetch(`/api/warlock/products/${masterProductId}/variants`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fulfillment: "PHYSICAL", label: variant.name, printfulProductId: Number(productId), printfulVariantId: variant.id }),
+        body: JSON.stringify({ fulfillment: "PHYSICAL", label: variant.name, printfulProductId: Number(productId), printfulVariantId: variant.id, printfulStoreId: Number(selectedStoreId) }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "variant_save_failed");
@@ -116,7 +122,7 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
     try {
       const data = await read("/api/printful", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId: Number(variantId), quantity: Number(quantity), countryCode: country, stateCode: state, zip }),
+        body: JSON.stringify({ storeId: Number(selectedStoreId), variantId: Number(variantId), quantity: Number(quantity), countryCode: country, stateCode: state, zip }),
       });
       setRates(data.rates || []);
       setChosenRate(data.rates?.[0]?.id || "");
@@ -144,7 +150,14 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
         <h1 style={{ fontFamily: "Georgia, serif", fontWeight: 400, fontSize: "clamp(32px, 6vw, 54px)", margin: "5px 0" }}>Printful Cost Desk</h1>
         <p style={{ color: "#bbc0bd", lineHeight: 1.6, maxWidth: 700 }}>Compare real catalog variants, estimate destination-specific shipping, and check retail margin before Aurelia hands a physical listing to Warlock.</p>
         <div role="status" style={{ color: connected ? "#a7d2ba" : "#e6ba82", fontSize: 13, marginTop: 12 }}>{status}</div>
-        {connected && stores.length > 0 && <p style={{ color: "#9ea9a8", fontSize: 12 }}>Accessible store: {stores.map((s) => `${s.name} (${s.id})`).join(", ")}</p>}
+        {connected && stores.length > 0 && <p style={{ color: "#9ea9a8", fontSize: 12 }}>Accessible stores: {stores.map((s) => `${s.name} (${s.id})`).join(", ")}</p>}
+        {connected && <label style={{ display: "block", marginTop: 16, maxWidth: 520 }}>Printful store for this edition
+          <select style={{ ...input, marginTop: 6 }} aria-label="Printful store for shipping" value={selectedStoreId} onChange={(e) => { setSelectedStoreId(e.target.value); setRates([]); setChosenRate(""); setQuotedAt(""); setMessage(""); setMapNotice(""); }}>
+            <option value="">Choose Spellmark (Etsy) — do not use Mad Wizard Art</option>
+            {stores.map((store) => <option key={store.id} value={store.id}>{store.name} · #{store.id}</option>)}
+          </select>
+          <small style={{ display: "block", marginTop: 7, color: "#bbc0bd" }}>Printful requires an explicit store for an account-level token. The choice scopes shipping and the saved edition; it does not affect Mad Wizard Art or place an order.</small>
+        </label>}
       </header>
 
       <section style={panel}>
@@ -161,7 +174,7 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
           </select>
         </label>
         <label style={{ display: "block", marginTop: 14 }}>Exact variant
-          <select style={{ ...input, marginTop: 6 }} disabled={!variants.length || loading} value={variantId} onChange={(e) => { setVariantId(e.target.value); setRates([]); setQuotedAt(""); }}>
+          <select style={{ ...input, marginTop: 6 }} disabled={!variants.length || loading} value={variantId} onChange={(e) => { setVariantId(e.target.value); setRates([]); setChosenRate(""); setQuotedAt(""); setMessage(""); }}>
             <option value="">Select size / color / frame</option>
             {variants.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.price !== null ? `${v.currency} ${v.price}` : "price unavailable"}</option>)}
           </select>
@@ -176,9 +189,9 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
           <label>Country code<input style={{ ...input, marginTop: 6 }} maxLength={2} value={country} onChange={(e) => setCountry(e.target.value.toUpperCase())} /></label>
           <label>State/province<input style={{ ...input, marginTop: 6 }} maxLength={5} value={state} onChange={(e) => setState(e.target.value.toUpperCase())} /></label>
           <label>ZIP / postal code<input style={{ ...input, marginTop: 6 }} maxLength={16} value={zip} onChange={(e) => setZip(e.target.value)} placeholder="Optional" /></label>
-          <label>Quantity<input type="number" min={1} max={20} step={1} style={{ ...input, marginTop: 6 }} value={quantity} onChange={(e) => { setQuantity(e.target.value); setRates([]); }} /></label>
+          <label>Quantity<input type="number" min={1} max={20} step={1} style={{ ...input, marginTop: 6 }} value={quantity} onChange={(e) => { setQuantity(e.target.value); setRates([]); setChosenRate(""); setQuotedAt(""); }} /></label>
         </div>
-        <button style={{ ...button, marginTop: 16 }} type="button" disabled={!variant || variant.price === null || !validQty || quoting} onClick={() => void quote()}>{quoting ? "Requesting…" : "Get live shipping estimate"}</button>
+        <button style={{ ...button, marginTop: 16 }} type="button" disabled={!selectedStoreId || !variant || variant.price === null || !validQty || quoting} onClick={() => void quote()}>{quoting ? "Requesting…" : "Get live shipping estimate"}</button>
         {rates.length > 0 && <label style={{ display: "block", marginTop: 16 }}>Shipping service
           <select style={{ ...input, marginTop: 6 }} value={chosenRate} onChange={(e) => setChosenRate(e.target.value)}>
             {rates.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.currency} {r.rate}</option>)}
@@ -198,7 +211,7 @@ export default function PrintfulDesk({ embedded = false }: { embedded?: boolean 
             {masterProducts.map((p) => <option key={p.id} value={p.id}>{p.collection ? `${p.collection} · ` : ""}{p.title}</option>)}
           </select>
         </label>
-        <button type="button" style={{ ...button, marginTop: 14 }} disabled={!connected || !variant || !masterProductId || mapping} onClick={() => void attachVariant()}>{mapping ? "Linking…" : "Attach physical edition"}</button>
+        <button type="button" style={{ ...button, marginTop: 14 }} disabled={!connected || !selectedStoreId || !variant || !masterProductId || mapping} onClick={() => void attachVariant()}>{mapping ? "Linking…" : "Attach physical edition"}</button>
         {mapNotice && <p role="status" style={{ color: "#d6c099" }}>{mapNotice}</p>}
       </section>
 
