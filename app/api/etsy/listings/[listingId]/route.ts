@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders, getOwnedEtsyShop, getValidEtsySession } from "../../../../../lib/etsy-client";
+import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../../lib/etsy-client";
+import { getEtsyRequestContext } from "../../../../../lib/warlock-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,7 @@ function validateListingId(listingId: string) {
 }
 
 async function getAuthContext(request: NextRequest) {
-  const cookieValue = request.cookies.get("etsy_session")?.value;
-  if (!cookieValue) return null;
-  const auth = await getValidEtsySession(cookieValue);
-  const shop = await getOwnedEtsyShop(auth.session.access_token);
-  const shopId = Number(shop?.shop_id);
-  if (!shopId) throw new Error("etsy_shop_id_missing");
-  return { auth, shopId };
+  return getEtsyRequestContext(request);
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ listingId: string }> }) {

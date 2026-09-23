@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders, getOwnedEtsyShop, getValidEtsySession } from "../../../../../../lib/etsy-client";
+import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../../../lib/etsy-client";
+import { getEtsyRequestContext } from "../../../../../../lib/warlock-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ listingId: string }> }) {
-  const cookieValue = request.cookies.get("etsy_session")?.value;
-  if (!cookieValue) return NextResponse.json({ error: "etsy_not_connected" }, { status: 401 });
-
   const { listingId } = await context.params;
   if (!/^\d+$/.test(listingId)) return NextResponse.json({ error: "invalid_listing_id" }, { status: 400 });
 
@@ -15,10 +13,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ li
   if (!(image instanceof File)) return NextResponse.json({ error: "image_required" }, { status: 400 });
 
   try {
-    const auth = await getValidEtsySession(cookieValue);
-    const shop = await getOwnedEtsyShop(auth.session.access_token);
-    const shopId = Number(shop?.shop_id);
-    if (!shopId) throw new Error("etsy_shop_id_missing");
+    const context = await getEtsyRequestContext(request);
+    if (!context) return NextResponse.json({ error: "etsy_not_connected" }, { status: 401 });
+    const { auth, shopId } = context;
 
     const body = new FormData();
     body.set("image", image, image.name);

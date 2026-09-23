@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ETSY_SESSION_COOKIE_OPTIONS, getOwnedEtsyShop, getValidEtsySession } from "../../../../lib/etsy-client";
+import { ETSY_SESSION_COOKIE_OPTIONS } from "../../../../lib/etsy-client";
+import { getEtsyRequestContext } from "../../../../lib/warlock-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const cookieValue = request.cookies.get("etsy_session")?.value;
-  if (!cookieValue) {
-    return NextResponse.json({ connected: false, error: "etsy_not_connected" }, { status: 401 });
-  }
-
   try {
-    const auth = await getValidEtsySession(cookieValue);
-    const shop = await getOwnedEtsyShop(auth.session.access_token);
+    const context = await getEtsyRequestContext(request);
+    if (!context) return NextResponse.json({ connected: false, error: "etsy_not_connected" }, { status: 401 });
+    const { auth, shop } = context;
     const response = NextResponse.json({ connected: true, shop });
 
     if (auth.refreshedCookieValue) {
