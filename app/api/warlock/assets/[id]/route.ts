@@ -1,8 +1,8 @@
 import { del, get } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { verifyArtistSession } from "../../../../../../lib/museum-artist-auth";
-import { isWarlockOperatorRequest } from "../../../../../../lib/warlock-auth";
-import { prisma } from "../../../../../../lib/prisma";
+import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
+import { isWarlockOperatorRequest } from "../../../../../lib/warlock-auth";
+import { prisma } from "../../../../../lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
