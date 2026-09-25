@@ -3,12 +3,15 @@ import * as z from "zod/v4";
 import { buildWarlockDryRun, validateWarlockManifest } from "./manifest";
 import { findWarlockProduct } from "./repository";
 
-const selectorSchema = z.object({
+const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
   title: z.string().trim().min(1).max(140).optional(),
-}).refine((value) => Boolean(value.productId) !== Boolean(value.title), {
-  message: "Provide exactly one of productId or title.",
-});
+};
+
+type ProductSelector = {
+  productId?: string;
+  title?: string;
+};
 
 const annotations = {
   readOnlyHint: true,
@@ -31,7 +34,15 @@ function failure(code: string, message: string) {
   };
 }
 
-async function loadProduct(selector: z.infer<typeof selectorSchema>) {
+function validSelector(selector: ProductSelector) {
+  return Boolean(selector.productId) !== Boolean(selector.title);
+}
+
+async function loadProduct(selector: ProductSelector) {
+  if (!validSelector(selector)) {
+    return { error: failure("invalid_product_selector", "Provide exactly one of productId or title.") };
+  }
+
   try {
     const product = await findWarlockProduct(selector);
     if (!product) return { error: failure("product_not_found", "No canonical Spellmark product matched that selector.") };
@@ -56,7 +67,7 @@ export function createWarlockCommerceMcpServer() {
     {
       title: "Get Spellmark Product",
       description: "Read one canonical Spellmark product, including its assets, variants, Printful mappings, prices, and Etsy listing IDs.",
-      inputSchema: selectorSchema,
+      inputSchema: selectorShape,
       annotations,
     },
     async (selector) => {
@@ -71,7 +82,7 @@ export function createWarlockCommerceMcpServer() {
     {
       title: "Validate Product Package",
       description: "Validate a canonical product package before any Etsy or Printful write action is allowed.",
-      inputSchema: selectorSchema,
+      inputSchema: selectorShape,
       annotations,
     },
     async (selector) => {
@@ -90,7 +101,7 @@ export function createWarlockCommerceMcpServer() {
     {
       title: "Dry Run Product Production",
       description: "Return the exact planned Warlock, Printful, and Etsy production sequence without changing any external system.",
-      inputSchema: selectorSchema,
+      inputSchema: selectorShape,
       annotations,
     },
     async (selector) => {
@@ -105,7 +116,7 @@ export function createWarlockCommerceMcpServer() {
     {
       title: "Get Product Production Status",
       description: "Summarize canonical fulfillment mappings and readiness without contacting or modifying Etsy or Printful.",
-      inputSchema: selectorSchema,
+      inputSchema: selectorShape,
       annotations,
     },
     async (selector) => {
