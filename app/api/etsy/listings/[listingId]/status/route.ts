@@ -16,11 +16,11 @@ export async function GET(request: NextRequest, routeContext: { params: Promise<
     const { auth, shopId } = requestContext;
     const headers = etsyHeaders(auth.session.access_token);
 
-    const [listingResponse, imagesResponse, filesResponse, variant] = await Promise.all([
+    const [listingResponse, imagesResponse, filesResponse, variants] = await Promise.all([
       fetch(`https://api.etsy.com/v3/application/listings/${listingId}`, { headers, cache: "no-store" }),
       fetch(`https://api.etsy.com/v3/application/listings/${listingId}/images`, { headers, cache: "no-store" }),
       fetch(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/files`, { headers, cache: "no-store" }),
-      prisma.spellmarkVariant.findFirst({ where: { etsyListingId: listingId }, select: { id: true } }),
+      prisma.spellmarkVariant.findMany({ where: { etsyListingId: listingId }, select: { id: true } }),
     ]);
 
     const listing = await listingResponse.json().catch(() => ({}));
@@ -36,7 +36,12 @@ export async function GET(request: NextRequest, routeContext: { params: Promise<
 
     const imageCount = Array.isArray(images?.results) ? images.results.length : 0;
     const fileCount = filesResponse.ok && Array.isArray(files?.results) ? files.results.length : 0;
-    const requirement = variant?.id ? SPELLMARK_RELEASE_REQUIREMENTS[variant.id] : undefined;
+    const variantIds = variants.map((variant) => variant.id);
+    const physicalVolansIds = ["spellmarkowlunframed8x10v1", "spellmarkowlunframedv1", "spellmarkowlframedv1"];
+    const isVolansPhysicalLineup = physicalVolansIds.every((id) => variantIds.includes(id));
+    const requirement = isVolansPhysicalLineup
+      ? { imageCount: 11, digitalFileCount: 0, label: "VOLANS AETHEREUS — Physical lineup" }
+      : variantIds.map((id) => SPELLMARK_RELEASE_REQUIREMENTS[id]).find(Boolean);
     const requiredImageCount = requirement?.imageCount ?? 1;
     const requiredFileCount = requirement?.digitalFileCount ?? (needsDigitalFile ? 1 : 0);
 
@@ -44,7 +49,8 @@ export async function GET(request: NextRequest, routeContext: { params: Promise<
       ok: true,
       listingId: Number(listingId),
       listingType,
-      variantId: variant?.id ?? null,
+      variantId: variantIds[0] ?? null,
+      variantIds,
       releaseLabel: requirement?.label ?? null,
       imageCount,
       fileCount,
