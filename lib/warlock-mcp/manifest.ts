@@ -18,6 +18,7 @@ export type WarlockManifestVariant = {
   etsyListingId: string | null;
   retailPriceCents: number | null;
   productionBaseCents: number | null;
+  productionQuotedAt: string | Date | null;
   currency: string;
 };
 
