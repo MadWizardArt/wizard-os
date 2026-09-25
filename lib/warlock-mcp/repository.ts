@@ -38,6 +38,7 @@ const selection = {
       etsyListingId: true,
       retailPriceCents: true,
       productionBaseCents: true,
+      productionQuotedAt: true,
       currency: true,
     },
   },

@@ -3,6 +3,8 @@ import * as z from "zod/v4";
 import { buildWarlockDryRun, validateWarlockManifest } from "./manifest";
 import type { WarlockProductManifest } from "./manifest";
 import { findWarlockProduct } from "./repository";
+import { evaluateCommerceGates } from "../warlock-commerce/gates";
+import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -19,6 +21,11 @@ const annotations = {
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
+} as const;
+
+const liveReadAnnotations = {
+  ...annotations,
+  openWorldHint: true,
 } as const;
 
 function success(payload: Record<string, unknown>) {
@@ -122,6 +129,49 @@ export function createWarlockCommerceMcpServer() {
     },
   );
 
+
+  server.registerTool(
+    "evaluate_commerce_gates",
+    {
+      title: "Evaluate Commerce Gates",
+      description: "Evaluate Etsy disclosure compliance, estimated contribution margin, quote freshness, and required Printful mappings without modifying any external system.",
+      inputSchema: selectorShape,
+      annotations,
+    },
+    async (selector) => {
+      const loaded = await loadProduct(selector);
+      if (!loaded.ok) return loaded.error;
+      return success({
+        productId: loaded.product.id,
+        title: loaded.product.title,
+        gates: evaluateCommerceGates(loaded.product),
+      });
+    },
+  );
+
+  server.registerTool(
+    "preflight_supplier",
+    {
+      title: "Preflight Printful Supplier",
+      description: "Perform live read-only Printful checks for mapped physical variants, store access, catalog identity, and North America availability.",
+      inputSchema: selectorShape,
+      annotations: liveReadAnnotations,
+    },
+    async (selector) => {
+      const loaded = await loadProduct(selector);
+      if (!loaded.ok) return loaded.error;
+      const gates = evaluateCommerceGates(loaded.product);
+      const supplier = await runPrintfulSupplierPreflight(loaded.product);
+      return success({
+        productId: loaded.product.id,
+        title: loaded.product.title,
+        gates,
+        supplier,
+        readyForWritePhase: gates.pass && supplier.pass,
+      });
+    },
+  );
+
   server.registerTool(
     "get_production_status",
     {
@@ -134,13 +184,15 @@ export function createWarlockCommerceMcpServer() {
       const loaded = await loadProduct(selector);
       if (!loaded.ok) return loaded.error;
       const validation = validateWarlockManifest(loaded.product);
+      const gates = evaluateCommerceGates(loaded.product);
       const physical = loaded.product.variants.filter((variant) => variant.fulfillment === "PHYSICAL");
       const digital = loaded.product.variants.filter((variant) => variant.fulfillment === "DIGITAL");
       return success({
         productId: loaded.product.id,
         title: loaded.product.title,
         status: loaded.product.status,
-        readyToExecute: validation.ready,
+        readyToExecute: validation.ready && gates.pass,
+        commerceGates: gates,
         physical: {
           variants: physical.length,
           mappedToPrintful: physical.filter((variant) => variant.printfulVariantId && variant.printfulStoreId).length,
