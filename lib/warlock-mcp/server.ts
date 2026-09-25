@@ -203,6 +203,8 @@ export function createWarlockCommerceMcpServer() {
       const gates = evaluateCommerceGates(loaded.product);
       const physical = loaded.product.variants.filter((variant) => variant.fulfillment === "PHYSICAL");
       const digital = loaded.product.variants.filter((variant) => variant.fulfillment === "DIGITAL");
+      const physicalListing = loaded.product.listings.find((listing) => listing.fulfillment === "PHYSICAL") ?? null;
+      const digitalListing = loaded.product.listings.find((listing) => listing.fulfillment === "DIGITAL") ?? null;
       return success({
         productId: loaded.product.id,
         title: loaded.product.title,
@@ -212,12 +214,24 @@ export function createWarlockCommerceMcpServer() {
         physical: {
           variants: physical.length,
           mappedToPrintful: physical.filter((variant) => variant.printfulVariantId && variant.printfulStoreId).length,
-          etsyListingIds: [...new Set(physical.map((variant) => variant.etsyListingId).filter(Boolean))],
+          listingManifest: physicalListing ? {
+            id: physicalListing.id,
+            title: physicalListing.title,
+            status: physicalListing.status,
+            etsyListingId: physicalListing.etsyListingId,
+            imageCount: physicalListing.assets.filter((asset) => asset.kind === "image").length,
+          } : null,
         },
         digital: {
           variants: digital.length,
-          customerFiles: loaded.product.assets.filter((asset) => asset.role === "customer_file").length,
-          etsyListingIds: [...new Set(digital.map((variant) => variant.etsyListingId).filter(Boolean))],
+          listingManifest: digitalListing ? {
+            id: digitalListing.id,
+            title: digitalListing.title,
+            status: digitalListing.status,
+            etsyListingId: digitalListing.etsyListingId,
+            imageCount: digitalListing.assets.filter((asset) => asset.kind === "image").length,
+            customerFileCount: digitalListing.assets.filter((asset) => asset.kind === "customer_file").length,
+          } : null,
         },
         validation,
       });
