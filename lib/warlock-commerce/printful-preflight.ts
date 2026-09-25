@@ -1,4 +1,4 @@
-import type { WarlockProductManifest } from "../warlock-mcp/manifest";
+import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 
 const API = "https://api.printful.com";
 
