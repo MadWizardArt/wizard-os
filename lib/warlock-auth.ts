@@ -7,7 +7,7 @@ import { EtsySession, etsyUserId, getOwnedEtsyShop, getValidEtsySession } from "
 // Warlock is a single-owner private application. A server-side encrypted grant
 // is shared by the owner's browser and by explicitly authorized API clients.
 const CONNECTION_ID = "primary";
-const OPERATOR_HEADER = "x-warlock-api-key";
+export const WARLOCK_OPERATOR_HEADER = "x-warlock-api-key";
 
 function keyMatches(supplied: string) {
   const expected = process.env.WARLOCK_API_KEY;
@@ -15,6 +15,10 @@ function keyMatches(supplied: string) {
   const actualHash = createHash("sha256").update(supplied).digest();
   const expectedHash = createHash("sha256").update(expected).digest();
   return timingSafeEqual(actualHash, expectedHash);
+}
+
+export function isWarlockOperatorRequest(request: Pick<NextRequest, "headers">) {
+  return keyMatches(request.headers.get(WARLOCK_OPERATOR_HEADER) ?? "");
 }
 
 export async function saveEtsyConnection(encryptedSession: string) {
@@ -43,7 +47,7 @@ export async function saveEtsyConnection(encryptedSession: string) {
  * A supplied invalid operator key is never downgraded to cookie access.
  */
 export async function getEtsyRequestContext(request: NextRequest) {
-  const suppliedKey = request.headers.get(OPERATOR_HEADER);
+  const suppliedKey = request.headers.get(WARLOCK_OPERATOR_HEADER);
   const cookieValue = request.cookies.get("etsy_session")?.value;
   const isOperator = suppliedKey !== null;
   if (isOperator ? !keyMatches(suppliedKey ?? "") : !cookieValue) return null;
