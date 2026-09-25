@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../../lib/etsy-client";
 import { getEtsyRequestContext } from "../../../../../lib/warlock-auth";
 import { prisma } from "../../../../../lib/prisma";
+import { ensureEtsyAiDisclosure } from "../../../../../lib/warlock-commerce/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const title = "VOLANS AETHEREUS — The Sky Wanderer | Medieval Manuscript Barn Owl Art Print | Cabinet of Curiosities";
-    const description = [
+    const description = ensureEtsyAiDisclosure([
       "VOLANS AETHEREUS — The Sky Wanderer is the flagship owl of Spellmark’s Cabinet of Curiosities collection.",
       "",
       "A naturalistic barn owl appears within a restrained illuminated-manuscript-inspired folio: parchment texture, celestial ornament, botanical flourishes, and gold-toned printed details. The gold appearance is part of the printed artwork; it is not metallic foil or hand gilding.",
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       "Unframed editions do not include a frame. The framed edition includes only the available black Printful frame shown in the product imagery. Decorative props are not included.",
       "",
       "Print-on-demand fulfillment through Printful. Artwork master and production presentation approved September 25, 2026.",
-    ].join("\n");
+    ].join("\n"));
 
     const body = new URLSearchParams({
       quantity: "999",
