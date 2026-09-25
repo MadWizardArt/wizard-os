@@ -410,8 +410,24 @@ model SpellmarkProduct {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   variants         SpellmarkVariant[]
+  assets           SpellmarkAsset[]
 
   @@index([collection, status])
+}
+
+model SpellmarkAsset {
+  id          String           @id @default(cuid())
+  productId   String
+  product     SpellmarkProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  role        String           @default("other")
+  fileName    String
+  blobUrl     String           @unique
+  pathname    String
+  contentType String
+  byteSize    Int
+  createdAt   DateTime         @default(now())
+
+  @@index([productId, role])
 }
 
 model SpellmarkVariant {
