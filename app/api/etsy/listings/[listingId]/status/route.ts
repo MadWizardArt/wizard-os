@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, routeContext: { params: Promise<
     const { auth, shopId } = requestContext;
     const headers = etsyHeaders(auth.session.access_token);
 
-    const [listingResponse, imagesResponse, filesResponse, variant] = await Promise.all([
+    const [listingResponse, imagesResponse, filesResponse, variants] = await Promise.all([
       fetch(`https://api.etsy.com/v3/application/listings/${listingId}`, { headers, cache: "no-store" }),
       fetch(`https://api.etsy.com/v3/application/listings/${listingId}/images`, { headers, cache: "no-store" }),
       fetch(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}/files`, { headers, cache: "no-store" }),
