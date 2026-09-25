@@ -16,7 +16,10 @@ export async function PATCH(request: NextRequest, context: Context) {
   if (!/^[a-z0-9]{15,40}$/.test(id)) return NextResponse.json({ error: "invalid_id" }, { status: 400, headers });
   try {
     const product = await prisma.spellmarkProduct.update({
-      where: { id }, data: input, include: { variants: { orderBy: { createdAt: "asc" } } },
+      where: { id }, data: input, include: {
+      variants: { orderBy: { createdAt: "asc" } },
+      listings: { orderBy: { fulfillment: "asc" } },
+    },
     });
     return NextResponse.json({ product }, { headers });
   } catch {
