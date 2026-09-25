@@ -15,6 +15,9 @@ type EtsyListing = {
 type Readiness = {
   imageCount: number;
   fileCount: number;
+  requiredImageCount?: number;
+  requiredFileCount?: number;
+  releaseLabel?: string | null;
   hasImage: boolean;
   hasDigitalFile: boolean;
   readyForHumanReview: boolean;
