@@ -17,11 +17,12 @@ Browser requests continue to use the existing `etsy_session` HttpOnly cookie. Co
 
 - `GET /api/etsy/shop`: verify owner/shop connection.
 - `GET /api/etsy/listings?state=draft`: find existing drafts before creating a new listing.
-- `POST /api/etsy/drafts`: create a draft (currently **digital only**; physical POD variants still need a dedicated implementation).
+- `POST /api/etsy/drafts`: create digital or physical drafts. Physical drafts require a real Etsy `shipping_profile_id` and `readiness_state_id`; prepared Spellmark variants can be linked back to the resulting Etsy listing ID.
+- `GET /api/etsy/commerce-profiles`: read the shop's available shipping and processing profiles for physical-draft creation.
 - `GET/PATCH /api/etsy/listings/:listingId`: inspect/change a draft.
 - `POST /api/etsy/listings/:listingId/images`: upload listing image via multipart `image` field, optional `rank`.
 - `POST /api/etsy/listings/:listingId/files`: upload a digital customer file via multipart `file` field.
-- `GET /api/etsy/listings/:listingId/status`: verify image and digital-file counts. The digital-file criterion **does not apply to physical POD prints**.
+- `GET /api/etsy/listings/:listingId/status`: verify image/file counts. Prepared Spellmark releases can require the full expected mockup count before review; digital-file requirements do not apply to physical POD prints.
 
 ## Boundaries
 
