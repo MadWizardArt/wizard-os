@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node scripts/production-migrate.mjs && next build",
+    "build": "prisma generate && node scripts/production-migrate.mjs && node scripts/release-volans-to-etsy.mjs && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "db:generate": "prisma generate",
@@ -24,7 +24,8 @@
     "next": "15.5.24",
     "pg": "^8.23.0",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
