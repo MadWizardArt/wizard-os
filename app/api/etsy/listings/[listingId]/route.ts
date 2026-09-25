@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../../lib/etsy-client";
 import { getEtsyRequestContext } from "../../../../../lib/warlock-auth";
+import { ensureEtsyAiDisclosure } from "../../../../../lib/warlock-commerce/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ l
 
     const body = new URLSearchParams();
     if (input.title !== undefined) body.set("title", input.title);
-    if (input.description !== undefined) body.set("description", input.description);
+    if (input.description !== undefined) body.set("description", ensureEtsyAiDisclosure(input.description));
     if (Number.isFinite(input.price)) body.set("price", Number(input.price).toFixed(2));
     if (Number.isFinite(input.quantity)) body.set("quantity", String(input.quantity));
     if (input.tags) body.set("tags", input.tags.join(","));
