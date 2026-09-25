@@ -411,6 +411,7 @@ model SpellmarkProduct {
   updatedAt        DateTime           @updatedAt
   variants         SpellmarkVariant[]
   assets           SpellmarkAsset[]
+  listings         SpellmarkListing[]
 
   @@index([collection, status])
 }
@@ -426,6 +427,7 @@ model SpellmarkAsset {
   contentType String
   byteSize    Int
   createdAt   DateTime         @default(now())
+  listingLinks SpellmarkListingAsset[]
 
   @@index([productId, role])
 }
@@ -450,4 +452,47 @@ model SpellmarkVariant {
   @@index([productId, fulfillment])
   @@index([printfulVariantId])
   @@index([etsyListingId])
+}
+
+
+model SpellmarkListing {
+  id               String               @id @default(cuid())
+  productId        String
+  product          SpellmarkProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fulfillment      SpellmarkFulfillment
+  title            String
+  description      String               @default("")
+  tagsJson         String               @default("[]")
+  taxonomyId       Int?
+  shippingProfileId Int?
+  readinessStateId Int?
+  quantity         Int                  @default(999)
+  whoMade          String               @default("i_did")
+  whenMade         String               @default("2020_2026")
+  isSupply         Boolean              @default(false)
+  shouldAutoRenew  Boolean              @default(true)
+  etsyListingId    String?
+  status           String               @default("CONFIG")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  assets           SpellmarkListingAsset[]
+
+  @@unique([productId, fulfillment])
+  @@index([etsyListingId])
+  @@index([status])
+}
+
+model SpellmarkListingAsset {
+  id        String           @id @default(cuid())
+  listingId String
+  listing   SpellmarkListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     SpellmarkAsset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  kind      String           @default("image")
+  position  Int              @default(1)
+  createdAt DateTime         @default(now())
+
+  @@unique([listingId, assetId])
+  @@unique([listingId, kind, position])
+  @@index([assetId])
 }
