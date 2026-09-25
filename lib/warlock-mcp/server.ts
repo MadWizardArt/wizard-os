@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { buildWarlockDryRun, validateWarlockManifest } from "./manifest";
+import type { WarlockProductManifest } from "./manifest";
 import { findWarlockProduct } from "./repository";
 
 const selectorShape = {
@@ -29,30 +30,40 @@ function success(payload: Record<string, unknown>) {
 
 function failure(code: string, message: string) {
   return {
-    isError: true,
+    isError: true as const,
     content: [{ type: "text" as const, text: JSON.stringify({ error: code, message }) }],
   };
 }
+
+type ToolFailure = ReturnType<typeof failure>;
+type LoadedProduct =
+  | { ok: true; product: WarlockProductManifest }
+  | { ok: false; error: ToolFailure };
 
 function validSelector(selector: ProductSelector) {
   return Boolean(selector.productId) !== Boolean(selector.title);
 }
 
-async function loadProduct(selector: ProductSelector) {
+async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
   if (!validSelector(selector)) {
-    return { error: failure("invalid_product_selector", "Provide exactly one of productId or title.") };
+    return { ok: false, error: failure("invalid_product_selector", "Provide exactly one of productId or title.") };
   }
 
   try {
     const product = await findWarlockProduct(selector);
-    if (!product) return { error: failure("product_not_found", "No canonical Spellmark product matched that selector.") };
-    return { product };
+    if (!product) {
+      return { ok: false, error: failure("product_not_found", "No canonical Spellmark product matched that selector.") };
+    }
+    return { ok: true, product };
   } catch (error) {
     if (error instanceof Error && error.message === "warlock_product_title_ambiguous") {
-      return { error: failure("product_title_ambiguous", "More than one product has that title. Use productId instead.") };
+      return {
+        ok: false,
+        error: failure("product_title_ambiguous", "More than one product has that title. Use productId instead."),
+      };
     }
     console.error("Warlock MCP product lookup failed", error);
-    return { error: failure("warlock_lookup_failed", "Warlock could not load the canonical product.") };
+    return { ok: false, error: failure("warlock_lookup_failed", "Warlock could not load the canonical product.") };
   }
 }
 
@@ -72,7 +83,7 @@ export function createWarlockCommerceMcpServer() {
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
-      if ("error" in loaded) return loaded.error;
+      if (!loaded.ok) return loaded.error;
       return success({ product: loaded.product });
     },
   );
@@ -87,7 +98,7 @@ export function createWarlockCommerceMcpServer() {
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
-      if ("error" in loaded) return loaded.error;
+      if (!loaded.ok) return loaded.error;
       return success({
         productId: loaded.product.id,
         title: loaded.product.title,
@@ -106,7 +117,7 @@ export function createWarlockCommerceMcpServer() {
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
-      if ("error" in loaded) return loaded.error;
+      if (!loaded.ok) return loaded.error;
       return success(buildWarlockDryRun(loaded.product));
     },
   );
@@ -121,7 +132,7 @@ export function createWarlockCommerceMcpServer() {
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
-      if ("error" in loaded) return loaded.error;
+      if (!loaded.ok) return loaded.error;
       const validation = validateWarlockManifest(loaded.product);
       const physical = loaded.product.variants.filter((variant) => variant.fulfillment === "PHYSICAL");
       const digital = loaded.product.variants.filter((variant) => variant.fulfillment === "DIGITAL");
