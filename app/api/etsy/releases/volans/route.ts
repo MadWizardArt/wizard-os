@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       listing,
       inventory,
       listingId,
-      expectedImages: 11,
+      expectedImages: 10,
       state: listing?.state ?? "draft",
     }, { status: 201 });
     if (auth.refreshedCookieValue) response.cookies.set("etsy_session", auth.refreshedCookieValue, ETSY_SESSION_COOKIE_OPTIONS);
