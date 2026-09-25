@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ETSY_SESSION_COOKIE_OPTIONS, etsyHeaders } from "../../../../lib/etsy-client";
 import { getEtsyRequestContext } from "../../../../lib/warlock-auth";
 import { prisma } from "../../../../lib/prisma";
+import { ensureEtsyAiDisclosure } from "../../../../lib/warlock-commerce/policy";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const body = new URLSearchParams({
       quantity: String(input.quantity ?? 999),
       title: input.title,
-      description: input.description,
+      description: ensureEtsyAiDisclosure(input.description),
       price: input.price.toFixed(2),
       who_made: "i_did",
       when_made: "2020_2026",
