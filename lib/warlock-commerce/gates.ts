@@ -1,9 +1,9 @@
-import type { WarlockProductManifest } from "../warlock-mcp/manifest";
+import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 import {
   ensureEtsyAiDisclosure,
   estimateEtsyBaseFeesCents,
   hasRequiredEtsyAiDisclosure,
-} from "./policy";
+} from "./policy.ts";
 
 export type CommerceGateIssue = {
   gate: "COMPLIANCE" | "MARGIN" | "SUPPLIER";
