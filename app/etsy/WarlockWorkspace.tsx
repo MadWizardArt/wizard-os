@@ -5,6 +5,7 @@ import DraftFinisher from "./DraftFinisher";
 import EtsyConsole from "./EtsyConsole";
 import PrintfulDesk from "./PrintfulDesk";
 import ProductStudio from "./ProductStudio";
+import PackageUpload from "./PackageUpload";
 
 type Tab = "products" | "production" | "listings";
 const tabs: { id: Tab; label: string; sub: string }[] = [
@@ -45,7 +46,7 @@ export default function WarlockWorkspace() {
           textAlign: "left", cursor: "pointer",
         }}><strong style={{ display: "block", fontSize: 14 }}>{item.label}</strong><small style={{ display: "block", marginTop: 3, opacity: .7 }}>{item.sub}</small></button>)}
       </nav>
-      {tab === "products" && <ProductStudio />}
+      {tab === "products" && <section style={{ display: "grid", gap: 18 }}><ProductStudio /><PackageUpload /></section>}
       {tab === "production" && <PrintfulDesk embedded />}
       {tab === "listings" && <section style={{ display: "grid", gap: 14 }}>
         <p style={{ color: "#aebac0", lineHeight: 1.5, margin: "0 0 4px" }}>Your existing Etsy draft tools remain intact. This stage does not auto-publish, submit Printful orders, or treat a digital listing as a physical one.</p>
