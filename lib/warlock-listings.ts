@@ -1,4 +1,4 @@
-import { SpellmarkFulfillment } from "../app/generated/prisma/client";
+import { SpellmarkFulfillment } from "../app/generated/prisma/client.ts";
 
 export const LISTING_STATUSES = ["CONFIG", "READY", "DRAFT_CREATED", "SYNCED"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
