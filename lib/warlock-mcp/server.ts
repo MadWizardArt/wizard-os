@@ -5,6 +5,7 @@ import type { WarlockProductManifest } from "./manifest";
 import { findWarlockProduct } from "./repository";
 import { evaluateCommerceGates } from "../warlock-commerce/gates";
 import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
+import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -169,6 +170,21 @@ export function createWarlockCommerceMcpServer() {
         supplier,
         readyForWritePhase: gates.pass && supplier.pass,
       });
+    },
+  );
+
+  server.registerTool(
+    "prepare_execution_plan",
+    {
+      title: "Prepare Commerce Execution Plan",
+      description: "Prepare the fail-closed Etsy-first / Printful-sync production sequence. This tool never performs an external mutation.",
+      inputSchema: selectorShape,
+      annotations,
+    },
+    async (selector) => {
+      const loaded = await loadProduct(selector);
+      if (!loaded.ok) return loaded.error;
+      return success(buildCommerceExecutionPlan(loaded.product));
     },
   );
 
