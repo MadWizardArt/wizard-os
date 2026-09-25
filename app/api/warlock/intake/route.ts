@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { isWarlockOperatorRequest } from "../../../../lib/warlock-auth";
 import { readProduct, readVariant } from "../../../../lib/warlock-products";
+import { ensureEtsyAiDisclosure } from "../../../../lib/warlock-commerce/policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ function cleanListing(raw: ListingDraft | undefined) {
   const launchPrice = Number(raw.launchPrice);
   return {
     title: cleanString(raw.title, 140),
-    description: cleanString(raw.description, 12000),
+    description: ensureEtsyAiDisclosure(cleanString(raw.description, 12000)),
     price: Number.isFinite(price) ? price : null,
     launchPrice: Number.isFinite(launchPrice) ? launchPrice : null,
     tags,
