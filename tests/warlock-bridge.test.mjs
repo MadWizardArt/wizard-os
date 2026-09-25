@@ -33,7 +33,13 @@ test("all Etsy draft actions share the operator-or-browser authorization check",
   for (const path of routes) assert.match(source(path), /getEtsyRequestContext/);
 });
 
-test("physical POD drafts are not silently misclassified as digital files", () => {
-  assert.match(source("app/api/etsy/drafts/route.ts"), /type: "download"/);
-  assert.match(source("docs/warlock-direct-etsy.md"), /physical POD variants still need/);
+test("physical POD drafts require explicit Etsy fulfillment profiles and remain distinct from downloads", () => {
+  const drafts = source("app/api/etsy/drafts/route.ts");
+  assert.match(drafts, /listingType === "physical"/);
+  assert.match(drafts, /shipping_profile_id/);
+  assert.match(drafts, /readiness_state_id/);
+  assert.match(drafts, /type: listingType/);
+  const profiles = source("app/api/etsy/commerce-profiles/route.ts");
+  assert.match(profiles, /shipping-profiles/);
+  assert.match(profiles, /readiness-state-definitions/);
 });

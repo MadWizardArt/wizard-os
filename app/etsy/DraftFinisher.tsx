@@ -15,6 +15,9 @@ type EtsyListing = {
 type Readiness = {
   imageCount: number;
   fileCount: number;
+  requiredImageCount?: number;
+  requiredFileCount?: number;
+  releaseLabel?: string | null;
   hasImage: boolean;
   hasDigitalFile: boolean;
   readyForHumanReview: boolean;
@@ -224,8 +227,8 @@ export default function DraftFinisher() {
       {listingId && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 12 }}>
-            <div style={{ padding: 10, border: "1px solid #2d3946", borderRadius: 9, background: "#0d141c" }}><strong>{readiness?.imageCount ?? 0}</strong><span style={{ display: "block", color: "#8e99a7", fontSize: 11 }}>Images</span></div>
-            <div style={{ padding: 10, border: "1px solid #2d3946", borderRadius: 9, background: "#0d141c" }}><strong>{readiness?.fileCount ?? 0}</strong><span style={{ display: "block", color: "#8e99a7", fontSize: 11 }}>Files</span></div>
+            <div style={{ padding: 10, border: "1px solid #2d3946", borderRadius: 9, background: "#0d141c" }}><strong>{readiness?.imageCount ?? 0}{readiness?.requiredImageCount ? ` / ${readiness.requiredImageCount}` : ""}</strong><span style={{ display: "block", color: "#8e99a7", fontSize: 11 }}>Images</span></div>
+            <div style={{ padding: 10, border: "1px solid #2d3946", borderRadius: 9, background: "#0d141c" }}><strong>{readiness?.fileCount ?? 0}{readiness?.requiredFileCount ? ` / ${readiness.requiredFileCount}` : ""}</strong><span style={{ display: "block", color: "#8e99a7", fontSize: 11 }}>Files</span></div>
             <div style={{ padding: 10, border: readiness?.readyForHumanReview ? "1px solid #3f6b50" : "1px solid #5b4a31", borderRadius: 9, background: readiness?.readyForHumanReview ? "#132019" : "#191710" }}><strong style={{ color: readiness?.readyForHumanReview ? "#9bc8aa" : "#d4b06f" }}>{readiness?.readyForHumanReview ? "Ready" : "Open"}</strong><span style={{ display: "block", color: "#8e99a7", fontSize: 11 }}>Review</span></div>
           </div>
 
