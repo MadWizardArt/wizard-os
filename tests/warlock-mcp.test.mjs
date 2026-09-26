@@ -52,11 +52,13 @@ test("remote MCP endpoint is disabled by default and requires the Warlock operat
   assert.match(route, /handler\.fetch\(request\)/);
 });
 
-test("v1 MCP surface exposes only read and dry-run commerce tools", () => {
+test("foundational MCP tools remain read-only after draft execution is added", () => {
   const server = source("lib/warlock-mcp/server.ts");
   for (const tool of ["get_product", "validate_product_package", "dry_run_product", "get_production_status"]) {
     assert.match(server, new RegExp(`"${tool}"`));
   }
-  assert.match(server, /readOnlyHint: true/);
-  assert.doesNotMatch(server, /create.*listing|upload.*file|method:\s*["']POST["']/i);
+  assert.match(server, /const annotations = \{[\s\S]*?readOnlyHint: true/);
+  assert.match(server, /const draftWriteAnnotations = \{[\s\S]*?readOnlyHint: false/);
+  assert.match(server, /confirmDraftWrite:\s*z\.literal\(true\)/);
+  assert.match(server, /commerceWriteMode\(\) !== "draft"/);
 });
