@@ -37,6 +37,11 @@ function numberId(value: unknown) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+function nonNegativeInteger(value: unknown) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
 function text(value: unknown) {
   return typeof value === "string" ? value : null;
 }
@@ -66,8 +71,8 @@ function normalizeShippingProfiles(payload: Json) {
     shippingProfileId: numberId(profile.shipping_profile_id),
     title: text(profile.title),
     originCountryIso: text(profile.origin_country_iso),
-    minProcessingDays: numberId(profile.min_processing_days),
-    maxProcessingDays: numberId(profile.max_processing_days),
+    minProcessingDays: nonNegativeInteger(profile.min_processing_days),
+    maxProcessingDays: nonNegativeInteger(profile.max_processing_days),
   })).filter((profile) => profile.shippingProfileId);
 }
 
@@ -75,8 +80,8 @@ function normalizeReadinessStates(payload: Json) {
   return resultArray(payload).map((state) => ({
     readinessStateId: numberId(state.readiness_state_id),
     readinessState: text(state.readiness_state),
-    minProcessingDays: numberId(state.min_processing_days),
-    maxProcessingDays: numberId(state.max_processing_days),
+    minProcessingDays: nonNegativeInteger(state.min_processing_days),
+    maxProcessingDays: nonNegativeInteger(state.max_processing_days),
     label: text(state.processing_days_display_label),
   })).filter((state) => state.readinessStateId);
 }
