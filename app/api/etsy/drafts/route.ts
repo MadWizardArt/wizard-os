@@ -24,7 +24,7 @@ const externalId = (value: unknown) => {
     return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
   }
   const text = String(value ?? "").trim();
-  return /^[1-9]\\d{0,18}$/.test(text) ? text : null;
+  return /^[1-9]\d{0,18}$/.test(text) ? text : null;
 };
 
 export async function POST(request: NextRequest) {
