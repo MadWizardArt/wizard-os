@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   buildPhysicalInventoryBody,
   etsySkuForVariant,
+  serializePhysicalInventoryBody,
 } from "../lib/warlock-commerce/etsy-inventory.ts";
 import {
   commerceWriteMode,
@@ -20,7 +21,7 @@ const physicalListing = {
   tagsJson: "[]",
   taxonomyId: 1,
   shippingProfileId: 2,
-  readinessStateId: 3,
+  readinessStateId: "9007199254740993",
   quantity: 999,
   whoMade: "i_did",
   whenMade: "2020_2026",
@@ -156,4 +157,13 @@ test("Volans migration preserves established SKUs and keeps digital physical-moc
   assert.match(migration, /SM-OWL-P2-V14292/);
   assert.match(migration, /Digital: listing hero imagery only/);
   assert.match(migration, /a\."role" = 'customer_file'/);
+});
+
+
+test("Etsy inventory JSON preserves int64 readiness IDs without floating-point coercion", () => {
+  const body = buildPhysicalInventoryBody(physicalListing, variants);
+  const json = serializePhysicalInventoryBody(body);
+  assert.match(json, /"readiness_state_id":9007199254740993/);
+  assert.doesNotMatch(json, /"readiness_state_id":"9007199254740993"/);
+  assert.equal(JSON.parse(json).products.length, 2);
 });

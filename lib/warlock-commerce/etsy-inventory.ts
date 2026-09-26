@@ -49,3 +49,14 @@ export function buildPhysicalInventoryBody(
     readiness_state_on_property: [],
   };
 }
+
+
+export function serializePhysicalInventoryBody(
+  body: ReturnType<typeof buildPhysicalInventoryBody>,
+) {
+  const json = JSON.stringify(body);
+  return json.replace(
+    /"readiness_state_id":"([1-9]\d{0,18})"/g,
+    '"readiness_state_id":$1',
+  );
+}
