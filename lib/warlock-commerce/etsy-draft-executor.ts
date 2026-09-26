@@ -49,7 +49,7 @@ function listingVariants(
 function lowestPriceCents(variants: WarlockManifestVariant[]) {
   const prices = variants
     .map((variant) => variant.retailPriceCents)
-    .filter((price): price is number => Number.isSafeInteger(price) && price > 0);
+    .filter((price): price is number => typeof price === "number" && Number.isSafeInteger(price) && price > 0);
   if (!prices.length) throw new Error("listing_price_missing");
   return Math.min(...prices);
 }
