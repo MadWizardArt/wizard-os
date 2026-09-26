@@ -61,7 +61,7 @@ const selection = {
       etsyListingId: true,
       status: true,
       assets: {
-        orderBy: [{ kind: "asc" as const }, { position: "asc" as const }],
+        orderBy: { position: "asc" as const },
         select: {
           id: true,
           kind: true,
