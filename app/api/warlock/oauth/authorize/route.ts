@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWarlockOperatorKey } from "../../../../lib/warlock-auth";
+import { verifyWarlockOperatorKey } from "../../../../../lib/warlock-auth";
 import {
   CHATGPT_CLIENT_ID,
   CHATGPT_REDIRECT_URI,
@@ -9,8 +9,8 @@ import {
   validateAuthorizationInput,
   warlockPublicOrigin,
   type WarlockOAuthAuthorizationInput,
-} from "../../../../lib/warlock-mcp-oauth";
-import { createWarlockAuthorizationCode } from "../../../../lib/warlock-mcp-oauth-store";
+} from "../../../../../lib/warlock-mcp-oauth";
+import { createWarlockAuthorizationCode } from "../../../../../lib/warlock-mcp-oauth-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
