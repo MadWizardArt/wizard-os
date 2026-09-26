@@ -54,10 +54,6 @@ function lowestPriceCents(variants: WarlockManifestVariant[]) {
   return Math.min(...prices);
 }
 
-function moneyFromCents(cents: number) {
-  return (cents / 100).toFixed(2);
-}
-
 function listingForm(
   listing: WarlockManifestListing,
   variants: WarlockManifestVariant[],
