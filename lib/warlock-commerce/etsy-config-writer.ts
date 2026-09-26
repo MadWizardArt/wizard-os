@@ -43,8 +43,17 @@ function positiveId(value: unknown) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+function externalId(value: unknown) {
+  const text = String(value ?? "").trim();
+  return /^[1-9]\d{0,18}$/.test(text) ? text : null;
+}
+
 function listingNumber(payload: Json | null, key: string) {
   return payload ? positiveId(payload[key]) : null;
+}
+
+function listingExternalId(payload: Json | null, key: string) {
+  return payload ? externalId(payload[key]) : null;
 }
 
 export async function applyVerifiedEtsyConfiguration(
@@ -88,10 +97,10 @@ export async function applyVerifiedEtsyConfiguration(
       "/shops/" + shopId + "/readiness-state-definitions/" + selection.readinessStateId,
     );
 
-    if (positiveId(shippingProfile.shipping_profile_id) !== selection.shippingProfileId) {
+    if (externalId(shippingProfile.shipping_profile_id) !== selection.shippingProfileId) {
       throw new Error("etsy_shipping_profile_mismatch");
     }
-    if (positiveId(readinessProfile.readiness_state_id) !== selection.readinessStateId) {
+    if (externalId(readinessProfile.readiness_state_id) !== selection.readinessStateId) {
       throw new Error("etsy_readiness_state_mismatch");
     }
   }
@@ -104,8 +113,8 @@ export async function applyVerifiedEtsyConfiguration(
     );
 
     const liveTaxonomy = listingNumber(existingEtsyListing, "taxonomy_id");
-    const liveShipping = listingNumber(existingEtsyListing, "shipping_profile_id");
-    const liveReadiness = listingNumber(existingEtsyListing, "readiness_state_id");
+    const liveShipping = listingExternalId(existingEtsyListing, "shipping_profile_id");
+    const liveReadiness = listingExternalId(existingEtsyListing, "readiness_state_id");
 
     if (liveTaxonomy && liveTaxonomy !== selection.taxonomyId) {
       throw new Error("existing_etsy_taxonomy_mismatch");
@@ -163,11 +172,11 @@ export async function applyVerifiedEtsyConfiguration(
         path: taxonomyNode.path,
       },
       shippingProfile: shippingProfile ? {
-        id: positiveId(shippingProfile.shipping_profile_id),
+        id: externalId(shippingProfile.shipping_profile_id),
         title: typeof shippingProfile.title === "string" ? shippingProfile.title : null,
       } : null,
       readinessProfile: readinessProfile ? {
-        id: positiveId(readinessProfile.readiness_state_id),
+        id: externalId(readinessProfile.readiness_state_id),
         readinessState: typeof readinessProfile.readiness_state === "string"
           ? readinessProfile.readiness_state
           : null,
