@@ -1,31 +1,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const fileUrl = (path) => new URL("../" + path, import.meta.url);
+const source = (path) => readFileSync(fileUrl(path), "utf8");
 
-test("Volans physical release is one Etsy listing with the locked three-edition price ladder", () => {
-  const route = source("app/api/etsy/releases/volans/route.ts");
-  assert.match(route, /8×10 unframed/);
-  assert.match(route, /11×14 unframed/);
-  assert.match(route, /11×14 black framed/);
-  assert.match(route, /24\.00/);
-  assert.match(route, /28\.00/);
-  assert.match(route, /69\.00/);
-  assert.match(route, /SM-OWL-P1-V4463/);
-  assert.match(route, /SM-OWL-P1-V14125/);
-  assert.match(route, /SM-OWL-P2-V14292/);
-  assert.match(route, /method: "PUT"/);
-  assert.match(route, /property_id: 513/);
-  assert.match(route, /type: "physical"/);
+test("legacy one-off Volans Etsy release route is retired", () => {
+  assert.equal(
+    existsSync(fileUrl("app/api/etsy/releases/volans/route.ts")),
+    false,
+  );
+
+  const execution = source("lib/warlock-commerce/draft-execution.ts");
+  const etsy = source("lib/warlock-commerce/etsy-draft-executor.ts");
+  assert.match(execution, /executeEtsyDrafts/);
+  assert.match(etsy, /buildPhysicalInventoryBody/);
+  assert.match(etsy, /etsy_listing_not_draft/);
 });
 
-test("Volans database correction locks canonical title and final retail values", () => {
-  const migration = source("prisma/migrations/20260925173000_finalize_volans_physical_lineup/migration.sql");
-  assert.match(migration, /VOLANS AETHEREUS — The Sky Wanderer/);
-  assert.match(migration, /4463/);
-  assert.match(migration, /2400/);
-  assert.match(migration, /2800/);
-  assert.match(migration, /6900/);
-  assert.match(migration, /12562279/);
+test("Volans canonical data locks the three-edition price and SKU ladder", () => {
+  const lineup = source("prisma/migrations/20260925173000_finalize_volans_physical_lineup/migration.sql");
+  assert.match(lineup, /VOLANS AETHEREUS — The Sky Wanderer/);
+  assert.match(lineup, /4463/);
+  assert.match(lineup, /2400/);
+  assert.match(lineup, /2800/);
+  assert.match(lineup, /6900/);
+  assert.match(lineup, /12562279/);
+
+  const executionIds = source("prisma/migrations/20260926001500_spellmark_draft_execution_ids/migration.sql");
+  assert.match(executionIds, /SM-OWL-P1-V4463/);
+  assert.match(executionIds, /SM-OWL-P1-V14125/);
+  assert.match(executionIds, /SM-OWL-P2-V14292/);
 });
