@@ -393,6 +393,43 @@ model EtsyConnection {
 }
 
 
+// One-time PKCE authorization codes issued only to the allowlisted ChatGPT OAuth client.
+model WarlockOAuthCode {
+  codeHash      String   @id
+  clientId      String
+  redirectUri   String
+  resource      String
+  scope         String
+  codeChallenge String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// Rotatable opaque OAuth grant for the single Warlock owner.
+// Access and refresh tokens are stored only as SHA-256 hashes.
+model WarlockOAuthGrant {
+  id                     String   @id @default(cuid())
+  clientId               String
+  resource               String
+  scope                  String
+  accessTokenHash        String   @unique
+  refreshTokenHash       String   @unique
+  accessExpiresAt        DateTime
+  refreshExpiresAt       DateTime
+  operatorKeyFingerprint String
+  revokedAt              DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([accessExpiresAt])
+  @@index([refreshExpiresAt])
+  @@index([revokedAt])
+}
+
+
 enum SpellmarkFulfillment {
   DIGITAL
   PHYSICAL
