@@ -9,7 +9,7 @@ import type {
   WarlockProductManifest,
 } from "../warlock-mcp/manifest.ts";
 import { ensureEtsyAiDisclosure } from "./policy.ts";
-import { buildPhysicalInventoryBody, etsySkuForVariant, moneyFromCents } from "./etsy-inventory.ts";
+import { buildPhysicalInventoryBody, etsySkuForVariant, moneyFromCents, serializePhysicalInventoryBody } from "./etsy-inventory.ts";
 import { assertCommerceDraftWritesEnabled } from "./write-guard.ts";
 
 const ETSY_API = "https://api.etsy.com/v3/application";
@@ -179,7 +179,7 @@ async function updatePhysicalInventory(
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: serializePhysicalInventoryBody(body),
     },
   );
 

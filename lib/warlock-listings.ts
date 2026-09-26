@@ -1,5 +1,3 @@
-import { SpellmarkFulfillment } from "../app/generated/prisma/client.ts";
-
 export const LISTING_STATUSES = ["CONFIG", "READY", "DRAFT_CREATED", "WAITING_PRINTFUL", "SYNCED"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
@@ -9,8 +7,8 @@ export type ListingManifestInput = {
   description: string;
   tags: string[];
   taxonomyId: number | null;
-  shippingProfileId: number | null;
-  readinessStateId: number | null;
+  shippingProfileId: string | null;
+  readinessStateId: string | null;
   quantity: number;
   whoMade: "i_did" | "collective" | "someone_else";
   whenMade: string;
@@ -39,6 +37,17 @@ function positiveId(raw: unknown) {
   if (raw === null || raw === undefined || raw === "") return null;
   const n = Number(raw);
   return Number.isSafeInteger(n) && n > 0 && n <= 2147483647 ? n : null;
+}
+
+function externalId(raw: unknown) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number") {
+    if (!Number.isSafeInteger(raw) || raw <= 0) return null;
+    return String(raw);
+  }
+  if (typeof raw !== "string") return null;
+  const value = raw.trim();
+  return /^[1-9]\d{0,18}$/.test(value) ? value : null;
 }
 
 export function readListingManifest(raw: unknown): ListingManifestInput | null {
@@ -72,8 +81,8 @@ export function readListingManifest(raw: unknown): ListingManifestInput | null {
   if (tags.length > 13 || tags.some((tag) => tag.length > 20)) return null;
 
   const taxonomyId = positiveId(value.taxonomyId);
-  const shippingProfileId = positiveId(value.shippingProfileId);
-  const readinessStateId = positiveId(value.readinessStateId);
+  const shippingProfileId = externalId(value.shippingProfileId);
+  const readinessStateId = externalId(value.readinessStateId);
   if (value.taxonomyId != null && taxonomyId === null) return null;
   if (value.shippingProfileId != null && shippingProfileId === null) return null;
   if (value.readinessStateId != null && readinessStateId === null) return null;

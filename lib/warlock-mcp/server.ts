@@ -9,6 +9,7 @@ import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
 import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
+import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-writer";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -48,6 +49,22 @@ const etsyConfigShape = {
   ...selectorShape,
   taxonomyQuery: z.string().trim().min(2).max(120).optional(),
 };
+
+const verifiedEtsyConfigShape = {
+  ...selectorShape,
+  fulfillment: z.enum(["DIGITAL", "PHYSICAL"]),
+  taxonomyId: z.number().int().positive(),
+  shippingProfileId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
+  readinessStateId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
+  confirmConfiguration: z.literal(true),
+};
+
+const configurationWriteAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
 
 function success(payload: Record<string, unknown>) {
   return {
@@ -211,6 +228,54 @@ export function createWarlockCommerceMcpServer() {
         return failure(
           "etsy_configuration_inspection_failed",
           error instanceof Error ? error.message : "Etsy configuration inspection failed.",
+        );
+      }
+    },
+  );
+
+  server.registerTool(
+    "configure_etsy_listing",
+    {
+      title: "Configure Etsy Listing",
+      description: "Verify selected Etsy taxonomy and shop profile IDs against live Etsy, then save them to the canonical WizardOS listing only. Does not modify Etsy.",
+      inputSchema: verifiedEtsyConfigShape,
+      annotations: configurationWriteAnnotations,
+    },
+    async (input) => {
+      const loaded = await loadProduct(input);
+      if (!loaded.ok) return loaded.error;
+
+      if (
+        input.fulfillment === "PHYSICAL" &&
+        (!input.shippingProfileId || !input.readinessStateId)
+      ) {
+        return failure(
+          "physical_etsy_configuration_incomplete",
+          "Physical listings require both shippingProfileId and readinessStateId.",
+        );
+      }
+      if (
+        input.fulfillment === "DIGITAL" &&
+        (input.shippingProfileId !== undefined || input.readinessStateId !== undefined)
+      ) {
+        return failure(
+          "digital_etsy_configuration_invalid",
+          "Digital listings do not use shipping or readiness profile IDs.",
+        );
+      }
+
+      try {
+        return success(await applyVerifiedEtsyConfiguration(loaded.product, {
+          fulfillment: input.fulfillment,
+          taxonomyId: input.taxonomyId,
+          shippingProfileId: input.shippingProfileId,
+          readinessStateId: input.readinessStateId,
+        }));
+      } catch (error) {
+        console.error("Warlock MCP Etsy configuration save failed", error);
+        return failure(
+          "etsy_configuration_save_failed",
+          error instanceof Error ? error.message : "Etsy configuration save failed.",
         );
       }
     },
