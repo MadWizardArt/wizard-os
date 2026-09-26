@@ -469,8 +469,8 @@ model SpellmarkListing {
   description      String               @default("")
   tagsJson         String               @default("[]")
   taxonomyId       Int?
-  shippingProfileId Int?
-  readinessStateId Int?
+  shippingProfileId String?
+  readinessStateId String?
   quantity         Int                  @default(999)
   whoMade          String               @default("i_did")
   whenMade         String               @default("2020_2026")
