@@ -74,8 +74,8 @@ test("Etsy inventory builder sends the complete physical variant set", () => {
   assert.deepEqual(body.price_on_property, [513]);
   assert.deepEqual(body.sku_on_property, [513]);
   assert.equal(body.products[0].sku, "SM-TEST-8X10");
-  assert.equal(body.products[0].offerings[0].price, "24.00");
-  assert.equal(body.products[1].offerings[0].price, "69.00");
+  assert.equal(body.products[0].offerings[0].price, 24);
+  assert.equal(body.products[1].offerings[0].price, 69);
   assert.equal(body.products[1].property_values[0].values[0], "11×14 framed");
 });
 
