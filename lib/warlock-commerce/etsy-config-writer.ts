@@ -112,6 +112,10 @@ export async function applyVerifiedEtsyConfiguration(
       "/listings/" + encodeURIComponent(listing.etsyListingId),
     );
 
+    if (String(existingEtsyListing.state ?? "") !== "draft") {
+      throw new Error("existing_etsy_listing_not_draft");
+    }
+
     const liveTaxonomy = listingNumber(existingEtsyListing, "taxonomy_id");
     const liveShipping = listingExternalId(existingEtsyListing, "shipping_profile_id");
     const liveReadiness = listingExternalId(existingEtsyListing, "readiness_state_id");
