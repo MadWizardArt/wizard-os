@@ -3,8 +3,8 @@ import type { WarlockManifestListing } from "../warlock-mcp/manifest.ts";
 export type EtsyConfigurationSelection = {
   fulfillment: "DIGITAL" | "PHYSICAL";
   taxonomyId: number;
-  shippingProfileId?: number;
-  readinessStateId?: number;
+  shippingProfileId?: string;
+  readinessStateId?: string;
 };
 
 export function validateEtsyConfigurationSelection(
@@ -13,12 +13,14 @@ export function validateEtsyConfigurationSelection(
   const errors: string[] = [];
   const positive = (value: unknown) =>
     Number.isSafeInteger(value) && Number(value) > 0;
+  const external = (value: unknown) =>
+    typeof value === "string" && /^[1-9]\d{0,18}$/.test(value);
 
   if (!positive(selection.taxonomyId)) errors.push("taxonomy_id_invalid");
 
   if (selection.fulfillment === "PHYSICAL") {
-    if (!positive(selection.shippingProfileId)) errors.push("shipping_profile_id_required");
-    if (!positive(selection.readinessStateId)) errors.push("readiness_state_id_required");
+    if (!external(selection.shippingProfileId)) errors.push("shipping_profile_id_required");
+    if (!external(selection.readinessStateId)) errors.push("readiness_state_id_required");
   } else {
     if (selection.shippingProfileId !== undefined) errors.push("digital_shipping_profile_not_allowed");
     if (selection.readinessStateId !== undefined) errors.push("digital_readiness_state_not_allowed");
