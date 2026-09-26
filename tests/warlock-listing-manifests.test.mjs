@@ -12,15 +12,15 @@ test("listing manifest validates physical and digital Etsy configuration", () =>
     description: "Listing copy",
     tags: ["barn owl print"],
     taxonomyId: 123,
-    shippingProfileId: 456,
-    readinessStateId: 789,
+    shippingProfileId: "456",
+    readinessStateId: "789",
     quantity: 999,
     whoMade: "i_did",
     whenMade: "2020_2026",
     status: "READY",
   });
   assert.equal(physical?.fulfillment, "PHYSICAL");
-  assert.equal(physical?.shippingProfileId, 456);
+  assert.equal(physical?.shippingProfileId, "456");
 
   assert.equal(readListingManifest({
     fulfillment: "DIGITAL",
@@ -28,7 +28,7 @@ test("listing manifest validates physical and digital Etsy configuration", () =>
     description: "Digital copy",
     tags: [],
     taxonomyId: 123,
-    shippingProfileId: 456,
+    shippingProfileId: "456",
   }), null, "digital listings cannot carry physical shipping profiles");
 });
 
@@ -86,12 +86,31 @@ test("listing manifest lifecycle accepts the Printful-import waiting state", () 
     description: "Approved listing copy",
     tags: [],
     taxonomyId: 123,
-    shippingProfileId: 456,
-    readinessStateId: 789,
+    shippingProfileId: "456",
+    readinessStateId: "789",
     quantity: 999,
     whoMade: "i_did",
     whenMade: "2020_2026",
     status: "WAITING_PRINTFUL",
   });
   assert.equal(waiting?.status, "WAITING_PRINTFUL");
+});
+
+
+test("listing manifest preserves Etsy int64 profile IDs as strings", () => {
+  const physical = readListingManifest({
+    fulfillment: "PHYSICAL",
+    title: "Large Etsy IDs",
+    description: "Listing copy",
+    tags: [],
+    taxonomyId: 123,
+    shippingProfileId: "9223372036854775807",
+    readinessStateId: "9007199254740993",
+    quantity: 999,
+    whoMade: "i_did",
+    whenMade: "2020_2026",
+    status: "READY",
+  });
+  assert.equal(physical?.shippingProfileId, "9223372036854775807");
+  assert.equal(physical?.readinessStateId, "9007199254740993");
 });
