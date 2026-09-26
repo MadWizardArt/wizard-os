@@ -41,7 +41,7 @@ function parseTags(tagsJson: string) {
   }
 }
 
-function stableSku(variant: WarlockManifestVariant) {
+export function etsySkuForVariant(variant: WarlockManifestVariant) {
   if (variant.etsySku?.trim()) return variant.etsySku.trim();
   const compact = variant.id.toUpperCase().replace(/[^A-Z0-9]/g, "");
   return ("SM-" + compact).slice(0, 32);
@@ -171,11 +171,6 @@ async function ensureDraftListing(
       lastDraftSyncAt: new Date(),
     },
   });
-  await prisma.spellmarkVariant.updateMany({
-    where: { productId: listing.id, fulfillment: listing.fulfillment },
-    data: { etsyListingId: listingId },
-  }).catch(() => undefined);
-
   return { listingId, created: true };
 }
 
@@ -189,7 +184,7 @@ async function updatePhysicalInventory(
   if (!variants.length) throw new Error("physical_variants_missing");
 
   const skuByVariantId = new Map(
-    variants.map((variant) => [variant.id, stableSku(variant)]),
+    variants.map((variant) => [variant.id, etsySkuForVariant(variant)]),
   );
   const body = {
     products: variants.map((variant) => {
@@ -337,7 +332,7 @@ export async function executeEtsyDrafts(
         where: { id: variants[0].id },
         data: {
           etsyListingId: ensured.listingId,
-          etsySku: stableSku(variants[0]),
+          etsySku: etsySkuForVariant(variants[0]),
         },
       });
     }
