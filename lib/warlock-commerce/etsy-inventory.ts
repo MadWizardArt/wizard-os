@@ -30,7 +30,7 @@ export function buildPhysicalInventoryBody(
         sku: etsySkuForVariant(variant),
         offerings: [{
           quantity: listing.quantity,
-          price: moneyFromCents(variant.retailPriceCents),
+          price: variant.retailPriceCents / 100,
           is_enabled: true,
           readiness_state_id: listing.readinessStateId,
         }],
