@@ -129,5 +129,5 @@ export function readListingAssets(raw: unknown): ListingAssetInput[] | null {
 }
 
 export function fulfillmentEnum(value: ListingManifestInput["fulfillment"]) {
-  return value === "PHYSICAL" ? SpellmarkFulfillment.PHYSICAL : SpellmarkFulfillment.DIGITAL;
+  return value === "PHYSICAL" ? "PHYSICAL" as const : "DIGITAL" as const;
 }
