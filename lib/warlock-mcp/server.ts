@@ -54,8 +54,8 @@ const verifiedEtsyConfigShape = {
   ...selectorShape,
   fulfillment: z.enum(["DIGITAL", "PHYSICAL"]),
   taxonomyId: z.number().int().positive(),
-  shippingProfileId: z.string().trim().regex(/^[1-9]\\d{0,18}$/).optional(),
-  readinessStateId: z.string().trim().regex(/^[1-9]\\d{0,18}$/).optional(),
+  shippingProfileId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
+  readinessStateId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
   confirmConfiguration: z.literal(true),
 };
 
