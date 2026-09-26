@@ -117,3 +117,71 @@ test("missing canonical listing configuration blocks execution", () => {
   assert.equal(result.pass, false);
   assert.ok(result.errors.some((entry) => entry.code === "listing_manifest_missing"));
 });
+
+
+test("digital Etsy limits block variations and oversized customer files before writes", () => {
+  const secondDigital = {
+    ...manifest.variants.find((variant) => variant.fulfillment === "DIGITAL"),
+    id: "v3",
+    label: "Second digital format",
+  };
+  const withVariation = {
+    ...manifest,
+    variants: [...manifest.variants, secondDigital],
+  };
+  const variationResult = evaluateCommerceGates(withVariation, new Date("2026-09-25T18:00:00Z"));
+  assert.equal(variationResult.pass, false);
+  assert.equal(variationResult.compliance.pass, false);
+  assert.ok(variationResult.errors.some((entry) => entry.code === "digital_variations_not_supported"));
+
+  const oversizedListings = manifest.listings.map((listing) => (
+    listing.fulfillment === "DIGITAL"
+      ? {
+          ...listing,
+          assets: listing.assets.map((link) => (
+            link.kind === "customer_file"
+              ? {
+                  ...link,
+                  asset: {
+                    ...link.asset,
+                    byteSize: 20 * 1024 * 1024 + 1,
+                  },
+                }
+              : link
+          )),
+        }
+      : listing
+  ));
+  const oversizedResult = evaluateCommerceGates(
+    { ...manifest, listings: oversizedListings },
+    new Date("2026-09-25T18:00:00Z"),
+  );
+  assert.equal(oversizedResult.pass, false);
+  assert.equal(oversizedResult.compliance.pass, false);
+  assert.ok(oversizedResult.errors.some((entry) => entry.code === "digital_file_too_large"));
+});
+
+test("digital Etsy gate allows at most five customer files with Etsy-safe names and types", () => {
+  const digital = manifest.listings.find((listing) => listing.fulfillment === "DIGITAL");
+  const sixFiles = Array.from({ length: 6 }, (_, index) => ({
+    id: "lf" + index,
+    kind: "customer_file",
+    position: index + 1,
+    asset: {
+      ...digital.assets.find((link) => link.kind === "customer_file").asset,
+      id: "customer-" + index,
+      fileName: "download-" + index + ".zip",
+    },
+  }));
+  const listings = manifest.listings.map((listing) => (
+    listing.fulfillment === "DIGITAL"
+      ? { ...listing, assets: [...listing.assets.filter((link) => link.kind === "image"), ...sixFiles] }
+      : listing
+  ));
+  const result = evaluateCommerceGates(
+    { ...manifest, listings },
+    new Date("2026-09-25T18:00:00Z"),
+  );
+  assert.equal(result.pass, false);
+  assert.ok(result.errors.some((entry) => entry.code === "digital_file_count_exceeded"));
+});
