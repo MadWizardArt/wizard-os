@@ -74,8 +74,7 @@ export function warlockOAuthChallenge(error = "invalid_token", description = "Co
 }
 
 export function normalizeOAuthScope(value: string | null | undefined) {
-  const requested = (value ?? WARLOCK_OAUTH_SCOPE)
-    .trim()
+  const requested = (value?.trim() || WARLOCK_OAUTH_SCOPE)
     .split(/\s+/)
     .filter(Boolean);
   const unique = [...new Set(requested)];
