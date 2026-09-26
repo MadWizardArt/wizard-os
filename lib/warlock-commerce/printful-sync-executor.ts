@@ -145,17 +145,29 @@ export async function syncPhysicalListingToPrintful(
   const master = manifest.assets.find((asset) => asset.role === "master");
   if (!master) throw new Error("master_missing");
 
+  const matches = physical.map((variant) => ({
+    variant,
+    remote: matchSyncVariant(variant, candidates),
+  }));
+  if (matches.some(({ remote }) => !positiveId(remote?.id))) {
+    await prisma.spellmarkListing.update({
+      where: { id: listing.id },
+      data: { status: "WAITING_PRINTFUL" },
+    });
+    return {
+      productId: manifest.id,
+      state: "WAITING_PRINTFUL_IMPORT",
+      etsyListingId: listing.etsyListingId,
+      printfulSyncProductId: syncProductId,
+    };
+  }
+
   const updated: NonNullable<PrintfulSyncResult["variants"]> = [];
-  for (const variant of physical) {
+  for (const { variant, remote } of matches) {
     if (!variant.printfulVariantId) throw new Error("printful_variant_mapping_missing");
     if (!variant.retailPriceCents) throw new Error("retail_price_missing");
 
-    const remote = matchSyncVariant(variant, candidates);
-    const syncVariantId = positiveId(remote?.id);
-    if (!syncVariantId) {
-      throw new Error("printful_sync_variant_not_found:" + variant.id);
-    }
-
+    const syncVariantId = positiveId(remote?.id)!;
     const temporary = await createTemporaryPrintfulAssetUrl(master);
     const sku = etsySkuForVariant(variant);
     await request(
