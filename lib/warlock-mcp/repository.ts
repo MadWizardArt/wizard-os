@@ -42,6 +42,45 @@ const selection = {
       currency: true,
     },
   },
+  listings: {
+    orderBy: { fulfillment: "asc" as const },
+    select: {
+      id: true,
+      fulfillment: true,
+      title: true,
+      description: true,
+      tagsJson: true,
+      taxonomyId: true,
+      shippingProfileId: true,
+      readinessStateId: true,
+      quantity: true,
+      whoMade: true,
+      whenMade: true,
+      isSupply: true,
+      shouldAutoRenew: true,
+      etsyListingId: true,
+      status: true,
+      assets: {
+        orderBy: { position: "asc" as const },
+        select: {
+          id: true,
+          kind: true,
+          position: true,
+          asset: {
+            select: {
+              id: true,
+              role: true,
+              fileName: true,
+              blobUrl: true,
+              pathname: true,
+              contentType: true,
+              byteSize: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } as const;
 
 export async function findWarlockProduct(selector: WarlockProductSelector): Promise<WarlockProductManifest | null> {

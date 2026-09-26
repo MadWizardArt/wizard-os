@@ -37,6 +37,25 @@ const manifest = {
       retailPriceCents: 900, productionBaseCents: null, productionQuotedAt: null, currency: "USD",
     },
   ],
+  listings: [
+    {
+      id: "l1", fulfillment: "PHYSICAL", title: "Volans physical", description: "Physical copy.",
+      tagsJson: "[]", taxonomyId: 10, shippingProfileId: 20, readinessStateId: 30,
+      quantity: 999, whoMade: "i_did", whenMade: "2020_2026", isSupply: false,
+      shouldAutoRenew: true, etsyListingId: null, status: "READY",
+      assets: [{ id: "la1", kind: "image", position: 1, asset: { id: "a2", role: "hero", fileName: "hero.jpg", blobUrl: "https://example.test/hero.jpg", pathname: "hero.jpg", contentType: "image/jpeg", byteSize: 100 } }],
+    },
+    {
+      id: "l2", fulfillment: "DIGITAL", title: "Volans Aethereus — Digital Version", description: "Digital copy.",
+      tagsJson: "[]", taxonomyId: 10, shippingProfileId: null, readinessStateId: null,
+      quantity: 999, whoMade: "i_did", whenMade: "2020_2026", isSupply: false,
+      shouldAutoRenew: true, etsyListingId: null, status: "READY",
+      assets: [
+        { id: "la2", kind: "image", position: 1, asset: { id: "a2", role: "hero", fileName: "hero.jpg", blobUrl: "https://example.test/hero.jpg", pathname: "hero.jpg", contentType: "image/jpeg", byteSize: 100 } },
+        { id: "la3", kind: "customer_file", position: 1, asset: { id: "a4", role: "customer_file", fileName: "digital.zip", blobUrl: "https://example.test/digital.zip", pathname: "digital.zip", contentType: "application/zip", byteSize: 100 } },
+      ],
+    },
+  ],
 };
 
 test("Etsy disclosure is appended exactly once", () => {
@@ -89,4 +108,12 @@ test("MCP exposes commerce gates and live supplier preflight as read-only tools"
   assert.match(server, /"preflight_supplier"/);
   assert.match(server, /readOnlyHint: true/);
   assert.doesNotMatch(server, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
+});
+
+
+test("missing canonical listing configuration blocks execution", () => {
+  const broken = { ...manifest, listings: manifest.listings.filter((listing) => listing.fulfillment !== "PHYSICAL") };
+  const result = evaluateCommerceGates(broken, new Date("2026-09-25T18:00:00Z"));
+  assert.equal(result.pass, false);
+  assert.ok(result.errors.some((entry) => entry.code === "listing_manifest_missing"));
 });

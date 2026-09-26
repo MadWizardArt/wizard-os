@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     const products = await prisma.spellmarkProduct.findMany({
       orderBy: { updatedAt: "desc" },
       take: 150,
-      include: { variants: { orderBy: { createdAt: "asc" } } },
+      include: {
+      variants: { orderBy: { createdAt: "asc" } },
+      listings: { orderBy: { fulfillment: "asc" } },
+    },
     });
     return NextResponse.json({ products }, { headers });
   } catch {
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest) {
   const input = readProduct(await request.json().catch(() => null));
   if (!input) return NextResponse.json({ error: "invalid_product" }, { status: 400, headers });
   try {
-    const product = await prisma.spellmarkProduct.create({ data: input, include: { variants: true } });
+    const product = await prisma.spellmarkProduct.create({ data: input, include: { variants: true, listings: true } });
     return NextResponse.json({ product }, { status: 201, headers });
   } catch {
     return NextResponse.json({ error: "spellmark_product_save_failed" }, { status: 503, headers });

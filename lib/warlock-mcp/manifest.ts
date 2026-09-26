@@ -22,6 +22,32 @@ export type WarlockManifestVariant = {
   currency: string;
 };
 
+export type WarlockManifestListingAsset = {
+  id: string;
+  kind: string;
+  position: number;
+  asset: WarlockManifestAsset;
+};
+
+export type WarlockManifestListing = {
+  id: string;
+  fulfillment: "DIGITAL" | "PHYSICAL";
+  title: string;
+  description: string;
+  tagsJson: string;
+  taxonomyId: number | null;
+  shippingProfileId: number | null;
+  readinessStateId: number | null;
+  quantity: number;
+  whoMade: string;
+  whenMade: string;
+  isSupply: boolean;
+  shouldAutoRenew: boolean;
+  etsyListingId: string | null;
+  status: string;
+  assets: WarlockManifestListingAsset[];
+};
+
 export type WarlockProductManifest = {
   id: string;
   title: string;
@@ -32,6 +58,7 @@ export type WarlockProductManifest = {
   notes: string;
   assets: WarlockManifestAsset[];
   variants: WarlockManifestVariant[];
+  listings: WarlockManifestListing[];
 };
 
 export type WarlockValidationIssue = {
