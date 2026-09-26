@@ -36,6 +36,9 @@ const selection = {
       printfulVariantId: true,
       printfulStoreId: true,
       etsyListingId: true,
+      etsySku: true,
+      etsyProductId: true,
+      printfulSyncVariantId: true,
       retailPriceCents: true,
       productionBaseCents: true,
       productionQuotedAt: true,
@@ -59,6 +62,8 @@ const selection = {
       isSupply: true,
       shouldAutoRenew: true,
       etsyListingId: true,
+      printfulSyncProductId: true,
+      lastDraftSyncAt: true,
       status: true,
       assets: {
         orderBy: { position: "asc" as const },
@@ -66,6 +71,8 @@ const selection = {
           id: true,
           kind: true,
           position: true,
+          etsyRemoteId: true,
+          etsySyncedAt: true,
           asset: {
             select: {
               id: true,

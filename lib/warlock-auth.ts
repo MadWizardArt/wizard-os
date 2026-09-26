@@ -88,3 +88,32 @@ export async function getEtsyRequestContext(request: NextRequest) {
   if (isOperator && shopId !== Number(process.env.WARLOCK_SHOP_ID)) return null;
   return { auth, shop, shopId };
 }
+
+
+/**
+ * Load the owner's stored Etsy grant for an already-authenticated Warlock
+ * operator/MCP execution path. This function does not authenticate the caller;
+ * callers must be behind the Warlock operator boundary.
+ */
+export async function getWarlockEtsyOperatorContext() {
+  const allowedShopId = Number(process.env.WARLOCK_SHOP_ID);
+  if (!Number.isSafeInteger(allowedShopId) || allowedShopId <= 0) {
+    throw new Error("warlock_shop_id_missing");
+  }
+
+  const saved = await prisma.etsyConnection.findUnique({ where: { id: CONNECTION_ID } });
+  if (!saved) throw new Error("etsy_not_connected");
+
+  const auth = await getValidEtsySession(saved.encryptedSession);
+  if (auth.refreshedCookieValue) {
+    await saveEtsyConnection(auth.refreshedCookieValue);
+  }
+
+  const shop = await getOwnedEtsyShop(auth.session.access_token);
+  const shopId = Number(shop?.shop_id);
+  if (!shopId || shopId !== allowedShopId) {
+    throw new Error("etsy_shop_not_allowed");
+  }
+
+  return { auth, shop, shopId };
+}

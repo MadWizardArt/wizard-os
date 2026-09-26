@@ -16,6 +16,9 @@ export type WarlockManifestVariant = {
   printfulVariantId: number | null;
   printfulStoreId: number | null;
   etsyListingId: string | null;
+  etsySku: string | null;
+  etsyProductId: string | null;
+  printfulSyncVariantId: number | null;
   retailPriceCents: number | null;
   productionBaseCents: number | null;
   productionQuotedAt: string | Date | null;
@@ -26,6 +29,8 @@ export type WarlockManifestListingAsset = {
   id: string;
   kind: string;
   position: number;
+  etsyRemoteId: string | null;
+  etsySyncedAt: string | Date | null;
   asset: WarlockManifestAsset;
 };
 
@@ -44,6 +49,8 @@ export type WarlockManifestListing = {
   isSupply: boolean;
   shouldAutoRenew: boolean;
   etsyListingId: string | null;
+  printfulSyncProductId: number | null;
+  lastDraftSyncAt: string | Date | null;
   status: string;
   assets: WarlockManifestListingAsset[];
 };

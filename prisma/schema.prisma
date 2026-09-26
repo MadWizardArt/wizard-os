@@ -442,6 +442,9 @@ model SpellmarkVariant {
   printfulVariantId   Int?
   printfulStoreId     Int?
   etsyListingId       String?
+  etsySku             String?
+  etsyProductId       String?
+  printfulSyncVariantId Int?
   retailPriceCents    Int?
   productionBaseCents Int?
   productionQuotedAt  DateTime?
@@ -452,6 +455,8 @@ model SpellmarkVariant {
   @@index([productId, fulfillment])
   @@index([printfulVariantId])
   @@index([etsyListingId])
+  @@index([etsyProductId])
+  @@index([printfulSyncVariantId])
 }
 
 
@@ -472,6 +477,8 @@ model SpellmarkListing {
   isSupply         Boolean              @default(false)
   shouldAutoRenew  Boolean              @default(true)
   etsyListingId    String?
+  printfulSyncProductId Int?
+  lastDraftSyncAt  DateTime?
   status           String               @default("CONFIG")
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -479,6 +486,7 @@ model SpellmarkListing {
 
   @@unique([productId, fulfillment])
   @@index([etsyListingId])
+  @@index([printfulSyncProductId])
   @@index([status])
 }
 
@@ -490,6 +498,8 @@ model SpellmarkListingAsset {
   asset     SpellmarkAsset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
   kind      String           @default("image")
   position  Int              @default(1)
+  etsyRemoteId String?
+  etsySyncedAt DateTime?
   createdAt DateTime         @default(now())
 
   @@unique([listingId, assetId])

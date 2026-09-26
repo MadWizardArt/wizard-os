@@ -77,3 +77,21 @@ test("MCP repository loads canonical listing manifests and assigned assets", () 
   assert.match(repository, /readinessStateId:\s*true/);
   assert.match(repository, /assets:\s*\{/);
 });
+
+
+test("listing manifest lifecycle accepts the Printful-import waiting state", () => {
+  const waiting = readListingManifest({
+    fulfillment: "PHYSICAL",
+    title: "Waiting product",
+    description: "Approved listing copy",
+    tags: [],
+    taxonomyId: 123,
+    shippingProfileId: 456,
+    readinessStateId: 789,
+    quantity: 999,
+    whoMade: "i_did",
+    whenMade: "2020_2026",
+    status: "WAITING_PRINTFUL",
+  });
+  assert.equal(waiting?.status, "WAITING_PRINTFUL");
+});
