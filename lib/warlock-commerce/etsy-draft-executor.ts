@@ -231,7 +231,6 @@ async function uploadListingAsset(
   } else if (link.kind === "customer_file") {
     form.set("file", file, file.name);
     form.set("name", file.name);
-    form.set("rank", String(link.position));
     path = "/shops/" + shopId + "/listings/" + listingId + "/files";
   } else {
     throw new Error("unsupported_listing_asset_kind");
