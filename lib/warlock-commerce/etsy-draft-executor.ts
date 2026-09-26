@@ -174,9 +174,7 @@ async function ensureDraftListing(
   return { listingId, created: true };
 }
 
-async function updatePhysicalInventory(
-  accessToken: string,
-  listingId: string,
+export function buildPhysicalInventoryBody(
   listing: WarlockManifestListing,
   variants: WarlockManifestVariant[],
 ) {
@@ -186,7 +184,7 @@ async function updatePhysicalInventory(
   const skuByVariantId = new Map(
     variants.map((variant) => [variant.id, etsySkuForVariant(variant)]),
   );
-  const body = {
+  return {
     products: variants.map((variant) => {
       if (!variant.retailPriceCents) throw new Error("physical_price_missing");
       return {
@@ -211,6 +209,18 @@ async function updatePhysicalInventory(
     sku_on_property: [EDITION_PROPERTY_ID],
     readiness_state_on_property: [],
   };
+}
+
+async function updatePhysicalInventory(
+  accessToken: string,
+  listingId: string,
+  listing: WarlockManifestListing,
+  variants: WarlockManifestVariant[],
+) {
+  const body = buildPhysicalInventoryBody(listing, variants);
+  const skuByVariantId = new Map(
+    variants.map((variant) => [variant.id, etsySkuForVariant(variant)]),
+  );
 
   const inventory = await etsyJson(
     accessToken,
