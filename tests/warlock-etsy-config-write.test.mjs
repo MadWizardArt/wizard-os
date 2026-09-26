@@ -57,8 +57,8 @@ test("physical Etsy configuration requires taxonomy, shipping, and readiness IDs
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "PHYSICAL",
     taxonomyId: 123,
-    shippingProfileId: 456,
-    readinessStateId: 789,
+    shippingProfileId: "456",
+    readinessStateId: "789",
   }), []);
 });
 
@@ -66,7 +66,7 @@ test("digital Etsy configuration rejects physical fulfillment profile IDs", () =
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "DIGITAL",
     taxonomyId: 123,
-    shippingProfileId: 456,
+    shippingProfileId: "456",
   }), ["digital_shipping_profile_not_allowed"]);
 });
 
@@ -74,8 +74,8 @@ test("verified listing configuration becomes READY only when listing essentials 
   const selection = {
     fulfillment: "PHYSICAL",
     taxonomyId: 123,
-    shippingProfileId: 456,
-    readinessStateId: 789,
+    shippingProfileId: "456",
+    readinessStateId: "789",
   };
   const blockers = listingConfigurationBlockers(listing, selection);
   assert.deepEqual(blockers, []);
@@ -118,4 +118,23 @@ test("MCP configuration action requires explicit confirmation and is not a comme
   assert.match(server, /configurationWriteAnnotations/);
   assert.match(server, /destructiveHint:\s*false/);
   assert.match(server, /idempotentHint:\s*true/);
+});
+
+
+test("verified configuration accepts Etsy profile IDs beyond JavaScript safe integer range", () => {
+  assert.deepEqual(validateEtsyConfigurationSelection({
+    fulfillment: "PHYSICAL",
+    taxonomyId: 123,
+    shippingProfileId: "9223372036854775807",
+    readinessStateId: "9007199254740993",
+  }), []);
+});
+
+test("schema stores Etsy fulfillment profile IDs as text instead of PostgreSQL int4", () => {
+  const schema = source("prisma/schema.prisma");
+  assert.match(schema, /shippingProfileId\s+String\?/);
+  assert.match(schema, /readinessStateId\s+String\?/);
+  const migration = source("prisma/migrations/20260926120000_etsy_profile_ids_text/migration.sql");
+  assert.match(migration, /shippingProfileId\" TYPE TEXT/);
+  assert.match(migration, /readinessStateId\" TYPE TEXT/);
 });
