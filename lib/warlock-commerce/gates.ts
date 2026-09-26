@@ -91,6 +91,15 @@ export function evaluateCommerceGates(
   const errors: CommerceGateIssue[] = [];
   const warnings: CommerceGateIssue[] = [];
   const listings = manifest.listings ?? [];
+  const digitalVariants = manifest.variants.filter((variant) => variant.fulfillment === "DIGITAL");
+  if (digitalVariants.length > 1) {
+    errors.push(issue(
+      "COMPLIANCE",
+      "error",
+      "digital_variations_not_supported",
+      "Etsy digital listings do not support variations; keep exactly one digital fulfillment variant per digital listing.",
+    ));
+  }
 
   const requiredFulfillments = [...new Set(
     manifest.variants.map((variant) => variant.fulfillment),
@@ -186,15 +195,67 @@ export function evaluateCommerceGates(
           { listingId: listing.id },
         ));
       }
-    } else if (customerFileCount === 0) {
-      pass = false;
-      errors.push(issue(
-        "COMPLIANCE",
-        "error",
-        "digital_customer_files_missing",
-        "Digital Etsy listing has no assigned customer download file.",
-        { listingId: listing.id },
-      ));
+    } else {
+      const customerFiles = listing.assets.filter((link) => link.kind === "customer_file");
+      if (customerFileCount === 0) {
+        pass = false;
+        errors.push(issue(
+          "COMPLIANCE",
+          "error",
+          "digital_customer_files_missing",
+          "Digital Etsy listing has no assigned customer download file.",
+          { listingId: listing.id },
+        ));
+      }
+      if (customerFileCount > 5) {
+        pass = false;
+        errors.push(issue(
+          "COMPLIANCE",
+          "error",
+          "digital_file_count_exceeded",
+          "Etsy instant-download listings support at most five customer files.",
+          { listingId: listing.id },
+        ));
+      }
+
+      const allowedExtensions = new Set([
+        "bmp", "doc", "gif", "jpeg", "jpg", "mobi", "mov", "mp3", "mpeg",
+        "pdf", "png", "psp", "rtf", "stl", "txt", "zip", "epub", "ibook",
+      ]);
+      for (const link of customerFiles) {
+        const fileName = link.asset.fileName;
+        const extension = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() ?? "" : "";
+        if (link.asset.byteSize > 20 * 1024 * 1024) {
+          pass = false;
+          errors.push(issue(
+            "COMPLIANCE",
+            "error",
+            "digital_file_too_large",
+            "Etsy customer file " + fileName + " exceeds the 20 MB per-file limit.",
+            { listingId: listing.id },
+          ));
+        }
+        if (fileName.length > 70 || !/^[A-Za-z0-9._-]+$/.test(fileName)) {
+          pass = false;
+          errors.push(issue(
+            "COMPLIANCE",
+            "error",
+            "digital_file_name_invalid",
+            "Etsy customer file names must be 70 characters or fewer and use only letters, numbers, periods, underscores, or hyphens.",
+            { listingId: listing.id },
+          ));
+        }
+        if (!allowedExtensions.has(extension)) {
+          pass = false;
+          errors.push(issue(
+            "COMPLIANCE",
+            "error",
+            "digital_file_type_unsupported",
+            "Etsy does not support the customer file type for " + fileName + ".",
+            { listingId: listing.id },
+          ));
+        }
+      }
     }
     if (listing.status !== "READY" && listing.status !== "DRAFT_CREATED" && listing.status !== "WAITING_PRINTFUL" && listing.status !== "SYNCED") {
       pass = false;
@@ -329,7 +390,8 @@ export function evaluateCommerceGates(
     "Margin estimate excludes shipping, sales tax, Etsy Ads, Offsite Ads, currency conversion, refunds, and other optional or order-specific fees.",
   ));
 
-  const compliancePass = listingReports.every((listing) => listing.pass);
+  const compliancePass = listingReports.every((listing) => listing.pass)
+    && !errors.some((entry) => entry.gate === "COMPLIANCE");
   const marginPass = variantMargins.every((variant) => variant.pass);
   const supplierPass = mappedPhysical.length === physical.length;
   const disclosurePresent = listingReports.every((listing) => {
