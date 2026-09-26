@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CHATGPT_CLIENT_ID, warlockMcpResource } from "../../../../lib/warlock-mcp-oauth";
+import { CHATGPT_CLIENT_ID, warlockMcpResource } from "../../../../../lib/warlock-mcp-oauth";
 import {
   exchangeWarlockAuthorizationCode,
   refreshWarlockOAuthGrant,
-} from "../../../../lib/warlock-mcp-oauth-store";
+} from "../../../../../lib/warlock-mcp-oauth-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
