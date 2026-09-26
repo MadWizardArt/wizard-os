@@ -45,6 +45,43 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  */
 export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
   {
+    id: "disney-princess-xl-v2",
+    label: "All Disney Princess XL · v2",
+    air: "urn:air:sdxl:lora:civitai:212532@244808",
+    compatibility: "both",
+    category: "character",
+    defaultWeight: 0.5,
+    minWeight: 0.3,
+    maxWeight: 0.8,
+    // The model is designed for direct character-name prompting rather than one global trigger.
+    triggerWords: [],
+    enabled: true,
+  },
+  {
+    id: "incase-style-ponyxl-v3",
+    label: "Incase Style · PonyXL V3",
+    air: "urn:air:sdxl:lora:civitai:300005@436219",
+    compatibility: "both",
+    category: "style",
+    defaultWeight: 0.7,
+    minWeight: 0.4,
+    maxWeight: 1.0,
+    triggerWords: [],
+    enabled: true,
+  },
+  {
+    id: "expressiveh-pony",
+    label: "ExpressiveH · Pony",
+    air: "urn:air:sdxl:lora:civitai:341353@382152",
+    compatibility: "both",
+    category: "style",
+    defaultWeight: 0.8,
+    minWeight: 0.4,
+    maxWeight: 1.0,
+    triggerWords: ["Expressiveh"],
+    enabled: true,
+  },
+  {
     id: "eyesponyxl-v1",
     label: "EyesPonyXL · v1.0",
     air: "urn:air:sdxl:lora:civitai:964638@1080037",
