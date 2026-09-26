@@ -14,14 +14,17 @@ type DraftInput = {
   taxonomyId?: number;
   tags?: string[];
   listingType?: "download" | "physical";
-  shippingProfileId?: number;
-  readinessStateId?: number;
+  shippingProfileId?: string | number;
+  readinessStateId?: string | number;
   productVariantId?: string;
 };
 
-const positiveId = (value: unknown) => {
-  const n = Number(value);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+const externalId = (value: unknown) => {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : null;
+  }
+  const text = String(value ?? "").trim();
+  return /^[1-9]\\d{0,18}$/.test(text) ? text : null;
 };
 
 export async function POST(request: NextRequest) {
@@ -31,8 +34,8 @@ export async function POST(request: NextRequest) {
   }
 
   const listingType = input.listingType === "physical" ? "physical" : "download";
-  const shippingProfileId = positiveId(input.shippingProfileId);
-  const readinessStateId = positiveId(input.readinessStateId);
+  const shippingProfileId = externalId(input.shippingProfileId);
+  const readinessStateId = externalId(input.readinessStateId);
   if (listingType === "physical" && (!shippingProfileId || !readinessStateId)) {
     return NextResponse.json({ error: "physical_profile_required" }, { status: 400 });
   }
