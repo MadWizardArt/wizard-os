@@ -8,6 +8,7 @@ import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-prefl
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
+import { WARLOCK_OAUTH_SCOPE } from "../warlock-mcp-oauth";
 import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
 import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-writer";
 
@@ -376,6 +377,22 @@ export function createWarlockCommerceMcpServer() {
       });
     },
   );
+
+  // OpenAI clients inspect per-tool auth metadata when presenting account linking.
+  // @modelcontextprotocol/server v2 currently preserves extension fields through
+  // _meta, so advertise the OAuth requirement there for every private Warlock tool.
+  const oauthSecuritySchemes = [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }];
+  const registry = (server as unknown as {
+    _registeredTools?: Record<string, { _meta?: Record<string, unknown> }>;
+  })._registeredTools;
+  if (registry) {
+    for (const tool of Object.values(registry)) {
+      tool._meta = {
+        ...(tool._meta ?? {}),
+        securitySchemes: oauthSecuritySchemes,
+      };
+    }
+  }
 
   return server;
 }

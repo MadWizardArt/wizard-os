@@ -1,6 +1,11 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { NextRequest, NextResponse } from "next/server";
 import { isWarlockOperatorRequest, WARLOCK_OPERATOR_HEADER } from "../../../../lib/warlock-auth";
+import {
+  WARLOCK_OAUTH_SCOPE,
+  warlockOAuthChallenge,
+} from "../../../../lib/warlock-mcp-oauth";
+import { isValidWarlockOAuthAccessToken } from "../../../../lib/warlock-mcp-oauth-store";
 import { createWarlockCommerceMcpServer } from "../../../../lib/warlock-mcp/server";
 
 export const runtime = "nodejs";
@@ -8,24 +13,39 @@ export const dynamic = "force-dynamic";
 
 const handler = createMcpHandler(createWarlockCommerceMcpServer);
 
-function isAuthorized(request: NextRequest) {
+async function isAuthorized(request: NextRequest) {
   if (isWarlockOperatorRequest(request)) return true;
+
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Bearer ")) return false;
+  const token = authorization.slice(7).trim();
 
+  // Preserve the existing private operator-key path for trusted direct clients.
   const headers = new Headers(request.headers);
-  headers.set(WARLOCK_OPERATOR_HEADER, authorization.slice(7).trim());
-  return isWarlockOperatorRequest({ headers });
+  headers.set(WARLOCK_OPERATOR_HEADER, token);
+  if (isWarlockOperatorRequest({ headers })) return true;
+
+  // ChatGPT Business uses a short-lived opaque OAuth access token.
+  return isValidWarlockOAuthAccessToken(token);
 }
 
 async function serve(request: NextRequest) {
   if (process.env.WARLOCK_MCP_ENABLED !== "true") {
     return NextResponse.json({ error: "warlock_mcp_disabled" }, { status: 503 });
   }
-  if (!isAuthorized(request)) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json(
-      { error: "warlock_operator_required" },
-      { status: 401, headers: { "WWW-Authenticate": "Bearer" } },
+      {
+        error: "warlock_operator_required",
+        scope: WARLOCK_OAUTH_SCOPE,
+      },
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store",
+          "WWW-Authenticate": warlockOAuthChallenge(),
+        },
+      },
     );
   }
   return handler.fetch(request);
