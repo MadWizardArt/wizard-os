@@ -4,7 +4,7 @@ import type {
 } from "../warlock-mcp/manifest.ts";
 import { prisma } from "../prisma";
 import { createTemporaryPrintfulAssetUrl } from "./asset-delivery.ts";
-import { etsySkuForVariant } from "./etsy-draft-executor.ts";
+import { etsySkuForVariant } from "./etsy-inventory.ts";
 import { assertCommerceDraftWritesEnabled } from "./write-guard.ts";
 
 const API = "https://api.printful.com";
