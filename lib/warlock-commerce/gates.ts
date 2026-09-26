@@ -196,7 +196,7 @@ export function evaluateCommerceGates(
         { listingId: listing.id },
       ));
     }
-    if (listing.status !== "READY" && listing.status !== "DRAFT_CREATED" && listing.status !== "SYNCED") {
+    if (listing.status !== "READY" && listing.status !== "DRAFT_CREATED" && listing.status !== "WAITING_PRINTFUL" && listing.status !== "SYNCED") {
       pass = false;
       errors.push(issue(
         "COMPLIANCE",
