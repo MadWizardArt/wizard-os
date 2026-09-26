@@ -61,6 +61,27 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     GROTTO_LORAS.map(({ id, air, compatibility, defaultWeight, triggerWords }) => ({ id, air, compatibility, defaultWeight, triggerWords })),
     [
       {
+        id: "disney-princess-xl-v2",
+        air: "urn:air:sdxl:lora:civitai:212532@244808",
+        compatibility: "both",
+        defaultWeight: 0.5,
+        triggerWords: [],
+      },
+      {
+        id: "incase-style-ponyxl-v3",
+        air: "urn:air:sdxl:lora:civitai:300005@436219",
+        compatibility: "both",
+        defaultWeight: 0.7,
+        triggerWords: [],
+      },
+      {
+        id: "expressiveh-pony",
+        air: "urn:air:sdxl:lora:civitai:341353@382152",
+        compatibility: "both",
+        defaultWeight: 0.8,
+        triggerWords: ["Expressiveh"],
+      },
+      {
         id: "eyesponyxl-v1",
         air: "urn:air:sdxl:lora:civitai:964638@1080037",
         compatibility: "both",
