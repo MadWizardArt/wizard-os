@@ -8,6 +8,7 @@ import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-prefl
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
+import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -41,6 +42,11 @@ const draftWriteAnnotations = {
 const draftExecutionShape = {
   ...selectorShape,
   confirmDraftWrite: z.literal(true),
+};
+
+const etsyConfigShape = {
+  ...selectorShape,
+  taxonomyQuery: z.string().trim().min(2).max(120).optional(),
 };
 
 function success(payload: Record<string, unknown>) {
@@ -184,6 +190,29 @@ export function createWarlockCommerceMcpServer() {
         supplier,
         readyForWritePhase: gates.pass && supplier.pass,
       });
+    },
+  );
+
+  server.registerTool(
+    "inspect_etsy_configuration",
+    {
+      title: "Inspect Etsy Configuration",
+      description: "Read the shop's current shipping profiles, processing profiles, existing physical listing metadata, and ranked seller-taxonomy candidates. Never changes Etsy or WizardOS.",
+      inputSchema: etsyConfigShape,
+      annotations: liveReadAnnotations,
+    },
+    async (input) => {
+      const loaded = await loadProduct(input);
+      if (!loaded.ok) return loaded.error;
+      try {
+        return success(await inspectEtsyConfiguration(loaded.product, input.taxonomyQuery));
+      } catch (error) {
+        console.error("Warlock MCP Etsy configuration inspection failed", error);
+        return failure(
+          "etsy_configuration_inspection_failed",
+          error instanceof Error ? error.message : "Etsy configuration inspection failed.",
+        );
+      }
     },
   );
 
