@@ -37,6 +37,11 @@ function numberId(value: unknown) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+function externalId(value: unknown) {
+  const text = String(value ?? "").trim();
+  return /^[1-9]\d{0,18}$/.test(text) ? text : null;
+}
+
 function nonNegativeInteger(value: unknown) {
   const n = Number(value);
   return Number.isSafeInteger(n) && n >= 0 ? n : null;
@@ -68,7 +73,7 @@ function deriveTaxonomyQuery(manifest: WarlockProductManifest) {
 
 function normalizeShippingProfiles(payload: Json) {
   return resultArray(payload).map((profile) => ({
-    shippingProfileId: numberId(profile.shipping_profile_id),
+    shippingProfileId: externalId(profile.shipping_profile_id),
     title: text(profile.title),
     originCountryIso: text(profile.origin_country_iso),
     minProcessingDays: nonNegativeInteger(profile.min_processing_days),
@@ -78,7 +83,7 @@ function normalizeShippingProfiles(payload: Json) {
 
 function normalizeReadinessStates(payload: Json) {
   return resultArray(payload).map((state) => ({
-    readinessStateId: numberId(state.readiness_state_id),
+    readinessStateId: externalId(state.readiness_state_id),
     readinessState: text(state.readiness_state),
     minProcessingDays: nonNegativeInteger(state.min_processing_days),
     maxProcessingDays: nonNegativeInteger(state.max_processing_days),
@@ -97,8 +102,8 @@ function existingListingSummary(payload: Json | null) {
     title: text(payload.title),
     state: text(payload.state),
     taxonomyId: numberId(payload.taxonomy_id),
-    shippingProfileId: numberId(payload.shipping_profile_id),
-    readinessStateId: numberId(payload.readiness_state_id),
+    shippingProfileId: externalId(payload.shipping_profile_id),
+    readinessStateId: externalId(payload.readiness_state_id),
     type: text(payload.type),
   };
 }
