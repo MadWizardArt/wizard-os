@@ -106,6 +106,7 @@ test("verified configuration writer uses live GET checks and only mutates Wizard
 
 test("existing Etsy listing mismatches are refused instead of silently reconciled", () => {
   const writer = source("lib/warlock-commerce/etsy-config-writer.ts");
+  assert.match(writer, /existing_etsy_listing_not_draft/);
   assert.match(writer, /existing_etsy_taxonomy_mismatch/);
   assert.match(writer, /existing_etsy_shipping_profile_mismatch/);
   assert.match(writer, /existing_etsy_readiness_state_mismatch/);
