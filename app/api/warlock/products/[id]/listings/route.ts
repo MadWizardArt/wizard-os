@@ -35,7 +35,7 @@ const include = {
       },
     },
   },
-} as const;
+};
 
 export async function GET(request: NextRequest, context: Context) {
   if (!verifyArtistSession(request)) {
