@@ -41,7 +41,8 @@ test("seller taxonomy ranking favors specific print categories without auto-sele
   const ranked = rankSellerTaxonomy(tree, "art print wall art");
   assert.ok(ranked.length >= 2);
   assert.ok([3, 4].includes(ranked[0].id));
-  assert.ok(ranked[0].score > ranked.find((candidate) => candidate.id === 5)?.score ?? 0);
+  const sculptureScore = ranked.find((candidate) => candidate.id === 5)?.score ?? 0;
+  assert.ok(ranked[0].score > sculptureScore);
 });
 
 test("Etsy configuration inspector uses GET-only shop and taxonomy endpoints", () => {
