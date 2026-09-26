@@ -9,12 +9,16 @@ import { EtsySession, etsyUserId, getOwnedEtsyShop, getValidEtsySession } from "
 const CONNECTION_ID = "primary";
 export const WARLOCK_OPERATOR_HEADER = "x-warlock-api-key";
 
-function keyMatches(supplied: string) {
+export function verifyWarlockOperatorKey(supplied: string) {
   const expected = process.env.WARLOCK_API_KEY;
   if (!expected || expected.length < 32 || !supplied) return false;
   const actualHash = createHash("sha256").update(supplied).digest();
   const expectedHash = createHash("sha256").update(expected).digest();
   return timingSafeEqual(actualHash, expectedHash);
+}
+
+function keyMatches(supplied: string) {
+  return verifyWarlockOperatorKey(supplied);
 }
 
 export function isWarlockOperatorRequest(request: Pick<NextRequest, "headers">) {
