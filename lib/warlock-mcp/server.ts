@@ -6,6 +6,8 @@ import { findWarlockProduct } from "./repository";
 import { evaluateCommerceGates } from "../warlock-commerce/gates";
 import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
+import { executeDraftProduct } from "../warlock-commerce/draft-execution";
+import { commerceWriteMode } from "../warlock-commerce/write-guard";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -28,6 +30,18 @@ const liveReadAnnotations = {
   ...annotations,
   openWorldHint: true,
 } as const;
+
+const draftWriteAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+
+const draftExecutionShape = {
+  ...selectorShape,
+  confirmDraftWrite: z.literal(true),
+};
 
 function success(payload: Record<string, unknown>) {
   return {
@@ -185,6 +199,37 @@ export function createWarlockCommerceMcpServer() {
       const loaded = await loadProduct(selector);
       if (!loaded.ok) return loaded.error;
       return success(buildCommerceExecutionPlan(loaded.product));
+    },
+  );
+
+  server.registerTool(
+    "execute_draft_product",
+    {
+      title: "Execute Draft Product",
+      description: "Create or update Etsy drafts and configure imported Printful sync variants after all Warlock gates pass. Never publishes listings or places orders.",
+      inputSchema: draftExecutionShape,
+      annotations: draftWriteAnnotations,
+    },
+    async (input) => {
+      if (commerceWriteMode() !== "draft") {
+        return failure(
+          "warlock_commerce_writes_disabled",
+          "Draft execution is disabled. WARLOCK_COMMERCE_WRITE_MODE must be explicitly set to draft.",
+        );
+      }
+
+      const loaded = await loadProduct(input);
+      if (!loaded.ok) return loaded.error;
+
+      try {
+        return success({ ...(await executeDraftProduct(loaded.product.id)) });
+      } catch (error) {
+        console.error("Warlock MCP draft execution failed", error);
+        return failure(
+          "draft_execution_failed",
+          error instanceof Error ? error.message : "Draft execution failed.",
+        );
+      }
     },
   );
 
