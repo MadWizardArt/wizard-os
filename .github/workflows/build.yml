@@ -40,7 +40,7 @@ jobs:
         run: npm install
 
       - name: Verify workflow rules
-        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs tests/museum-knowledge.test.mjs tests/museum-mind-kernel.test.mjs tests/museum-mind-continuity.test.mjs tests/museum-project-boundary.test.mjs tests/audit-pass6.test.mjs tests/database-url.test.mjs tests/grotto-reference.test.mjs tests/grotto-loras.test.mjs tests/grotto-gallery-organization.test.mjs tests/warlock-bridge.test.mjs tests/warlock-products.test.mjs tests/warlock-mcp.test.mjs tests/warlock-commerce-gates.test.mjs tests/warlock-commerce-execution.test.mjs tests/warlock-listing-manifests.test.mjs tests/warlock-commerce-draft-execution.test.mjs tests/spellmark-owl-release.test.mjs tests/volans-release.test.mjs
+        run: node --experimental-strip-types --test tests/workflow.test.mjs tests/campaign-rules.test.mjs tests/artwork-lifecycle.test.mjs tests/museum-knowledge.test.mjs tests/museum-mind-kernel.test.mjs tests/museum-mind-continuity.test.mjs tests/museum-project-boundary.test.mjs tests/audit-pass6.test.mjs tests/database-url.test.mjs tests/grotto-reference.test.mjs tests/grotto-loras.test.mjs tests/grotto-gallery-organization.test.mjs tests/warlock-bridge.test.mjs tests/warlock-products.test.mjs tests/warlock-mcp.test.mjs tests/warlock-commerce-gates.test.mjs tests/warlock-commerce-execution.test.mjs tests/warlock-listing-manifests.test.mjs tests/warlock-commerce-draft-execution.test.mjs tests/warlock-etsy-config-discovery.test.mjs tests/spellmark-owl-release.test.mjs tests/volans-release.test.mjs
 
       - name: Apply migrations to isolated CI database
         run: npm run db:deploy
