@@ -41,8 +41,8 @@ export type WarlockManifestListing = {
   description: string;
   tagsJson: string;
   taxonomyId: number | null;
-  shippingProfileId: number | null;
-  readinessStateId: number | null;
+  shippingProfileId: string | null;
+  readinessStateId: string | null;
   quantity: number;
   whoMade: string;
   whenMade: string;
