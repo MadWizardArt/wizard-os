@@ -30,8 +30,8 @@ export type CommerceGateReport = {
       title: string;
       outboundDescription: string;
       taxonomyId: number | null;
-      shippingProfileId: number | null;
-      readinessStateId: number | null;
+      shippingProfileId: string | null;
+      readinessStateId: string | null;
       imageCount: number;
       customerFileCount: number;
       status: string;
