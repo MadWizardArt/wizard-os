@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { artworkPhase } from "../../lib/artwork-lifecycle";
-import { easternDate } from "../../lib/campaign-rules";
+import {
+  activeCampaignStatuses,
+  easternDate,
+} from "../../lib/campaign-rules";
 import type {
   SalesData,
   Painting,
@@ -119,6 +122,12 @@ export default function ArtworkLifecycle({
     });
   }
   function saleForm(p: Painting, s?: ArtworkSale) {
+    const selectableCampaigns = data.campaigns.filter(
+      (campaign) =>
+        activeCampaignStatuses.includes(
+          campaign.status as (typeof activeCampaignStatuses)[number],
+        ) || campaign.artwork.some((artwork) => artwork.projectId === p.projectId),
+    );
     const values = s
       ? { ...s, projectId: p.projectId }
       : {
@@ -207,11 +216,10 @@ export default function ArtworkLifecycle({
                 label: "Campaign (optional)",
                 options: [
                   { value: "", label: "No campaign" },
-                  ...data.campaigns
-                    .filter((c) =>
-                      c.artwork.some((a) => a.projectId === p.projectId),
-                    )
-                    .map((c) => ({ value: c.id, label: c.title })),
+                  ...selectableCampaigns.map((campaign) => ({
+                    value: campaign.id,
+                    label: `${campaign.title} · ${campaign.status}`,
+                  })),
                 ],
               },
               {

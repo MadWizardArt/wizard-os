@@ -163,15 +163,25 @@ export async function POST(req: NextRequest) {
             throw Error(
               "An active sale already exists. Open it to record another payment.",
             );
-          if (b.campaignId)
-            await tx.campaignPainting.findUniqueOrThrow({
+          if (b.campaignId) {
+            await tx.campaign.findUniqueOrThrow({
+              where: { id: b.campaignId },
+            });
+            await tx.campaignPainting.upsert({
               where: {
                 campaignId_projectId: {
                   campaignId: b.campaignId,
                   projectId: project.id,
                 },
               },
+              create: {
+                campaignId: b.campaignId,
+                projectId: project.id,
+                salePriceCents: saleData.salePriceCents,
+              },
+              update: {},
             });
+          }
           const sale = await tx.artworkSale.create({
             data: {
               ...saleData,
