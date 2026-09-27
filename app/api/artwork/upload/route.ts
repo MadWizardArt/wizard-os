@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       `artwork/paintings/${randomUUID()}-${safeName}`,
       image,
       {
-        access: "public",
+        access: "private",
         addRandomSuffix: true,
         contentType: image.type,
       },
