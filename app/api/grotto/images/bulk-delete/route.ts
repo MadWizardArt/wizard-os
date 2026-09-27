@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
-import { prisma } from "../../../../../lib/prisma";
+import { deleteGrottoImageIds } from "../../../../../lib/grotto-delete";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,23 +17,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const deleted = await prisma.$transaction(async (tx) => {
-      const images = await tx.grottoImage.findMany({
-        where: { id: { in: ids }, deletedAt: null, canonical: false, provider: { not: "header" } },
-        select: { id: true },
-      });
-      if (images.length !== ids.length) return null;
-      const result = await tx.grottoImage.updateMany({
-        where: { id: { in: ids }, deletedAt: null, canonical: false, provider: { not: "header" } },
-        data: { deletedAt: new Date() },
-      });
-      if (result.count !== ids.length) throw new Error("A selected image changed during deletion.");
-      return result.count;
-    });
-    if (deleted === null) return NextResponse.json({ error: "One or more images are missing or protected. Nothing was deleted." }, { status: 409 });
-    // Keep the private Blob bytes for Undo; the storage cleanup purges deletions after the retention window.
+    const deleted = await deleteGrottoImageIds(ids);
     return NextResponse.json({ deleted });
-  } catch {
-    return NextResponse.json({ error: "Selected images could not be deleted. No changes were saved." }, { status: 409 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Selected images could not be deleted." }, { status: 409 });
   }
 }

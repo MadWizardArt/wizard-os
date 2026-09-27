@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../../lib/prisma";
-import { deleteGrottoImages } from "../../../../../lib/grotto-blob";
+import { deleteGrottoImageIds } from "../../../../../lib/grotto-delete";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,17 +53,12 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const existing = await prisma.grottoImage.findFirst({ where: { id, deletedAt: null } });
+  const existing = await prisma.grottoImage.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
   if (!existing) return NextResponse.json({ error: "Image not found." }, { status: 404 });
-  if (existing.canonical) {
-    return NextResponse.json({ error: "Canon stays protected." }, { status: 409 });
+  try {
+    await deleteGrottoImageIds([id]);
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Image could not be deleted." }, { status: 409 });
   }
-
-  await prisma.grottoImage.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
-  await deleteGrottoImages([existing.blobUrl]).catch(() => undefined);
-
-  return NextResponse.json({ deleted: true });
 }

@@ -12,17 +12,17 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
+  const favorite = body.favorite;
   if (!ids.length || ids.length > 200 || ids.some((id) => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(id)) || new Set(ids).size !== ids.length) {
     return NextResponse.json({ error: "Select between 1 and 200 distinct images." }, { status: 400 });
   }
+  if (typeof favorite !== "boolean") return NextResponse.json({ error: "Choose Favorite or Unfavorite." }, { status: 400 });
 
-  const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const restored = await prisma.grottoImage.updateMany({
-    where: { id: { in: ids }, deletedAt: { gte: retentionCutoff }, canonical: false, provider: { not: "header" } },
-    data: { deletedAt: null },
+  const changed = await prisma.$transaction(async (tx) => {
+    const images = await tx.grottoImage.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true } });
+    if (images.length !== ids.length) return null;
+    return tx.grottoImage.updateMany({ where: { id: { in: ids }, deletedAt: null }, data: { favorite } });
   });
-  if (restored.count !== ids.length) {
-    return NextResponse.json({ restored: restored.count, error: "Some images were already restored or their retention period expired." }, { status: 409 });
-  }
-  return NextResponse.json({ restored: restored.count });
+  if (!changed || changed.count !== ids.length) return NextResponse.json({ error: "One or more images changed. Nothing was updated." }, { status: 409 });
+  return NextResponse.json({ changed: changed.count, favorite });
 }

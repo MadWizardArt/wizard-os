@@ -490,7 +490,7 @@
 }
 .galleryRail {
   display: grid;
-  grid-template-columns: repeat(11, minmax(76px, 1fr));
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
   gap: 8px;
   margin: 0 0 28px;
   padding: 10px;
@@ -510,11 +510,18 @@
   cursor: pointer;
   font: 600 12px/1.2 system-ui, sans-serif;
 }
-.galleryRail button:first-child { padding: 12px; color: #d9c09b; }
+.galleryRail button { padding: 12px; }
+.galleryRail button:first-child { color: #d9c09b; }
 .galleryRail img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
 .galleryRail span { position: relative; z-index: 1; display: inline-block; padding: 5px 7px; border-radius: 999px; background: #09080bb8; }
 .galleryRail button:hover, .galleryRail button:focus-visible, .galleryRail button.galleryRailActive { border-color: #bd9462; color: #fff1dc; }
 .referenceTray { margin-bottom: 24px; }
+.museReferences { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 10px; }
+.museReferences button { position: relative; min-height: 48px; padding: 0; overflow: hidden; border: 1px solid #ffffff18; border-radius: 7px; background: #0c0a0e; color: #eee3e7; cursor: pointer; }
+.museReferences img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; }
+.museReferences span { position: relative; z-index: 1; font: 600 9px/1 system-ui, sans-serif; text-shadow: 0 1px 4px #000; }
+.museReferences button:hover, .museReferences button:focus-visible, .museReferences button.museReferenceActive { border-color: #bd9462; }
+.museReferences button.museReferenceActive img { opacity: .8; }
 .trayHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .trayHeading > span { color: #e2d3d7; font: 600 14px/1.4 system-ui, sans-serif; }
 .trayHeading small { color: #9f919a; font: 12px/1.4 system-ui, sans-serif; }
@@ -560,11 +567,27 @@
 .galleryActions > button { min-height: 40px; padding: 0 13px; border: 1px solid #ffffff24; border-radius: 7px; background: transparent; color: #d5c6ce; cursor: pointer; font: 600 13px/1 system-ui, sans-serif; }
 .galleryActions > button:disabled { opacity: .35; cursor: default; }
 .galleryActions .deleteSelection { border-color: #8b4459; color: #f0c8d3; }
+.maintenance { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 32px; padding: 18px; border: 1px solid #6d344633; border-radius: 12px; background: #3518241f; }
+.maintenance div { display: grid; gap: 5px; }
+.maintenance strong { color: #e0cdd4; font: 600 14px/1.3 system-ui, sans-serif; }
+.maintenance span { color: #9f8d96; font: 13px/1.5 system-ui, sans-serif; }
+.maintenance button { min-height: 42px; padding: 0 14px; border: 1px solid #8b4459; border-radius: 8px; background: transparent; color: #f0c8d3; cursor: pointer; font: 600 13px/1 system-ui, sans-serif; white-space: nowrap; }
+.maintenance button:disabled { opacity: .4; }
+.confirmBackdrop { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; padding: 20px; background: #050407e8; backdrop-filter: blur(10px); }
+.confirmDialog { width: min(480px, 100%); padding: 28px; border: 1px solid #764052; border-radius: 16px; background: #171218; box-shadow: 0 30px 100px #0009; }
+.confirmDialog small { color: #bd9567; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+.confirmDialog h2 { margin: 12px 0; color: #f3e7e9; font: 400 28px/1.2 Georgia, serif; }
+.confirmDialog p { margin: 8px 0; color: #bcaeb4; font: 14px/1.55 system-ui, sans-serif; }
+.finalWarning { display: block; margin: 18px 0 0; color: #efbdcc; font: 600 13px/1.4 system-ui, sans-serif; }
+.confirmActions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
+.confirmActions button { min-height: 42px; padding: 0 14px; border: 1px solid #ffffff26; border-radius: 8px; background: transparent; color: #d8cbd0; cursor: pointer; font: 600 13px/1 system-ui, sans-serif; }
+.confirmActions button:disabled { opacity: .35; }
+.confirmActions button.confirmDelete { border-color: #a34c66; background: #6d263a; color: #fff0f4; }
 .tileSelected { outline: 3px solid #d4b78a; outline-offset: -3px; }
 .selectMark { position: absolute; z-index: 2; right: 9px; top: 9px; display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #d4b78a; border-radius: 50%; background: #09080bd9; color: #f6dfbf; font: 700 15px/1 system-ui, sans-serif; }
 .viewerProvenance { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); color: #d8c9d0; font: 13px/1.4 system-ui, sans-serif; }
 @media (max-width: 1050px) { .atelierLayout { grid-template-columns: 300px minmax(0, 1fr); gap: 20px; } .collection .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(11, 82px); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } .headerUpload { right: 10px; bottom: 10px; min-height: 36px; font-size: 11px; } }
+@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(3, 1fr); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .maintenance { align-items: stretch; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } }
 @media (prefers-reduced-motion: reduce) { .tile img { transition: none; } }
 
 .loraPanel {

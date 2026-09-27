@@ -1,68 +1,54 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), "utf8");
 const gallery = source("app/api/grotto/images/route.ts");
 const page = source("app/grotto/page.tsx");
-const move = source("app/api/grotto/images/bulk-move/route.ts");
+const favorite = source("app/api/grotto/images/bulk-favorite/route.ts");
 const remove = source("app/api/grotto/images/bulk-delete/route.ts");
-const restore = source("app/api/grotto/images/bulk-restore/route.ts");
-const storage = source("app/api/grotto/storage/migrate/route.ts");
+const purge = source("app/api/grotto/images/purge-non-favorites/route.ts");
+const deletion = source("lib/grotto-delete.ts");
 
-test("Favorites is a global filtered view; regular galleries order by placement, not favorite rank", () => {
-  assert.match(gallery, /museId === "favorites" \? \{ favorite: true \} : \{ museId \}/);
-  assert.match(gallery, /galleryAddedAt: "desc"/);
-  assert.match(gallery, /museId === "favorites" \? \[\{ createdAt: "desc" \}/);
-  assert.doesNotMatch(gallery, /favorite: "desc"/);
-  assert.match(gallery, /provider: \{ not: "header" \}/);
-  assert.match(gallery, /UPLOAD_GALLERIES\.has\(museId\)/);
+test("Grotto exposes only All, Favorites and a timestamp-backed Recent collection", () => {
+  assert.match(gallery, /new Set\(\["all", "favorites", "recent"\]\)/);
+  assert.match(gallery, /collection === "favorites" \? \{ favorite: true \} : \{\}/);
+  assert.match(gallery, /collection === "recent" && offset >= 48/);
+  assert.match(gallery, /createdAt: "desc"/);
+  assert.match(page, />All</);
+  assert.match(page, />♥ Favorites</);
+  assert.match(page, />Recent</);
+  assert.doesNotMatch(page, /Move to|Move selected|Muse Galleries/);
+});
+
+test("Multi-select is limited to Favorite, Unfavorite and Delete", () => {
+  assert.match(page, /favoriteSelected\(true\)/);
+  assert.match(page, /favoriteSelected\(false\)/);
+  assert.match(page, /deleteSelected\(\)/);
+  assert.match(favorite, /typeof favorite !== "boolean"/);
+  assert.match(favorite, /prisma\.\$transaction/);
+  assert.match(remove, /deleteGrottoImageIds\(ids\)/);
+  assert.equal(existsSync(new URL("../app/api/grotto/images/bulk-move/route.ts", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../app/api/grotto/images/bulk-restore/route.ts", import.meta.url)), false);
+});
+
+test("Delete All Non-Favorites is counted, double-confirmed and fail-closed", () => {
+  assert.match(page, /Delete All Non-Favorites/);
+  assert.match(page, /setPurgeStep\(2\)/);
+  assert.match(page, /second and final confirmation/);
+  assert.match(page, /confirmation: "DELETE NON-FAVORITES"/);
+  assert.match(purge, /expectedCount/);
+  assert.match(deletion, /favorite: false/);
+  assert.match(deletion, /FOR UPDATE/);
+  assert.match(deletion, /TransactionIsolationLevel\.Serializable/);
+  assert.match(deletion, /deleteGrottoImages\(blobUrls\)/);
+  assert.match(deletion, /deleted\.count !== rows\.length/);
+});
+
+test("Muse identity remains provenance and a generation reference, not gallery placement", () => {
+  assert.match(gallery, /museId: image\.museId/);
   assert.match(gallery, /studioInput: studioInputFromRecipe\(image\.recipeJson\)/);
-});
-
-test("All three collections share a multi-select toolbar and protected canon remains unselectable", () => {
-  assert.match(page, /selectSpace\("favorites"\)/);
-  assert.match(page, /const galleryToolbar =/);
-  assert.match(page, /const galleryTiles =/);
-  assert.match(page, /\{galleryToolbar\}\{galleryTiles\}/);
-  assert.match(page, /selectionEligible = items\.filter\(\(item\) => item\.private && !item\.canonical\)/);
-  assert.match(page, /selectedIds\.length >= 200/);
-  assert.match(page, /Select loaded/);
-  assert.match(page, /bulk-move/);
-  assert.match(page, /bulk-delete/);
-  assert.match(page, /bulk-restore/);
-});
-
-test("Batch moves check every ID atomically and only change gallery membership", () => {
-  assert.match(move, /verifyArtistSession\(request\)/);
-  assert.match(move, /new Set\(ids\)\.size !== ids\.length/);
-  assert.match(move, /prisma\.\$transaction/);
-  assert.match(move, /images\.length !== ids\.length/);
-  assert.match(move, /canonical: false, provider: \{ not: "header" \}/);
-  assert.match(move, /data: \{ museId: destination, galleryAddedAt: new Date\(\) \}/);
-  assert.doesNotMatch(move, /deleteGrottoImages|storeGrottoImage/);
-});
-
-test("Batch deletes are undoable and purge retained private Blob bytes after thirty days", () => {
-  assert.match(remove, /prisma\.\$transaction/);
-  assert.match(remove, /canonical: false, provider: \{ not: "header" \}/);
-  assert.match(remove, /data: \{ deletedAt: new Date\(\) \}/);
-  assert.doesNotMatch(remove, /deleteGrottoImages/);
-  assert.match(restore, /30 \* 24 \* 60 \* 60 \* 1000/);
-  assert.match(restore, /data: \{ deletedAt: null \}/);
-  assert.match(storage, /deletedAt: \{ lt: retentionCutoff \}/);
-  assert.match(storage, /deleteGrottoImages\(expired\.map/);
-});
-
-test("Older images moved to a Muse are placed at the front and the destination opens", () => {
-  const migration = source("prisma/migrations/20260923065000_grotto_gallery_added_at/migration.sql");
-  const schema = source("prisma/schema.prisma");
-  assert.match(migration, /SET "galleryAddedAt" = "updatedAt"/);
-  assert.match(schema, /galleryAddedAt\s+DateTime @default\(now\(\)\)/);
-  assert.match(gallery, /galleryAddedAt: "desc"/);
-  assert.match(move, /galleryAddedAt: new Date\(\)/);
-  assert.match(page, /setGalleryPage\(0\); setHasNext\(false\); setSpace\(next\)/);
-  assert.match(page, /await selectSpace\(destination, true\)/);
-  assert.match(page, /getElementById\("grotto-gallery"\)/);
-  assert.doesNotMatch(gallery, /favorite: "desc"/);
+  assert.match(page, /Muse generation references/);
+  assert.match(page, /canonicalItem\(muse\)/);
+  assert.doesNotMatch(page, /bulk-move/);
 });

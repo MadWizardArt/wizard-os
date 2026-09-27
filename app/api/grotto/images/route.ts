@@ -6,8 +6,7 @@ import { deleteGrottoImages, storeGrottoImage } from "../../../../lib/grotto-blo
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_GALLERIES = new Set(["studio", "favorites", "novy", "aurelia", "callista", "cleo", "lyra", "melina", "seraphine", "tessa", "thalia"]);
-const UPLOAD_GALLERIES = new Set([...ALLOWED_GALLERIES].filter((id) => id !== "favorites"));
+const COLLECTIONS = new Set(["all", "favorites", "recent"]);
 
 function studioInputFromRecipe(recipeJson: string) {
   try {
@@ -23,19 +22,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Artist session required." }, { status: 401 });
   }
 
-  const museId = request.nextUrl.searchParams.get("museId")?.trim().toLowerCase() || "tessa";
-  if (!ALLOWED_GALLERIES.has(museId)) {
-    return NextResponse.json({ error: "That Grotto gallery is not available yet." }, { status: 400 });
+  const collection = request.nextUrl.searchParams.get("collection")?.trim().toLowerCase() || "all";
+  if (!COLLECTIONS.has(collection)) {
+    return NextResponse.json({ error: "That Grotto collection is not available." }, { status: 400 });
   }
 
   const requestedLimit = Number(request.nextUrl.searchParams.get("limit") || 16);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 16, 1), 48);
 
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(request.nextUrl.searchParams.get("offset")) || 0)));
+  if (collection === "recent" && offset >= 48) return NextResponse.json([]);
   const images = await prisma.grottoImage.findMany({
-    where: { ...(museId === "favorites" ? { favorite: true } : { museId }), deletedAt: null, provider: { not: "header" } },
-    orderBy: museId === "favorites" ? [{ createdAt: "desc" }, { id: "desc" }] : [{ galleryAddedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-    take: limit,
+    where: { ...(collection === "favorites" ? { favorite: true } : {}), deletedAt: null },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: collection === "recent" ? Math.min(limit, 48 - offset) : limit,
     skip: offset,
     select: {
       id: true,
@@ -75,8 +75,7 @@ export async function POST(request: NextRequest) {
       : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg"
       : bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP" ? "image/webp" : null;
     if (!contentType) return NextResponse.json({ error: "Choose a JPG, PNG, or WebP image." }, { status: 400 });
-    const museId = String(form.get("museId") || "studio").trim().toLowerCase();
-    if (!UPLOAD_GALLERIES.has(museId)) return NextResponse.json({ error: "That Grotto gallery is not available." }, { status: 400 });
+    const museId = "studio";
     const blob = await storeGrottoImage(museId, bytes, contentType);
     let image;
     try {
