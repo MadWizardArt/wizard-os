@@ -31,6 +31,37 @@ const displayDate = (d: string) =>
     year: "numeric",
     timeZone: "America/New_York",
   });
+async function preparePaintingImage(file: File) {
+  if (file.size <= 2 * 1024 * 1024) {
+    return { body: file as Blob, fileName: file.name };
+  }
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    const maxDimension = 1800;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image preparation is unavailable in this browser.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const body = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (blob) =>
+          blob
+            ? resolve(blob)
+            : reject(new Error("The painting image could not be prepared.")),
+        "image/webp",
+        0.86,
+      ),
+    );
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "painting";
+    return { body, fileName: `${baseName}.webp` };
+  } finally {
+    bitmap.close();
+  }
+}
 const campaignUrl = (id: string) =>
   `/campaigns?campaign=${encodeURIComponent(id)}`;
 function Thumb({ painting }: { painting: Painting }) {
@@ -234,17 +265,22 @@ export default function Campaigns({
     if (!editor || editor.action !== "painting") return;
     setImageUploading(true);
     setSaveError("");
-    setImageUploadStatus(`Uploading ${file.name}…`);
+    setImageUploadStatus(
+      file.size > 2 * 1024 * 1024
+        ? "Preparing image for upload…"
+        : `Uploading ${file.name}…`,
+    );
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      const prepared = await preparePaintingImage(file);
+      const safeName = prepared.fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
       const blob = await upload(
         `artwork/paintings/${crypto.randomUUID()}-${safeName}`,
-        file,
+        prepared.body,
         {
           access: "public",
           handleUploadUrl: "/api/artwork/upload",
-          contentType: file.type,
-          multipart: file.size > 4 * 1024 * 1024,
+          contentType: prepared.body.type,
+          multipart: prepared.body.size > 4 * 1024 * 1024,
           onUploadProgress: ({ percentage }) => {
             const rounded = Math.round(percentage);
             setImageUploadStatus(
