@@ -1,6 +1,5 @@
 "use client";
 import ArtworkLifecycle from "./ArtworkLifecycle";
-import { upload } from "@vercel/blob/client";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   campaignStatuses,
@@ -272,30 +271,33 @@ export default function Campaigns({
     );
     try {
       const prepared = await preparePaintingImage(file);
-      const safeName = prepared.fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
-      const blob = await upload(
-        `artwork/paintings/${crypto.randomUUID()}-${safeName}`,
-        prepared.body,
-        {
-          access: "public",
-          handleUploadUrl: "/api/artwork/upload",
-          contentType: prepared.body.type,
-          multipart: prepared.body.size > 4 * 1024 * 1024,
-          onUploadProgress: ({ percentage }) => {
-            const rounded = Math.round(percentage);
-            setImageUploadStatus(
-              rounded >= 95
-                ? "Finishing image upload…"
-                : `Uploading image · ${rounded}%`,
-            );
-          },
-        },
-      );
+      if (prepared.body.size > 3 * 1024 * 1024) {
+        throw new Error("The prepared image is still too large. Choose a JPG or WebP image.");
+      }
+      setImageUploadStatus("Uploading prepared image…");
+      const form = new FormData();
+      form.set("image", prepared.body, prepared.fileName);
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 45_000);
+      let response: Response;
+      try {
+        response = await fetch("/api/artwork/upload", {
+          method: "POST",
+          body: form,
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+      const result = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !result.url) {
+        throw new Error(result.error || "Painting image upload failed.");
+      }
       setEditor((current) =>
         current?.action === "painting"
           ? {
               ...current,
-              values: { ...current.values, thumbnail: blob.url },
+              values: { ...current.values, thumbnail: result.url },
             }
           : current,
       );
@@ -303,7 +305,11 @@ export default function Campaigns({
     } catch (error) {
       setImageUploadStatus("");
       setSaveError(
-        error instanceof Error ? error.message : "Painting image upload failed.",
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The image upload timed out. Please try again."
+          : error instanceof Error
+            ? error.message
+            : "Painting image upload failed.",
       );
     } finally {
       setImageUploading(false);
