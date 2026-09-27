@@ -375,7 +375,7 @@ export default function ArtworkLifecycle({
             <p>
               Regular price: {money(p.regularPriceCents)}
               <br />
-              Materials: {money(p.materialsCostCents)} · Framing:{" "}
+              Materials cost: {money(p.materialsCostCents)} · Framing cost:{" "}
               {money(p.framingCostCents)}
             </p>
             <div className="salesBar">

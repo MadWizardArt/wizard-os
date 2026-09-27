@@ -144,7 +144,8 @@ export function CampaignDashboard() {
           <strong>Active campaigns · {active.length}</strong>
           {active.map((c) => (
             <p key={c.id}>
-              <a href={campaignUrl(c.id)}>{c.title}</a> · {c.status}
+              <a href={campaignUrl(c.id)}>{c.title}</a> · {c.status} ·{" "}
+              {money(c.bookedCents)} sold
             </p>
           ))}
           {!active.length && (
@@ -796,10 +797,11 @@ export default function Campaigns({
                             <strong>{money(c.targetCents)}</strong>
                           </p>
                           <p>
-                            Actually received
-                            <strong>{money(c.receivedCents)}</strong>
+                            Sales booked
+                            <strong>{money(c.bookedCents)}</strong>
                           </p>
                         </div>
+                        <p>Cash received: {money(c.receivedCents)}</p>
                         <p
                           className={
                             next && overdue(next) ? "salesOverdue" : ""
@@ -852,10 +854,10 @@ export default function Campaigns({
                         Proposed target<strong>{money(c.targetCents)}</strong>
                       </p>
                       <p>
-                        Actually received
-                        <strong>{money(c.receivedCents)}</strong>
+                        Sales booked<strong>{money(c.bookedCents)}</strong>
                       </p>
                     </div>
+                    <p>Cash received: {money(c.receivedCents)}</p>
                     <p className="salesPre">
                       {c.notes ||
                         "Add campaign notes when your detailed plan is ready."}
@@ -1025,11 +1027,12 @@ export default function Campaigns({
                 {tab === "Results" && (
                   <section className="panel">
                     <h3>
-                      {money(c.receivedCents)} received ·{" "}
-                      {money(Math.max(0, c.targetCents - c.receivedCents))}{" "}
-                      below proposed target
+                      {money(c.bookedCents)} sales booked ·{" "}
+                      {money(c.receivedCents)} cash received
                     </h3>
                     <p>
+                      {money(Math.max(0, c.targetCents - c.bookedCents))} below
+                      the proposed sales target. {" "}
                       {data.goal.basis}. Tax and shipping treatment follows the
                       annual goal settings. Each row is an existing Money ledger
                       record.

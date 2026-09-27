@@ -92,6 +92,12 @@ export async function GET() {
       {
         campaigns: campaigns.map((c) => ({
           ...c,
+          bookedCents: paintings
+            .flatMap((painting) => painting.sales)
+            .filter(
+              (sale) => sale.campaignId === c.id && sale.status === "Active",
+            )
+            .reduce((sum, sale) => sum + sale.salePriceCents, 0),
           receivedCents: transactions
             .filter((t) => t.campaignId === c.id)
             .reduce((s, t) => s + receiptValue(t, goal), 0),
