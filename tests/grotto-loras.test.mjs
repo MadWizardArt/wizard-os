@@ -61,6 +61,13 @@ test("curated Grotto LoRAs keep exact AIRs and compatibility", () => {
     GROTTO_LORAS.map(({ id, air, compatibility, defaultWeight, triggerWords }) => ({ id, air, compatibility, defaultWeight, triggerWords })),
     [
       {
+        id: "atelier-v1",
+        air: "urn:air:sdxl:lora:civitai:2968787@3363996",
+        compatibility: "both",
+        defaultWeight: 0.7,
+        triggerWords: [],
+      },
+      {
         id: "disney-princess-xl-v2",
         air: "urn:air:sdxl:lora:civitai:212532@244808",
         compatibility: "both",

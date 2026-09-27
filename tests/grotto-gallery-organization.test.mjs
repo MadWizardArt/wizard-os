@@ -54,6 +54,10 @@ test("Muse identity remains provenance while the Atelier uses ten real interchan
   assert.match(page, /referenceId: primary\.id/);
   assert.match(page, /REFERENCE_STORAGE_KEY/);
   assert.match(page, /Add to References/);
+  assert.match(page, /Remix in Atelier/);
+  assert.match(page, /setStudioLoras\(Array\.isArray\(input\.loras\)/);
+  assert.match(page, /setStudioEmbeddings\(Array\.isArray\(input\.embeddings\)/);
+  assert.match(page, /setStrength\(typeof input\.strength === "number" \? input\.strength : 0\.35\)/);
   assert.match(page, />The Atelier</);
   assert.doesNotMatch(page, /Muse generation references|canonicalItem\(muse\)|ROLE_LABELS|ReferenceRole/);
   assert.doesNotMatch(page, /bulk-move/);
