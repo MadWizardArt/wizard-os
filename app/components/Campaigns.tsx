@@ -67,7 +67,7 @@ function Thumb({ painting }: { painting: Painting }) {
   return painting.thumbnail ? (
     <img
       className="salesThumb"
-      src={painting.thumbnail}
+      src={`/api/artwork/image/${encodeURIComponent(painting.projectId)}`}
       alt={painting.project.title}
     />
   ) : (
