@@ -244,8 +244,15 @@ export default function Campaigns({
           access: "public",
           handleUploadUrl: "/api/artwork/upload",
           contentType: file.type,
-          onUploadProgress: ({ percentage }) =>
-            setImageUploadStatus(`Uploading image · ${Math.round(percentage)}%`),
+          multipart: file.size > 4 * 1024 * 1024,
+          onUploadProgress: ({ percentage }) => {
+            const rounded = Math.round(percentage);
+            setImageUploadStatus(
+              rounded >= 95
+                ? "Finishing image upload…"
+                : `Uploading image · ${rounded}%`,
+            );
+          },
         },
       );
       setEditor((current) =>
