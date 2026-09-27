@@ -17,7 +17,7 @@ test("Civitai LoRA AIR validation accepts only LoRA resources", () => {
 });
 
 test("Atelier LoRA stack fails closed for unknown resources and over-stacking", () => {
-  assert.equal(MAX_GROTTO_LORAS, 8);
+  assert.equal(MAX_GROTTO_LORAS, 12);
   assert.throws(
     () => resolveGrottoLoras([{ id: "not-installed", weight: 0.5 }], "pony-v6"),
     /not installed/,

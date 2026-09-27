@@ -438,7 +438,9 @@
 .studioHero::after, .studioHero .heroVeil { display: none; }
 .studioHero .heroCopy { position: static; }
 .heroCopy small { font-size: 12px; letter-spacing: .2em; color: #c7a989; }
-.studioHero .heroCopy h1 { font-size: clamp(36px, 4vw, 56px); line-height: 1.2; }
+.studioHero .heroCopy h1 { margin: 0 0 10px; color: #c7a989; font: 700 12px/1.2 system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
+.atelierQuote { max-width: 780px; margin: 0; color: #eee6df; font: 400 clamp(17px, 2vw, 25px)/1.42 Georgia, serif; letter-spacing: -.015em; text-wrap: balance; }
+.atelierQuote cite { display: block; margin-top: 9px; color: #9f919a; font: 500 11px/1.4 system-ui, sans-serif; font-style: normal; letter-spacing: .08em; text-transform: uppercase; }
 .atelierLayout { display: grid; grid-template-columns: minmax(300px, 370px) minmax(0, 1fr); gap: 36px; align-items: start; }
 .composer { padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: #17141ad9; }
 .controls { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -584,7 +586,7 @@
 .selectMark { position: absolute; z-index: 2; right: 9px; top: 9px; display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid #d4b78a; border-radius: 50%; background: #09080bd9; color: #f6dfbf; font: 700 15px/1 system-ui, sans-serif; }
 .viewerProvenance { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); color: #d8c9d0; font: 13px/1.4 system-ui, sans-serif; }
 @media (max-width: 1050px) { .atelierLayout { grid-template-columns: 300px minmax(0, 1fr); gap: 20px; } .collection .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(3, 1fr); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .maintenance { align-items: stretch; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } }
+@media (max-width: 720px) { .shell { width: calc(100% - 28px); } .atelierLayout { grid-template-columns: 1fr; } .studioHero { min-height: 0; margin: 20px 0; } .atelierQuote { max-width: 34rem; font-size: 17px; line-height: 1.45; text-wrap: pretty; } .spaceSwitch { gap: 10px; } .spaceSwitch button { font-size: 12px; } .composer { padding: 18px; } .collection { margin-top: 12px; } .emptyCollection { min-height: 240px; } .topbar { grid-template-columns: 1fr auto; } .mark { display: none; } .galleryRail { grid-template-columns: repeat(3, 1fr); } .galleryToolbar { align-items: flex-start; flex-direction: column; } .maintenance { align-items: stretch; flex-direction: column; } .viewerProvenance { bottom: 112px; width: 90%; text-align: center; } }
 @media (prefers-reduced-motion: reduce) { .tile img { transition: none; } }
 
 .loraPanel {
