@@ -45,6 +45,18 @@ export type ResolvedGrottoLora = GrottoLoraDefinition & {
  */
 export const GROTTO_LORAS: readonly GrottoLoraDefinition[] = [
   {
+    id: "atelier-v1",
+    label: "Atelier · V1",
+    air: "urn:air:sdxl:lora:civitai:2968787@3363996",
+    compatibility: "both",
+    category: "style",
+    defaultWeight: 0.7,
+    minWeight: 0.3,
+    maxWeight: 1.2,
+    triggerWords: [],
+    enabled: true,
+  },
+  {
     id: "disney-princess-xl-v2",
     label: "All Disney Princess XL · v2",
     air: "urn:air:sdxl:lora:civitai:212532@244808",
