@@ -143,7 +143,7 @@ export default function MuseRoom({ muse, onCouncil }: { muse: MuseDirectoryEntry
           {memoryLoading ? <p>Reading her record…</p> : memoryError ? <p role="status">{memoryError}</p> : memories.length === 0 ? <p>No Council memory recorded yet.</p> : <div className={styles.memoryList}>{memories.slice(0, 3).map((memory) => <article key={memory.id}><strong>{memory.title}</strong><p>{memory.summary}</p><small>{memory.kind} · {memory.category} · verified by {memory.verifiedBy}</small></article>)}</div>}
         </div>
       </div>
-        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><a href={`/museum/intelligence?source=profile&muse=${muse.id}`}>Consult {muse.name} <span>Prepare a question in Intelligence</span></a><a href={`/grotto?muse=${muse.id}`}>Create with {muse.name} <span>Open her reference in the Grotto</span></a><button onClick={onCouncil}>Convene Council <span>Bring a question to the table</span></button><a href="/museum/agency">Proposals <span>Review work awaiting approval</span></a></nav>
+        <nav className={styles.actions} aria-label={`${muse.name} room controls`}><a href={`/museum/intelligence?source=profile&muse=${muse.id}`}>Consult {muse.name} <span>Prepare a question in Intelligence</span></a><a href="/grotto">Enter The Atelier <span>Open the Grotto image generator</span></a><button onClick={onCouncil}>Convene Council <span>Bring a question to the table</span></button><a href="/museum/agency">Proposals <span>Review work awaiting approval</span></a></nav>
     </section>
     </>
   );

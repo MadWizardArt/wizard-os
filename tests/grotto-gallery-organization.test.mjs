@@ -45,10 +45,16 @@ test("Delete All Non-Favorites is counted, double-confirmed and fail-closed", ()
   assert.match(deletion, /deleted\.count !== rows\.length/);
 });
 
-test("Muse identity remains provenance and a generation reference, not gallery placement", () => {
+test("Muse identity remains provenance while the Atelier uses ten real interchangeable references", () => {
   assert.match(gallery, /museId: image\.museId/);
   assert.match(gallery, /studioInput: studioInputFromRecipe\(image\.recipeJson\)/);
-  assert.match(page, /Muse generation references/);
-  assert.match(page, /canonicalItem\(muse\)/);
+  assert.match(page, /REFERENCE_SLOT_COUNT = 10/);
+  assert.match(page, /Generation reference bank/);
+  assert.match(page, /activeReferenceId/);
+  assert.match(page, /referenceId: primary\.id/);
+  assert.match(page, /REFERENCE_STORAGE_KEY/);
+  assert.match(page, /Add to References/);
+  assert.match(page, />The Atelier</);
+  assert.doesNotMatch(page, /Muse generation references|canonicalItem\(muse\)|ROLE_LABELS|ReferenceRole/);
   assert.doesNotMatch(page, /bulk-move/);
 });

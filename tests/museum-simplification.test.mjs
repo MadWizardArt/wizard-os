@@ -10,7 +10,7 @@ test("Museum shows character profiles without mirroring Crucible project cards",
   assert.doesNotMatch(museum, /Nearby operational context|projects\.slice\(0, 8\)|copyCouncilPacket/);
   assert.match(room, /MUSE_AGENT_CHARTERS\[muse\.id\]/);
   assert.match(room, /\/api\/museum\/memory\?muse=/);
-  assert.match(room, /\/grotto\?muse=/);
+  assert.match(room, /href="\/grotto">Enter The Atelier/);
   assert.doesNotMatch(room, /Visual only\. Manual presence/);
 });
 
@@ -33,8 +33,10 @@ test("Agency focuses on proposals while profiles own charter and memory presenta
   assert.match(agency, /recordOutcome/);
 });
 
-test("Gallery deep links preserve the requested Muse and maintain fallback Atelier", () => {
+test("The Atelier opens independently from Muse identity", () => {
   const grotto = read("../app/grotto/page.tsx");
-  assert.match(grotto, /new URLSearchParams\(window\.location\.search\)\.get\("muse"\)/);
+  assert.doesNotMatch(grotto, /get\("muse"\)/);
+  assert.match(grotto, /The Atelier/);
+  assert.match(grotto, /REFERENCE_SLOT_COUNT = 10/);
   assert.match(grotto, /loadGallery\(initialSpace\)/);
 });
