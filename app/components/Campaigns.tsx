@@ -1,5 +1,6 @@
 "use client";
 import ArtworkLifecycle from "./ArtworkLifecycle";
+import { upload } from "@vercel/blob/client";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   campaignStatuses,
@@ -182,6 +183,8 @@ export default function Campaigns({
   const [month, setMonth] = useState(easternDate().slice(0, 7));
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busy, setBusy] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadStatus, setImageUploadStatus] = useState("");
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
   const [initializedQuery, setInitializedQuery] = useState(false);
@@ -224,7 +227,44 @@ export default function Campaigns({
   }
   function open(e: Editor) {
     setSaveError("");
+    setImageUploadStatus("");
     setEditor(e);
+  }
+  async function uploadPaintingImage(file: File) {
+    if (!editor || editor.action !== "painting") return;
+    setImageUploading(true);
+    setSaveError("");
+    setImageUploadStatus(`Uploading ${file.name}…`);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      const blob = await upload(
+        `artwork/paintings/${crypto.randomUUID()}-${safeName}`,
+        file,
+        {
+          access: "public",
+          handleUploadUrl: "/api/artwork/upload",
+          contentType: file.type,
+          onUploadProgress: ({ percentage }) =>
+            setImageUploadStatus(`Uploading image · ${Math.round(percentage)}%`),
+        },
+      );
+      setEditor((current) =>
+        current?.action === "painting"
+          ? {
+              ...current,
+              values: { ...current.values, thumbnail: blob.url },
+            }
+          : current,
+      );
+      setImageUploadStatus("Image uploaded and ready to save.");
+    } catch (error) {
+      setImageUploadStatus("");
+      setSaveError(
+        error instanceof Error ? error.message : "Painting image upload failed.",
+      );
+    } finally {
+      setImageUploading(false);
+    }
   }
   function campaignForm(c?: Campaign) {
     open({
@@ -306,7 +346,8 @@ export default function Campaigns({
           },
       fields: [
         textField("title", "Artwork title", "text", true),
-        textField("thumbnail", "Thumbnail image URL", "url"),
+        textField("imageUpload", "Upload painting image", "file"),
+        textField("thumbnail", "Or use an image URL", "url"),
         textField("dimensions", "Dimensions (include units)"),
         textField("medium", "Medium"),
         textField("framing", "Framing"),
@@ -1172,7 +1213,18 @@ export default function Campaigns({
                 {editor.fields.map((f) => (
                   <label key={f.name}>
                     <span>{f.label}</span>
-                    {f.options ? (
+                    {f.type === "file" ? (
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                        disabled={imageUploading}
+                        onChange={(e) => {
+                          const file = e.currentTarget.files?.[0];
+                          e.currentTarget.value = "";
+                          if (file) void uploadPaintingImage(file);
+                        }}
+                      />
+                    ) : f.options ? (
                       <select
                         aria-label={f.label}
                         required={f.required}
@@ -1251,6 +1303,9 @@ export default function Campaigns({
                   </label>
                 ))}
               </div>
+              {editor.action === "painting" && imageUploadStatus && (
+                <p aria-live="polite">{imageUploadStatus}</p>
+              )}
               {editor.action === "receipt" && (
                 <p>
                   Use “Link existing receipt” if this payment is already in
@@ -1264,12 +1319,16 @@ export default function Campaigns({
                 </p>
               )}
               <div className="salesBar">
-                <button className="primary" type="submit" disabled={busy}>
-                  {busy ? "Saving…" : "Save"}
+                <button
+                  className="primary"
+                  type="submit"
+                  disabled={busy || imageUploading}
+                >
+                  {imageUploading ? "Uploading…" : busy ? "Saving…" : "Save"}
                 </button>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || imageUploading}
                   onClick={() => setEditor(null)}
                 >
                   Cancel
