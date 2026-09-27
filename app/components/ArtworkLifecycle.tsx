@@ -361,7 +361,7 @@ export default function ArtworkLifecycle({
             {p.thumbnail && (
               <img
                 className="salesThumb"
-                src={p.thumbnail}
+                src={`/api/artwork/image/${encodeURIComponent(p.projectId)}`}
                 alt={p.project.title}
               />
             )}
