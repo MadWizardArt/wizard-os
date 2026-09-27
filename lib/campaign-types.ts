@@ -54,6 +54,7 @@ export type Campaign = {
   startDate: string;
   endDate: string;
   targetCents: number;
+  bookedCents: number;
   receivedCents: number;
   notes: string;
   projectId: string | null;
@@ -100,6 +101,7 @@ export type SalesData = {
 
 export type ArtworkSale = {
   id: string;
+  campaignId: string | null;
   projectId: string;
   saleDate: string;
   salePriceCents: number;
