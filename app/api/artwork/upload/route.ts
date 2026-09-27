@@ -39,16 +39,26 @@ export async function POST(request: NextRequest) {
         if (!pathname.startsWith("artwork/paintings/")) {
           throw new Error("Invalid painting image path.");
         }
+        console.info("[artwork/upload] token issued", { pathname });
         return {
           allowedContentTypes,
           maximumSizeInBytes: 10 * 1024 * 1024,
           addRandomSuffix: true,
         };
       },
-      onUploadCompleted: async () => undefined,
+      onUploadCompleted: async ({ blob }) => {
+        console.info("[artwork/upload] completed", {
+          pathname: blob.pathname,
+          contentType: blob.contentType,
+          url: blob.url,
+        });
+      },
     });
     return NextResponse.json(response);
   } catch (error) {
+    console.error("[artwork/upload] failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error:
