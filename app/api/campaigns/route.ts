@@ -88,27 +88,67 @@ export async function GET() {
         prisma.salesGoal.findUnique({ where: { id: defaultGoal.id } }),
       ]);
     const goal = savedGoal ?? defaultGoal;
+    const activeSales = paintings
+      .flatMap((painting) => painting.sales)
+      .filter((sale) => sale.status === "Active");
+    const unrecordedSales = activeSales.filter(
+      (sale) =>
+        !sale.transactions.some(
+          (transaction) =>
+            transaction.receivedAt &&
+            ["INCOME", "REFUND"].includes(transaction.type),
+        ),
+    );
+    const assumedReceived = (sales: typeof unrecordedSales) =>
+      sales.reduce((sum, sale) => sum + sale.salePriceCents, 0);
     return NextResponse.json(
       {
         campaigns: campaigns.map((c) => ({
           ...c,
-          bookedCents: paintings
-            .flatMap((painting) => painting.sales)
-            .filter(
-              (sale) => sale.campaignId === c.id && sale.status === "Active",
-            )
+          bookedCents: activeSales
+            .filter((sale) => sale.campaignId === c.id)
             .reduce((sum, sale) => sum + sale.salePriceCents, 0),
           receivedCents: transactions
             .filter((t) => t.campaignId === c.id)
-            .reduce((s, t) => s + receiptValue(t, goal), 0),
+            .reduce((s, t) => s + receiptValue(t, goal), 0) +
+            assumedReceived(
+              unrecordedSales.filter((sale) => sale.campaignId === c.id),
+            ),
         })),
         paintings: paintings.map((p) => ({
           ...p,
-          sales: p.sales.map((s) => ({ ...s, summary: saleSummary(s, p) })),
+          sales: p.sales.map((s) => {
+            const summary = saleSummary(s, p);
+            const manuallyRecordedAsPaid = unrecordedSales.some(
+              (sale) => sale.id === s.id,
+            );
+            return {
+              ...s,
+              summary: manuallyRecordedAsPaid
+                ? {
+                    ...summary,
+                    receivedCents: s.salePriceCents,
+                    balanceCents: 0,
+                    paymentStatus: "Paid",
+                  }
+                : summary,
+            };
+          }),
         })),
         projects,
         transactions,
-        goal: { ...goal, receivedCents: goalReceived(transactions, goal) },
+        goal: {
+          ...goal,
+          receivedCents:
+            goalReceived(transactions, goal) +
+            assumedReceived(
+              unrecordedSales.filter(
+                (sale) =>
+                  sale.saleDate >= goal.startDate &&
+                  sale.saleDate <= goal.dueDate,
+              ),
+            ),
+        },
       },
       { headers: { "Cache-Control": "no-store" } },
     );

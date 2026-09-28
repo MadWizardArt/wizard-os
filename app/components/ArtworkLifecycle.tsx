@@ -244,7 +244,7 @@ export default function ArtworkLifecycle({
               },
               f(
                 "receivedCents",
-                "New payment received ($) · 0 = unpaid; ignored when reusing",
+                "Payment received ($) · 0 defaults to the full sale total; ignored when reusing",
                 "number",
                 true,
               ),
