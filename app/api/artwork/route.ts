@@ -233,9 +233,19 @@ export async function POST(req: NextRequest) {
               },
             });
           } else {
-            const received = amount(b.receivedCents)!;
-            const tax = amount(b.receivedTaxCents)!,
-              shipping = amount(b.receivedShippingCents)!;
+            const enteredReceived = amount(b.receivedCents)!;
+            const defaultToPaid = enteredReceived === 0;
+            const received = defaultToPaid
+              ? saleData.salePriceCents +
+                saleData.salesTaxCents +
+                saleData.shippingIncomeCents
+              : enteredReceived;
+            const tax = defaultToPaid
+                ? saleData.salesTaxCents
+                : amount(b.receivedTaxCents)!,
+              shipping = defaultToPaid
+                ? saleData.shippingIncomeCents
+                : amount(b.receivedShippingCents)!;
             if (
               received >
                 saleData.salePriceCents +
