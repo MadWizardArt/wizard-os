@@ -8,8 +8,6 @@ assert.ok(operatorKey && operatorKey.length >= 32, "CI operator key must be set"
 
 const { CHATGPT_CLIENT_ID, CHATGPT_REDIRECT_URI, WARLOCK_OAUTH_SCOPE, warlockMcpResource } =
   await import("../lib/warlock-mcp-oauth.ts");
-const { prisma } = await import("../lib/prisma.ts");
-const { tokenHash } = await import("../lib/warlock-mcp-oauth.ts");
 
 const base = origin.replace(/\/+$/, "");
 const resource = warlockMcpResource();
@@ -29,7 +27,6 @@ const redirect = "http://127.0.0.1:3000/api/warlock/oauth/authorize?" + new URLS
 
 let code;
 let tokens;
-try {
   const consent = await fetch(redirect, { redirect: "manual" });
   assert.equal(consent.status, 200, "authorization endpoint should render consent");
   const html = await consent.text();
@@ -147,14 +144,3 @@ try {
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
   console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all ten tools/list descriptors passed.");
-} finally {
-  if (tokens?.access_token) {
-    await prisma.warlockOAuthGrant.deleteMany({
-      where: { accessTokenHash: tokenHash(tokens.access_token) },
-    });
-  }
-  if (code) {
-    await prisma.warlockOAuthCode.deleteMany({ where: { codeHash: tokenHash(code) } });
-  }
-  await prisma.$disconnect();
-}
