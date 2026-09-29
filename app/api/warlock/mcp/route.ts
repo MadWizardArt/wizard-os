@@ -53,7 +53,10 @@ async function serve(request: NextRequest) {
       },
     );
   }
-  return withWarlockOpenAiToolSecuritySchemes(await handler.fetch(request));
+  const response = await handler.fetch(request);
+  return request.method === "POST"
+    ? withWarlockOpenAiToolSecuritySchemes(response)
+    : response;
 }
 
 export const GET = serve;
