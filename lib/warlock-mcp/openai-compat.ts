@@ -40,27 +40,58 @@ export function promoteWarlockToolSecuritySchemes(payload: unknown): unknown {
   return promoted.some((entry, index) => entry !== payload[index]) ? promoted : payload;
 }
 
-export async function withWarlockOpenAiToolSecuritySchemes(response: Response): Promise<Response> {
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) return response;
+function promoteEventStream(body: string) {
+  let changed = false;
+  const lines = body.split("\n").map((line) => {
+    if (!line.startsWith("data: ")) return line;
 
-  let payload: unknown;
-  try {
-    payload = await response.clone().json();
-  } catch {
-    return response;
-  }
+    try {
+      const payload = JSON.parse(line.slice(6)) as unknown;
+      const promoted = promoteWarlockToolSecuritySchemes(payload);
+      if (promoted === payload) return line;
+      changed = true;
+      return "data: " + JSON.stringify(promoted);
+    } catch {
+      return line;
+    }
+  });
 
-  const promoted = promoteWarlockToolSecuritySchemes(payload);
-  if (promoted === payload) return response;
+  return changed ? lines.join("\n") : body;
+}
 
+function responseWithBody(response: Response, body: string, contentType?: string) {
   const headers = new Headers(response.headers);
   headers.delete("content-length");
-  headers.set("content-type", "application/json; charset=utf-8");
-
-  return new Response(JSON.stringify(promoted), {
+  if (contentType) headers.set("content-type", contentType);
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   });
+}
+
+export async function withWarlockOpenAiToolSecuritySchemes(response: Response): Promise<Response> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    let payload: unknown;
+    try {
+      payload = await response.clone().json();
+    } catch {
+      return response;
+    }
+
+    const promoted = promoteWarlockToolSecuritySchemes(payload);
+    if (promoted === payload) return response;
+    return responseWithBody(response, JSON.stringify(promoted), "application/json; charset=utf-8");
+  }
+
+  if (contentType.includes("text/event-stream")) {
+    const body = await response.clone().text();
+    const promoted = promoteEventStream(body);
+    if (promoted === body) return response;
+    return responseWithBody(response, promoted);
+  }
+
+  return response;
 }
