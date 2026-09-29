@@ -7,6 +7,7 @@ import {
 } from "../../../../lib/warlock-mcp-oauth";
 import { isValidWarlockOAuthAccessToken } from "../../../../lib/warlock-mcp-oauth-store";
 import { createWarlockCommerceMcpServer } from "../../../../lib/warlock-mcp/server";
+import { withWarlockOpenAiToolSecuritySchemes } from "../../../../lib/warlock-mcp/openai-compat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,11 @@ async function isAuthorized(request: NextRequest) {
   if (isWarlockOperatorRequest({ headers })) return true;
 
   // ChatGPT Business uses a short-lived opaque OAuth access token.
-  return isValidWarlockOAuthAccessToken(token);
+  const validOAuthToken = await isValidWarlockOAuthAccessToken(token);
+  if (validOAuthToken) {
+    console.info("Warlock MCP accepted OAuth access token", { method: request.method });
+  }
+  return validOAuthToken;
 }
 
 async function serve(request: NextRequest) {
@@ -48,7 +53,10 @@ async function serve(request: NextRequest) {
       },
     );
   }
-  return handler.fetch(request);
+  const response = await handler.fetch(request);
+  return request.method === "POST"
+    ? withWarlockOpenAiToolSecuritySchemes(response)
+    : response;
 }
 
 export const GET = serve;
