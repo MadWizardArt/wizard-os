@@ -149,15 +149,35 @@ export async function POST(request: NextRequest) {
 
   const supplied = form.get("operator_key");
   if (typeof supplied !== "string" || !verifyWarlockOperatorKey(supplied)) {
+    console.warn("Warlock OAuth authorization rejected", {
+      client: "chatgpt",
+      resource: input.resource,
+      scope: normalizeOAuthScope(input.scope),
+      reason: "operator_key_rejected",
+    });
     return consentPage(input, "The Warlock operator key was not accepted.");
   }
+
+  const scope = normalizeOAuthScope(input.scope);
+  console.info("Warlock OAuth authorization accepted", {
+    client: "chatgpt",
+    resource: input.resource,
+    scope,
+    statePresent: Boolean(input.state),
+  });
 
   const code = await createWarlockAuthorizationCode({
     clientId: input.clientId,
     redirectUri: input.redirectUri,
     resource: input.resource,
-    scope: normalizeOAuthScope(input.scope),
+    scope,
     codeChallenge: input.codeChallenge,
+  });
+
+  console.info("Warlock OAuth authorization code issued", {
+    client: "chatgpt",
+    resource: input.resource,
+    scope,
   });
 
   const target = new URL(input.redirectUri);
