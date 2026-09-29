@@ -1,4 +1,4 @@
-import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
+import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth.ts";
 
 type JsonRecord = Record<string, unknown>;
 
