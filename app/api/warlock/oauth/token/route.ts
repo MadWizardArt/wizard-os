@@ -36,6 +36,13 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const grantType = stringField(form, "grant_type");
   const clientId = stringField(form, "client_id");
+  const resource = stringField(form, "resource");
+
+  console.info("Warlock OAuth token request received", {
+    grantType,
+    client: clientId === CHATGPT_CLIENT_ID ? "chatgpt" : "unknown",
+    resource: resource || null,
+  });
 
   if (clientId !== CHATGPT_CLIENT_ID) {
     return oauthError("invalid_client", "This OAuth client is not allowed.", 401);
@@ -43,7 +50,6 @@ export async function POST(request: NextRequest) {
 
   try {
     if (grantType === "authorization_code") {
-      const resource = stringField(form, "resource");
       if (resource !== warlockMcpResource()) {
         return oauthError("invalid_target", "The requested resource is not Warlock MCP.");
       }
@@ -54,6 +60,10 @@ export async function POST(request: NextRequest) {
         resource,
         codeVerifier: stringField(form, "code_verifier"),
       });
+      console.info("Warlock OAuth authorization code exchanged", {
+        client: "chatgpt",
+        resource,
+      });
       return NextResponse.json(result, { headers: tokenHeaders() });
     }
 
@@ -61,7 +71,11 @@ export async function POST(request: NextRequest) {
       const result = await refreshWarlockOAuthGrant({
         refreshToken: stringField(form, "refresh_token"),
         clientId,
-        resource: stringField(form, "resource") || null,
+        resource: resource || null,
+      });
+      console.info("Warlock OAuth refresh token rotated", {
+        client: "chatgpt",
+        resource: resource || null,
       });
       return NextResponse.json(result, { headers: tokenHeaders() });
     }
@@ -69,6 +83,12 @@ export async function POST(request: NextRequest) {
     return oauthError("unsupported_grant_type", "Warlock supports authorization_code and refresh_token.");
   } catch (error) {
     const code = error instanceof Error ? error.message : "invalid_grant";
+    console.warn("Warlock OAuth token request rejected", {
+      grantType,
+      client: clientId === CHATGPT_CLIENT_ID ? "chatgpt" : "unknown",
+      resource: resource || null,
+      reason: code,
+    });
     if (code === "invalid_client") return oauthError("invalid_client", "This OAuth client is not allowed.", 401);
     return oauthError("invalid_grant", "The authorization grant is invalid, expired, consumed, or no longer trusted.");
   }
