@@ -78,7 +78,7 @@ try {
   assert.ok(tokens.access_token);
   assert.ok(tokens.refresh_token);
 
-  const mcpUrl = base + "/api/warlock/mcp";
+  const mcpUrl = "http://127.0.0.1:3000/api/warlock/mcp";
   const callMcp = async (message, sessionId) => {
     const headers = {
       authorization: "Bearer " + tokens.access_token,
