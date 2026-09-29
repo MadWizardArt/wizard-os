@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 export const WARLOCK_OAUTH_SCOPE = "warlock:operate";
 export const WARLOCK_OFFLINE_SCOPE = "offline_access";
+export const WARLOCK_TOOL_SECURITY_SCHEMES = [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }] as const;
 export const CHATGPT_CLIENT_ID = "https://chatgpt.com/oauth/client.json";
 export const CHATGPT_REDIRECT_URI = "https://chatgpt.com/connector_platform_oauth_redirect";
 
