@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createMcpHandler } from "@modelcontextprotocol/server";
+import { createWarlockCommerceMcpServer } from "../lib/warlock-mcp/server.ts";
+import { withWarlockOpenAiToolSecuritySchemes } from "../lib/warlock-mcp/openai-compat.ts";
 import {
   CHATGPT_CLIENT_ID,
   CHATGPT_REDIRECT_URI,
   WARLOCK_OAUTH_SCOPE,
+  WARLOCK_TOOL_SECURITY_SCHEMES,
   normalizeOAuthScope,
   pkceChallenge,
   validateAuthorizationInput,
@@ -93,7 +97,8 @@ test("OAuth endpoints are fail-closed and never alter commerce write mode", () =
   assert.match(authorize, /codeChallenge/);
   assert.match(token, /exchangeWarlockAuthorizationCode/);
   assert.match(token, /refreshWarlockOAuthGrant/);
-  assert.match(server, /securitySchemes/);
+  assert.match(server, /_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES \}/);
+  assert.doesNotMatch(server, /_registeredTools/);
 
   assert.doesNotMatch(authorize, /WARLOCK_COMMERCE_WRITE_MODE/);
   assert.doesNotMatch(token, /WARLOCK_COMMERCE_WRITE_MODE/);
@@ -115,4 +120,47 @@ test("OAuth persistence stores only token hashes and supports one-time codes", (
   assert.match(store, /operatorKeyFingerprint/);
   assert.doesNotMatch(schema, /accessToken\s+String/);
   assert.doesNotMatch(schema, /refreshToken\s+String/);
+});
+
+
+test("Warlock serialized tools/list advertises OpenAI OAuth metadata at the root and compatibility mirror", async () => {
+  const handler = createMcpHandler(createWarlockCommerceMcpServer);
+  const request = new Request("https://wizard-os.example/api/warlock/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
+
+  const raw = await handler.fetch(request);
+  assert.equal(raw.status, 200);
+  const response = await withWarlockOpenAiToolSecuritySchemes(raw);
+  const body = await response.text();
+  const dataLine = body.split("\n").find((line) => line.startsWith("data: "));
+  const payload = dataLine ? JSON.parse(dataLine.slice(6)) : JSON.parse(body);
+  const tools = payload?.result?.tools;
+
+  assert.equal(Array.isArray(tools), true);
+  assert.equal(tools.length, 10);
+  for (const tool of tools) {
+    assert.deepEqual(tool.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
+    assert.deepEqual(tool._meta?.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
+  }
+
+  if (typeof handler.close === "function") await handler.close();
+});
+
+test("Warlock OpenAI compatibility shim also promotes JSON tools/list responses", async () => {
+  const raw = new Response(JSON.stringify({
+    jsonrpc: "2.0",
+    id: 2,
+    result: { tools: [{ name: "get_product", _meta: {} }] },
+  }), { headers: { "content-type": "application/json" } });
+
+  const response = await withWarlockOpenAiToolSecuritySchemes(raw);
+  const payload = await response.json();
+  assert.deepEqual(payload.result.tools[0].securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
+  assert.deepEqual(payload.result.tools[0]._meta.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
 });
