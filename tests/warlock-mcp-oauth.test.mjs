@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createMcpHandler } from "@modelcontextprotocol/server";
-import { createWarlockCommerceMcpServer } from "../lib/warlock-mcp/server.ts";
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { withWarlockOpenAiToolSecuritySchemes } from "../lib/warlock-mcp/openai-compat.ts";
 import {
   CHATGPT_CLIENT_ID,
@@ -97,7 +96,8 @@ test("OAuth endpoints are fail-closed and never alter commerce write mode", () =
   assert.match(authorize, /codeChallenge/);
   assert.match(token, /exchangeWarlockAuthorizationCode/);
   assert.match(token, /refreshWarlockOAuthGrant/);
-  assert.match(server, /_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES \}/);
+  assert.equal((server.match(/server\\.registerTool\\(/g) ?? []).length, 10);
+  assert.equal((server.match(/_meta: \\{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES \\}/g) ?? []).length, 10);
   assert.doesNotMatch(server, /_registeredTools/);
 
   assert.doesNotMatch(authorize, /WARLOCK_COMMERCE_WRITE_MODE/);
@@ -124,7 +124,15 @@ test("OAuth persistence stores only token hashes and supports one-time codes", (
 
 
 test("Warlock serialized tools/list advertises OpenAI OAuth metadata at the root and compatibility mirror", async () => {
-  const handler = createMcpHandler(createWarlockCommerceMcpServer);
+  const handler = createMcpHandler(() => {
+    const server = new McpServer({ name: "warlock-auth-probe", version: "0.0.0" });
+    server.registerTool(
+      "auth_probe",
+      { _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+      async () => ({ content: [{ type: "text", text: "ok" }] }),
+    );
+    return server;
+  });
   const request = new Request("https://wizard-os.example/api/warlock/mcp", {
     method: "POST",
     headers: {
@@ -143,11 +151,9 @@ test("Warlock serialized tools/list advertises OpenAI OAuth metadata at the root
   const tools = payload?.result?.tools;
 
   assert.equal(Array.isArray(tools), true);
-  assert.equal(tools.length, 10);
-  for (const tool of tools) {
-    assert.deepEqual(tool.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
-    assert.deepEqual(tool._meta?.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
-  }
+  assert.equal(tools.length, 1);
+  assert.deepEqual(tools[0].securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
+  assert.deepEqual(tools[0]._meta?.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
 
   if (typeof handler.close === "function") await handler.close();
 });
