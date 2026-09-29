@@ -8,7 +8,7 @@ import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-prefl
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
-import { WARLOCK_OAUTH_SCOPE } from "../warlock-mcp-oauth";
+import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
 import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
 import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-writer";
 
@@ -126,6 +126,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Read one canonical Spellmark product, including its assets, variants, Printful mappings, prices, and Etsy listing IDs.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -141,6 +142,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Validate a canonical product package before any Etsy or Printful write action is allowed.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -160,6 +162,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Return the exact planned Warlock, Printful, and Etsy production sequence without changing any external system.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -176,6 +179,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Evaluate Etsy disclosure compliance, estimated contribution margin, quote freshness, and required Printful mappings without modifying any external system.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -195,6 +199,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Perform live read-only Printful checks for mapped physical variants, store access, catalog identity, and North America availability.",
       inputSchema: selectorShape,
       annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -218,6 +223,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Read the shop's current shipping profiles, processing profiles, existing physical listing metadata, and ranked seller-taxonomy candidates. Never changes Etsy or WizardOS.",
       inputSchema: etsyConfigShape,
       annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (input) => {
       const loaded = await loadProduct(input);
@@ -241,6 +247,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Verify selected Etsy taxonomy and shop profile IDs against live Etsy, then save them to the canonical WizardOS listing only. Does not modify Etsy.",
       inputSchema: verifiedEtsyConfigShape,
       annotations: configurationWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (input) => {
       const loaded = await loadProduct(input);
@@ -289,6 +296,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Prepare the fail-closed Etsy-first / Printful-sync production sequence. This tool never performs an external mutation.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -304,6 +312,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Create or update Etsy drafts and configure imported Printful sync variants after all Warlock gates pass. Never publishes listings or places orders.",
       inputSchema: draftExecutionShape,
       annotations: draftWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (input) => {
       if (commerceWriteMode() !== "draft") {
@@ -335,6 +344,7 @@ export function createWarlockCommerceMcpServer() {
       description: "Summarize canonical fulfillment mappings and readiness without contacting or modifying Etsy or Printful.",
       inputSchema: selectorShape,
       annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
     },
     async (selector) => {
       const loaded = await loadProduct(selector);
@@ -377,22 +387,6 @@ export function createWarlockCommerceMcpServer() {
       });
     },
   );
-
-  // OpenAI clients inspect per-tool auth metadata when presenting account linking.
-  // @modelcontextprotocol/server v2 currently preserves extension fields through
-  // _meta, so advertise the OAuth requirement there for every private Warlock tool.
-  const oauthSecuritySchemes = [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }];
-  const registry = (server as unknown as {
-    _registeredTools?: Record<string, { _meta?: Record<string, unknown> }>;
-  })._registeredTools;
-  if (registry) {
-    for (const tool of Object.values(registry)) {
-      tool._meta = {
-        ...(tool._meta ?? {}),
-        securitySchemes: oauthSecuritySchemes,
-      };
-    }
-  }
 
   return server;
 }
