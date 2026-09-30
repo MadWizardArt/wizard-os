@@ -121,7 +121,7 @@ in Etsy. Attachment retries preserve listings, configuration, prices and variant
 
 The catalog lives in Printful. Wizard OS provides the shared server service and
 MCP exposes it to Aurelia; no separate catalog database, proxy service or browser
-scraper is needed. The MCP now has **16 tools**:
+scraper is needed. The MCP now has **17 tools**:
 
 1. `search_printful_catalog(query)` without a store ID lists accessible stores.
    Select Spellmark's Etsy store explicitly. Repeat with `storeId` to search by
@@ -198,3 +198,27 @@ waiting. No background polling or automatic retry is introduced.
 References: https://developers.printful.com/docs/ ;
 https://help.printful.com/hc/en-us/articles/50263352901905-How-do-I-manually-sync-products-to-my-store ;
 https://help.printful.com/hc/en-us/articles/50262491807889-Why-don-t-all-of-my-Etsy-products-show-up-on-Printful
+
+### Active Etsy listing recovery
+
+`execute_draft_product` remains draft-only. If the owner published the physical
+listing before Printful finished mapping, use `reconcile_printful_product` with
+canonical `productId` or title and `confirmReconciliation: true`. The existing
+`WARLOCK_COMMERCE_WRITE_MODE=draft` switch also gates these supplier-only writes;
+no new environment variable or publishing write mode is required.
+
+Reconciliation reads the selected listing and inventory through GET-only Etsy
+requests. It requires the owned shop, active state, disclosure, the complete exact
+physical variant set with matching IDs/SKUs, and live USD prices equal to approved
+canonical prices. It ignores the separate digital listing. Differences return
+blockers rather than rewriting the active product. Live supplier prices, stock,
+margin/compliance gates, and verified private master remain mandatory. Listing
+state, identity, inventory and prices are checked again before supplier writes.
+
+The existing sync service persists discovered Printful IDs before configuration.
+Reconciliation omits retail_price and sku from supplier PUT bodies so it does not
+attempt to change store inventory. It never calls the Etsy draft executor, changes
+Etsy state, uploads listing assets, creates duplicate listings, or handles orders.
+Results are `RECONCILED`, `AWAITING_PRINTFUL_IMPORT`, or `BLOCKED` with detailed
+Printful mapping/API progress. Repeated confirmed reconciliation can resume partial
+configuration; success means supplier configuration completed, not publishing.
