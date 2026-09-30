@@ -11,6 +11,9 @@ import { commerceWriteMode } from "../warlock-commerce/write-guard";
 import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
 import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
 import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-writer";
+import { prisma } from "../prisma";
+import { readProduct, readVariant } from "../warlock-products";
+import { ensureEtsyAiDisclosure } from "../warlock-commerce/policy";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -67,6 +70,50 @@ const configurationWriteAnnotations = {
   openWorldHint: true,
 } as const;
 
+const intakeAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
+
+const intakeProductShape = {
+  source: z.string().trim().min(1).max(80).optional(),
+  product: z.object({
+    title: z.string().trim().min(1).max(140),
+    collection: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(6000).optional(),
+    artworkReference: z.string().trim().max(500).optional(),
+    notes: z.string().trim().max(4000).optional(),
+    status: z.enum(["DESIGN", "PRODUCTION", "PRICING", "LISTING", "READY"]).optional(),
+  }),
+  variants: z.array(z.object({
+    fulfillment: z.enum(["DIGITAL", "PHYSICAL"]),
+    label: z.string().trim().min(1).max(140),
+    printfulProductId: z.number().int().positive().nullable().optional(),
+    printfulVariantId: z.number().int().positive().nullable().optional(),
+    printfulStoreId: z.number().int().positive().nullable().optional(),
+  })).max(50).optional(),
+  listing: z.object({
+    title: z.string().trim().max(140).optional(),
+    description: z.string().trim().max(12000).optional(),
+    price: z.number().nonnegative().optional(),
+    launchPrice: z.number().nonnegative().optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(13).optional(),
+    categorySearch: z.string().trim().max(200).optional(),
+    listingType: z.enum(["download", "physical"]).optional(),
+    taxonomyId: z.number().int().positive().optional(),
+    shippingProfileId: z.number().int().positive().optional(),
+    readinessStateId: z.number().int().positive().optional(),
+  }).optional(),
+  assets: z.array(z.object({
+    name: z.string().trim().max(240).optional(),
+    role: z.enum(["hero", "mockup", "customer_file", "master", "other"]).optional(),
+    url: z.string().trim().url().max(1000).optional(),
+  })).max(40).optional(),
+  confirmIntake: z.literal(true),
+};
+
 function success(payload: Record<string, unknown>) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
@@ -118,6 +165,96 @@ export function createWarlockCommerceMcpServer() {
     name: "warlock-commerce",
     version: "0.1.0",
   });
+
+  server.registerTool(
+    "intake_product",
+    {
+      title: "Intake New Spellmark Product",
+      description: "Create a new canonical Spellmark product and its fulfillment variants in Warlock from an approved Aurelia/ChatGPT handoff. Listing and asset references are preserved as intake metadata. This does not create Etsy listings, publish anything, place orders, or upload binary files.",
+      inputSchema: intakeProductShape,
+      annotations: intakeAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async (input) => {
+      const product = readProduct(input.product);
+      if (!product) {
+        return failure("invalid_product", "The product payload is not valid for Warlock intake.");
+      }
+
+      const variants = (input.variants ?? []).map((variant) => readVariant(variant));
+      if (variants.some((variant) => !variant)) {
+        return failure("invalid_variant", "One or more fulfillment variants are invalid.");
+      }
+
+      try {
+        const existing = await prisma.spellmarkProduct.findFirst({
+          where: { title: product.title },
+          select: { id: true, title: true, status: true },
+        });
+        if (existing) {
+          return success({
+            intake: "already_exists",
+            productId: existing.id,
+            title: existing.title,
+            status: existing.status,
+            nextAction: "Retrieve the canonical product and continue validation/preflight.",
+          });
+        }
+
+        const listing = input.listing ? {
+          ...input.listing,
+          description: ensureEtsyAiDisclosure(input.listing.description ?? ""),
+        } : null;
+        const assets = (input.assets ?? []).filter((asset) => asset.name || asset.url);
+        const handoff = {
+          source: input.source?.trim() || "Aurelia / ChatGPT",
+          receivedAt: new Date().toISOString(),
+          listing,
+          assets,
+        };
+        const handoffJson = JSON.stringify(handoff);
+        if (handoffJson.length > 3500) {
+          return failure("handoff_metadata_too_large", "The intake metadata is too large; reduce listing or asset-reference metadata.");
+        }
+
+        const created = await prisma.$transaction(async (tx) => {
+          const savedProduct = await tx.spellmarkProduct.create({
+            data: {
+              ...product,
+              notes: [product.notes, "WARLOCK_INTAKE:", handoffJson].filter(Boolean).join("\n"),
+            },
+          });
+
+          const savedVariants = [];
+          for (const variant of variants) {
+            if (!variant) continue;
+            savedVariants.push(await tx.spellmarkVariant.create({
+              data: { ...variant, productId: savedProduct.id },
+            }));
+          }
+
+          return { product: savedProduct, variants: savedVariants };
+        });
+
+        return success({
+          intake: "accepted",
+          productId: created.product.id,
+          title: created.product.title,
+          status: created.product.status,
+          variantCount: created.variants.length,
+          assetReferenceCount: assets.length,
+          hasListingDraft: Boolean(listing),
+          nextAction: "Retrieve the canonical product and continue the normal Warlock validation/preflight sequence.",
+        });
+      } catch (error) {
+        console.error("Warlock MCP product intake failed", error);
+        return failure(
+          "warlock_intake_failed",
+          error instanceof Error ? error.message : "Warlock could not create the canonical product.",
+        );
+      }
+    },
+  );
 
   server.registerTool(
     "get_product",
