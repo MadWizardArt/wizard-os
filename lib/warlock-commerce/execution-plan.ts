@@ -36,14 +36,13 @@ export function buildCommerceExecutionPlan(manifest: WarlockProductManifest) {
 
   add("Warlock", "Validate canonical product package.");
   add("Warlock", "Evaluate compliance and contribution-margin gates.");
+  add("Warlock", "Verify private master, listing images, and customer file availability before Etsy writes.");
 
   if (hasPhysical) {
     add("Printful", "Run live store, catalog-variant, and availability preflight.");
     add("Etsy", "Create or update the physical Etsy draft and its variant inventory.", true);
     add("Printful", "Wait for the Etsy draft product to appear in the connected Printful ecommerce sync feed.");
     add("Printful", "Map each imported Etsy variant to its approved Printful catalog variant and temporary signed master file.", true);
-    add("Printful", "Create mockup-generation tasks for the approved physical catalog products.", true);
-    add("Warlock", "Persist generated mockups into controlled storage before Printful temporary URLs expire.");
     add("Etsy", "Upload approved Spellmark hero images and physical mockups to the Etsy draft.", true);
   }
 

@@ -10,6 +10,7 @@ import { createWarlockCommerceMcpServer } from "../../../../lib/warlock-mcp/serv
 import { withWarlockOpenAiToolSecuritySchemes } from "../../../../lib/warlock-mcp/openai-compat";
 
 export const runtime = "nodejs";
+export const maxDuration = 180;
 export const dynamic = "force-dynamic";
 
 const handler = createMcpHandler(createWarlockCommerceMcpServer);

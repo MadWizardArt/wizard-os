@@ -67,8 +67,8 @@ test("foundational MCP tools remain read-only after draft execution is added", (
 test("Warlock MCP exposes confirmed canonical product intake", () => {
   const server = source("lib/warlock-mcp/server.ts");
   assert.match(server, /"intake_product"/);
-  assert.match(server, /confirmIntake:\s*z\.literal\(true\)/);
+  assert.match(source("lib/warlock-intake-schema.ts"), /confirmIntake:\s*z\.literal\(true\)/);
   assert.match(server, /readOnlyHint:\s*false/);
-  assert.match(server, /spellmarkProduct\.create/);
-  assert.match(server, /spellmarkVariant\.create/);
+  assert.match(source("lib/warlock-intake.ts"), /spellmarkProduct\.create/);
+  assert.match(source("lib/warlock-intake.ts"), /spellmarkVariant\.create/);
 });

@@ -24,3 +24,47 @@ This phase is **product identity + Printful catalog mapping + a single Warlock i
 
 The next phase should add explicit physical Etsy draft creation, an Etsy-to-Spellmark listing link, store shipping profile and returns policy validation, printable file/placement requirements, readiness gates, and a deliberate artist approval step. Keep public listings and order submission disabled until verified.
 \n## Shipping quote diagnostic (2026-09-23)\n\nA live catalog/variant lookup succeeded while an account-level token shipping quote returned a generic HTTP 502. Printful requires the `X-PF-Store-Id` header for account-level token shipping requests. Warlock now requests explicit store selection, verifies the selected store is in `/stores`, supplies this header for `/shipping/rates`, preserves the store on a physical variant, and displays distinct safe errors for rejection/unavailable variants. Catalog prices and live shipping still must be verified from an authenticated Artist session; this fix does not claim a successful quote until it is observed.\n
+## Canonical create-or-complete intake
+
+`intake_product` and authenticated `POST /api/warlock/intake` use the same service.
+Supply `confirmIntake: true`, the approved `product`, and `productId` when resuming
+an existing shell such as Luna. Without an ID, intake requires an unambiguous exact
+title. Concurrent title-based requests are serialized in Postgres. Retries match
+variants by owned `variantId` or fulfillment + exact label and preserve canonical
+IDs. Omitted product fields, variant mappings, and prices survive partial retries.
+
+Use `listing` for a single fulfillment or `listings` (one explicit fulfillment per
+entry) for separate physical and digital listings. Set `retailPriceCents` for each
+edition; a dollar `price`/`launchPrice` can supply a single variant's price. USD only.
+Physical margin evaluation also needs actual `productionBaseCents` and ISO
+`productionQuotedAt`; do not fabricate supplier quotes. Intake applies the Etsy
+AI disclosure once and saves canonical listing records, not handoff notes.
+
+Each asset must have its role and exactly one source: an owned canonical `assetId`,
+a downloadable approved HTTPS `url`, or small `base64` bytes plus `name`.
+URLs must be reachable by the server; ChatGPT attachment IDs, sandbox paths,
+page links and inaccessible private downloads are not URLs for this operation.
+Default HTTPS sources are OpenAI download hosts. Additional trusted exact hostnames
+can be configured with `WARLOCK_INTAKE_ASSET_HOSTS`. Redirects obey the same allowlist.
+No arbitrary URL is treated as a canonical private Blob asset. Intake verifies file
+signatures, imports bytes to private storage and uses content-addressed paths for
+retries. Maximum file size is 20 MB; submit packages above 80 MB in asset batches.
+Base64 strings are limited to 4 MB each and must also fit the hosting request limit;
+prefer downloadable URLs for full production files.
+
+Hero/mockup assets are linked to the selected fulfillment (`fulfillment` omitted
+means both listings). Hero is processed first. Customer files link only to digital.
+Master and other assets remain product assets. Optional `position` controls rank;
+conflicting ranks fail instead of silently replacing an approved asset. Existing
+links and uploaded IDs are preserved on retry. Intake is additive; replacing or
+reordering an asset requires a separate explicit review. Products already carrying
+Etsy/Printful execution IDs are locked against intake changes.
+
+Resume sequence: intake existing product → retrieve and validate → inspect Etsy
+configuration → configure each fulfillment with verified live IDs → evaluate gates
+→ supplier preflight (physical) → execution plan → confirmed draft execution → status.
+Listings remain CONFIG until live configuration verification. Source filenames,
+Etsy download limits, private storage, supplier quotes and all existing commerce
+gates remain enforced. Execution checks private asset availability before its first
+Etsy write. Intake never publishes, places orders, or executes Etsy drafts itself.
+After deploying this schema change, manually refresh Warlock's tool list in Business.

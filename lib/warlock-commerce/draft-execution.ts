@@ -1,3 +1,4 @@
+import { verifyIntakeAsset } from "../warlock-intake-assets.ts";
 import { evaluateCommerceGates } from "./gates.ts";
 import { executeEtsyDrafts } from "./etsy-draft-executor.ts";
 import { runPrintfulSupplierPreflight } from "./printful-preflight.ts";
@@ -55,6 +56,14 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
       supplier,
       blockers: ["supplier_preflight_failed", ...supplier.errors],
     };
+  }
+
+  // Confirm private masters and all outbound files exist before the first Etsy mutation.
+  try {
+    for (const asset of manifest.assets) await verifyIntakeAsset({ ...asset, productId });
+  } catch {
+    return { productId, state: "BLOCKED", packageValidation, gates, supplier,
+      blockers: ["canonical_asset_storage_unavailable"] };
   }
 
   const etsy = await executeEtsyDrafts(manifest);
