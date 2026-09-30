@@ -22,6 +22,7 @@ export type WarlockManifestVariant = {
   retailPriceCents: number | null;
   productionBaseCents: number | null;
   productionQuotedAt: string | Date | null;
+  productionQuoteJson?: string | null;
   currency: string;
 };
 

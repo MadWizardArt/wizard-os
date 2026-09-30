@@ -1,3 +1,4 @@
+import { withLivePrintfulQuotes } from "./live-quotes.ts";
 import { verifyIntakeAsset } from "../warlock-intake-assets.ts";
 import { evaluateCommerceGates } from "./gates.ts";
 import { executeEtsyDrafts } from "./etsy-draft-executor.ts";
@@ -21,17 +22,18 @@ export type DraftExecutionResult = {
 export async function executeDraftProduct(productId: string): Promise<DraftExecutionResult> {
   assertCommerceDraftWritesEnabled();
 
-  const manifest = await findWarlockProduct({ productId });
+  let manifest = await findWarlockProduct({ productId });
   if (!manifest) throw new Error("product_not_found");
 
   const packageValidation = validateWarlockManifest(manifest);
-  const gates = evaluateCommerceGates(manifest);
+  let gates = evaluateCommerceGates(manifest);
+  const hasPhysical = manifest.variants.some((variant) => variant.fulfillment === "PHYSICAL");
   const blockers = [
     ...packageValidation.errors.map((entry) => entry.code),
     ...gates.errors.map((entry) => entry.code),
   ];
 
-  if (!packageValidation.ready || !gates.pass) {
+  if (!packageValidation.ready || !gates.compliance.pass || !gates.supplier.pass || (!hasPhysical && !gates.margin.pass)) {
     return {
       productId,
       state: "BLOCKED",
@@ -42,7 +44,6 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
     };
   }
 
-  const hasPhysical = manifest.variants.some((variant) => variant.fulfillment === "PHYSICAL");
   const supplier = hasPhysical
     ? await runPrintfulSupplierPreflight(manifest)
     : null;
@@ -58,6 +59,15 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
     };
   }
 
+  if (supplier) {
+    try { manifest = withLivePrintfulQuotes(manifest, supplier); }
+    catch (error) { return { productId, state:"BLOCKED",packageValidation,gates,supplier,
+      blockers:[error instanceof Error ? error.message : "live_production_quote_failed"] }; }
+    gates = evaluateCommerceGates(manifest);
+    if (!gates.pass) return { productId, state: "BLOCKED", packageValidation, gates, supplier,
+      blockers: [...new Set(gates.errors.map(entry => entry.code))] };
+  }
+
   // Confirm private masters and all outbound files exist before the first Etsy mutation.
   try {
     for (const asset of manifest.assets) await verifyIntakeAsset({ ...asset, productId });
@@ -66,10 +76,21 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
       blockers: ["canonical_asset_storage_unavailable"] };
   }
 
+  // Storage verification can take time; do not let a quote age out before writes.
+  if (supplier) {
+    try { manifest = withLivePrintfulQuotes(manifest, supplier); }
+    catch (error) { return { productId,state:"BLOCKED",packageValidation,gates,supplier,
+      blockers:[error instanceof Error ? error.message : "live_production_quote_expired"] }; }
+  }
   const etsy = await executeEtsyDrafts(manifest);
   const refreshed = await findWarlockProduct({ productId });
   if (!refreshed) throw new Error("product_missing_after_etsy_execution");
 
+  if (supplier) {
+    try { withLivePrintfulQuotes(refreshed, supplier); }
+    catch (error) { return { productId,state:"BLOCKED",packageValidation,gates,supplier,etsy,
+      blockers:[error instanceof Error ? error.message : "live_production_quote_expired"] }; }
+  }
   const printful = await syncPhysicalListingToPrintful(refreshed);
   if (printful.state === "WAITING_PRINTFUL_IMPORT") {
     return {

@@ -84,7 +84,7 @@ When a temporary URL expires, pass a fresh native file object and retry; canonic
 assets and listing links remain deduplicated by product, role and content hash.
 
 Refresh the Business app's tool list after deployment so it can negotiate the new
-native file parameter. The tool count is now twelve. On hosts that do not provide
+native file parameter. The tool count is now fifteen. On hosts that do not provide
 file params, use an authorized downloadable URL or owned canonical Warlock asset.
 
 Draft execution also requires production `WARLOCK_COMMERCE_WRITE_MODE=draft`.
@@ -116,3 +116,51 @@ that `get_product` returns a persisted asset with a positive byte size, then att
 listing images and digital customer files. Validate the completed package and
 create Etsy drafts through `execute_draft_product`. Brandon reviews and publishes
 in Etsy. Attachment retries preserve listings, configuration, prices and variants.
+
+### Live Printful catalog and dated quotes
+
+The catalog lives in Printful. Wizard OS provides the shared server service and
+MCP exposes it to Aurelia; no separate catalog database, proxy service or browser
+scraper is needed. The MCP now has **15 tools**:
+
+1. `search_printful_catalog(query)` without a store ID lists accessible stores.
+   Select Spellmark's Etsy store explicitly. Repeat with `storeId` to search by
+   product title, brand, model and type; use returned `nextOffset` for more matches.
+   Discovery is cached for up to five minutes per token/store and returns no prices.
+2. `resolve_printful_catalog(storeId, productId, colors?, sizes?)` returns exact
+   size/color variant IDs and product technique, file and option definitions.
+   Filters are exact case-insensitive matches; an empty result is not a substitute.
+3. Create canonical physical editions using `intake_product`, then call
+   `configure_printful_variant` with canonical `productId`/`variantId`, supplier
+   `catalogProductId`/`catalogVariantId`/`storeId`, and `confirmConfiguration: true`.
+   The server verifies catalog identity and store access, fetches USD pricing and
+   stock for North America, and saves the mapping and dated supplier quote.
+   It preserves the approved retail price. Repeat per edition.
+
+`productionQuoteJson` records supplier IDs, store, default technique and print
+placement, region, currency, verification time, cost and exclusions. This snapshot
+is a record of an API result, never a permanent price schedule. No catalog prices
+are embedded in code or migrations. The existing cents and quote timestamp fields
+remain compatible with margin reports and intake. API costs/stock never use the
+five-minute discovery cache.
+
+Before draft execution, live supplier preflight fetches pricing and availability
+again and evaluates margins with those fresh costs. A stale saved cost cannot
+approve a draft or prevent a live refresh. A price increase that breaks the margin
+floor, unknown stock, changed print setup, inaccessible store, malformed response,
+API outage or throttling blocks writes. Current quotes are included in the execution
+report; approved retail prices are never automatically adjusted. API redirects
+are rejected and upstream error bodies/credentials are not forwarded.
+
+This release supports the executor's existing **default single print file**, default
+non-embroidery technique, one unit, USD and North America. Technique/placement
+choices are returned for inspection, but multi-placement printing, embroidery and
+paid customization options need a later explicit design/file/fee configuration.
+A default placement carrying an additional surcharge or extra paid file layer is
+rejected rather than underquoted. Quotes exclude shipping, taxes and order-specific
+fees; margin reports retain those exclusions. Supplier preflight is bounded to
+30 physical editions per product, with four concurrent workers and request-local
+store-check deduplication. Quotes older than two minutes cannot reach draft writes.
+
+Refresh the Business tool list after deployment. No publishing automation or order
+creation is introduced; Brandon reviews and publishes Etsy drafts.
