@@ -141,11 +141,17 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
   } catch (error) {
     // Only clean up bytes created by this attempt after the DB transaction rolled back.
     // If ownership cannot be checked, retain the blob rather than risk deleting a live file.
-    if (files === storage) for (const blobUrl of createdBlobs) {
+    if (files === storage && createdBlobs.length) {
       try {
-        const live = await db.spellmarkAsset.findUnique({ where: { blobUrl }, select: { id: true } });
-        if (!live) await discardIntakeBlob(blobUrl);
-      } catch { /* A later retry can reuse deterministic bytes. */ }
+        await db.$transaction(async tx => {
+          // Serialize cleanup with retries so it cannot remove a concurrently adopted blob.
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${product.title}))::text`;
+          for (const blobUrl of createdBlobs) {
+            const live = await tx.spellmarkAsset.findUnique({ where: { blobUrl }, select: { id: true } });
+            if (!live) await discardIntakeBlob(blobUrl);
+          }
+        }, { timeout: 30000 });
+      } catch { /* Retain bytes if safe ownership verification is unavailable. */ }
     }
     throw error;
   }
