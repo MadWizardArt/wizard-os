@@ -14,6 +14,7 @@ import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-
 import { prisma } from "../prisma";
 import { intakeProduct } from "../warlock-intake";
 import { intakeProductShape } from "../warlock-intake-schema";
+import { attachProductFileShape, attachmentIntake } from "../warlock-attachment";
 
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
@@ -127,7 +128,7 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   server.registerTool(
@@ -148,6 +149,29 @@ export function createWarlockCommerceMcpServer() {
       } catch (error) {
         // Do not expose/log signed asset URLs or input package bytes.
         return failure("warlock_intake_failed", error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
+      }
+    },
+  );
+
+  server.registerTool(
+    "attach_product_file",
+    {
+      title: "Attach ChatGPT File to Spellmark Product",
+      description: "Attach one selected ChatGPT image or customer file to an existing canonical product. Prefer this tool for native attachments after intake_product creates the product. Supply the attachment through the native file parameter; ChatGPT resolves its ID to downloadable bytes. Specify master, hero, mockup, customer_file or other and optional fulfillment and rank. Repeat for each file. Retries reuse stored assets and links. Returns package validation. Preserves product, prices, variants and verified Etsy configuration. Does not create Etsy drafts, publish or order fulfillment.",
+      inputSchema: attachProductFileShape,
+      annotations: intakeAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES, "openai/fileParams": ["file"] },
+    },
+    async (input) => {
+      const loaded = await loadProduct({ productId: input.productId });
+      if (!loaded.ok) return loaded.error;
+      try {
+        const result = await intakeProduct(attachmentIntake(input, loaded.product), prisma);
+        const canonical = await findWarlockProduct({ productId: result.productId });
+        return success({ ...result, validation: canonical ? validateWarlockManifest(canonical) : null,
+          gates: canonical ? evaluateCommerceGates(canonical) : null });
+      } catch (error) {
+        return failure("warlock_attachment_failed", error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock attachment failed; select the file again for a fresh authorized download URL.");
       }
     },
   );

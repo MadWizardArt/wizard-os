@@ -84,7 +84,7 @@ When a temporary URL expires, pass a fresh native file object and retry; canonic
 assets and listing links remain deduplicated by product, role and content hash.
 
 Refresh the Business app's tool list after deployment so it can negotiate the new
-native file parameter. The tool count remains eleven. On hosts that do not provide
+native file parameter. The tool count is now twelve. On hosts that do not provide
 file params, use an authorized downloadable URL or owned canonical Warlock asset.
 
 Draft execution also requires production `WARLOCK_COMMERCE_WRITE_MODE=draft`.
@@ -92,3 +92,27 @@ Enable that setting after package validation, then redeploy; existing per-produc
 package, configuration, margin, supplier and private-storage gates still run before
 any external draft write. Never interpret a missing setting as implicit permission
 or bypass it by changing the guard's default.
+
+
+### Preferred ChatGPT attachment handoff
+
+Create or complete product metadata with `intake_product`, then call
+`attach_product_file` once per attachment using the existing `productId`, required
+native `file` input, explicit `role`, and `confirmAttachment: true`. Choose the
+ChatGPT attachment ID through the host file input; the host resolves it to the
+server-side object with `download_url` and `file_id`. Do not manually construct
+file objects in the model-facing wrapper or put a ChatGPT ID in `assetId`.
+The tool's top-level required single-file field avoids coupling attachment
+resolution to the optional batch files field and separate asset ID references.
+The batch intake path remains supported for clients that resolve file arrays.
+
+The native attachment must reach Warlock as an object. Model-facing file IDs are
+normal only when ChatGPT resolves them before sending the MCP request. If a bare
+string reaches the server, stop and report a host file-resolution failure; never
+invent a URL, substitute metadata for bytes, or bypass package validation.
+Rescan the Business app after deployment and start a new conversation so the new
+required file descriptor is loaded. Verify one master attachment first and confirm
+that `get_product` returns a persisted asset with a positive byte size, then attach
+listing images and digital customer files. Validate the completed package and
+create Etsy drafts through `execute_draft_product`. Brandon reviews and publishes
+in Etsy. Attachment retries preserve listings, configuration, prices and variants.

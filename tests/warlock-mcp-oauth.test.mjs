@@ -96,8 +96,8 @@ test("OAuth endpoints are fail-closed and never alter commerce write mode", () =
   assert.match(authorize, /codeChallenge/);
   assert.match(token, /exchangeWarlockAuthorizationCode/);
   assert.match(token, /refreshWarlockOAuthGrant/);
-  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 11);
-  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 11);
+  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 12);
+  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 12);
   assert.doesNotMatch(server, /_registeredTools/);
 
   assert.doesNotMatch(authorize, /WARLOCK_COMMERCE_WRITE_MODE/);
@@ -169,4 +169,32 @@ test("Warlock OpenAI compatibility shim also promotes JSON tools/list responses"
   const payload = await response.json();
   assert.deepEqual(payload.result.tools[0].securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
   assert.deepEqual(payload.result.tools[0]._meta.securitySchemes, WARLOCK_TOOL_SECURITY_SCHEMES);
+});
+
+test('required single-file descriptor survives serialized MCP transport and accepts resolved objects', async () => {
+ const { attachProductFileShape, attachmentIntake } = await import('../lib/warlock-attachment.ts');
+ let accepted=0;
+ const handler=createMcpHandler(()=>{
+  const server=new McpServer({name:'attachment-probe',version:'1'});
+  server.registerTool('attach_product_file',{inputSchema:attachProductFileShape,_meta:{'openai/fileParams':['file']}},async input=>{
+   const packageInput=attachmentIntake(input,{id:'p1',title:'Test'});accepted++;
+   return {content:[{type:'text',text:JSON.stringify({role:packageInput.assets[0].role,fileId:packageInput.files[0].file_id})}]};
+  });return server;
+ });
+ async function rpc(method,params) {
+  const response=await withWarlockOpenAiToolSecuritySchemes(await handler.fetch(new Request('https://example.test/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})})));
+  const body=await response.text();const line=body.split('\n').find(l=>l.startsWith('data: '));return JSON.parse(line?line.slice(6):body);
+ }
+ try {
+  const descriptor=(await rpc('tools/list')).result.tools[0];
+  assert.deepEqual(descriptor._meta['openai/fileParams'],['file']);
+  assert.ok(descriptor.inputSchema.required.includes('file'));
+  assert.equal(descriptor.inputSchema.properties.file.type,'object');
+  assert.deepEqual(descriptor.inputSchema.properties.file.required,['download_url','file_id']);
+  const args={productId:'p1',file:{download_url:'https://files.oaiusercontent.com/a',file_id:'file_a'},role:'master',confirmAttachment:true};
+  const result=await rpc('tools/call',{name:'attach_product_file',arguments:args});
+  assert.equal(result.result.isError,undefined);assert.equal(accepted,1);
+  const broken=await rpc('tools/call',{name:'attach_product_file',arguments:{...args,file:'file_a'}});
+  assert.ok(broken.error || broken.result?.isError);assert.equal(accepted,1);
+ } finally {if(typeof handler.close==='function')await handler.close();}
 });

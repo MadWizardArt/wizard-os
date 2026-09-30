@@ -74,3 +74,25 @@ test('bare ChatGPT file IDs, missing file objects, and missing file roles fail w
  await assert.rejects(intakeProduct({...input,files:[{file_id:'file_native',download_url:'https://files.oaiusercontent.com/a'}]},db,files),/chatgpt_file_role_missing/);
  assert.equal(db.state().products.length,0);
 });
+
+test('single-file attachment completes an existing product without altering verified listings, variants or prices', async () => {
+ const { attachmentIntake } = await import('../lib/warlock-attachment.ts');
+ const db=database();await intakeProduct({...input,assets:[]},db,files);
+ const product=db.state().products[0];
+ await db.tx.spellmarkListing.update({where:{id:db.state().listings[0].id},data:{status:'VERIFIED',taxonomyId:123}});
+ const before=structuredClone({variants:db.state().variants,listings:db.state().listings});
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(png,{headers:{'content-type':'image/png'}});
+ try {
+  for(const role of ['master','hero','customer_file']) {
+   const raw={productId:product.id,file:{file_id:`file_${role}`,download_url:'https://files.oaiusercontent.com/a',file_name:`${role}.png`},role,confirmAttachment:true};
+   await intakeProduct(attachmentIntake(raw,product),db,files);
+   await intakeProduct(attachmentIntake(raw,product),db,files);
+  }
+  assert.equal(db.state().assets.length,3);assert.equal(db.state().links.length,2);
+  assert.deepEqual(db.state().variants,before.variants);assert.deepEqual(db.state().listings,before.listings);
+  assert.equal(validateWarlockManifest(manifest(db)).ready,true);
+  assert.throws(()=>attachmentIntake({productId:product.id,file:'file_master',role:'master',confirmAttachment:true},product));
+  assert.throws(()=>attachmentIntake({productId:'foreign',file:{file_id:'file_x',download_url:'https://files.oaiusercontent.com/a'},role:'master',confirmAttachment:true},product),/attachment_product_mismatch/);
+ } finally {globalThis.fetch=originalFetch;}
+});
