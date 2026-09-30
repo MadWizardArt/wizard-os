@@ -73,7 +73,7 @@ The physical Etsy draft is created first. Printful imports it asynchronously. Wa
 
 `GET /sync/products/@{etsyListingId}`
 
-If the imported product or all expected variants are not present yet, the run ends in `WAITING_PRINTFUL_IMPORT`. A later execution safely rechecks the same canonical listing.
+If the imported product is absent, the run ends in `AWAITING_PRINTFUL_IMPORT` with a timestamp and recovery instructions. `check_printful_import` checks later without rewriting Etsy. An imported product whose exact variants cannot all be matched returns `VARIANT_MAPPING_FAILED`; API errors are reported separately. Confirmed execution saves imported IDs before configuration and safely retries the same canonical listing. Verify the Printful store’s **Import not synced products** toggle is enabled if present; Etsy draft imports run daily.
 
 When all variants exist, Warlock updates each imported sync variant using:
 

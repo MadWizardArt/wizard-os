@@ -10,7 +10,7 @@ import { validateWarlockManifest } from "../warlock-mcp/manifest.ts";
 
 export type DraftExecutionResult = {
   productId: string;
-  state: "BLOCKED" | "WAITING_PRINTFUL_IMPORT" | "READY_FOR_HUMAN_REVIEW";
+  state: "BLOCKED" | "AWAITING_PRINTFUL_IMPORT" | "READY_FOR_HUMAN_REVIEW";
   packageValidation: ReturnType<typeof validateWarlockManifest>;
   gates: ReturnType<typeof evaluateCommerceGates>;
   supplier: Awaited<ReturnType<typeof runPrintfulSupplierPreflight>> | null;
@@ -92,16 +92,21 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
       blockers:[error instanceof Error ? error.message : "live_production_quote_expired"] }; }
   }
   const printful = await syncPhysicalListingToPrintful(refreshed);
-  if (printful.state === "WAITING_PRINTFUL_IMPORT") {
+  if (printful.state === "AWAITING_PRINTFUL_IMPORT") {
     return {
       productId,
-      state: "WAITING_PRINTFUL_IMPORT",
+      state: "AWAITING_PRINTFUL_IMPORT",
       packageValidation,
       gates,
       supplier,
       etsy,
       printful,
     };
+  }
+
+  if (printful.state !== "SYNCED" && printful.state !== "SKIPPED") {
+    return { productId, state: "BLOCKED", packageValidation, gates, supplier, etsy, printful,
+      blockers: [printful.errorCode ?? "printful_configuration_incomplete"] };
   }
 
   return {

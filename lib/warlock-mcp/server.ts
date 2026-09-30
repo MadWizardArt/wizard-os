@@ -6,6 +6,7 @@ import { findWarlockProduct } from "./repository";
 import { evaluateCommerceGates } from "../warlock-commerce/gates";
 import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
+import { inspectPrintfulImport } from "../warlock-commerce/printful-import";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
 import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
@@ -130,7 +131,7 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 
   server.registerTool(
@@ -399,6 +400,22 @@ export function createWarlockCommerceMcpServer() {
       const loaded = await loadProduct(selector);
       if (!loaded.ok) return loaded.error;
       return success(buildCommerceExecutionPlan(loaded.product));
+    },
+  );
+
+  server.registerTool(
+    "check_printful_import",
+    {
+      title: "Check Printful Etsy Import",
+      description: "Read the live Printful ecommerce sync feed by canonical Etsy listing ID. Distinguish a missing import, variant mapping failure, and API error; return timestamp and recovery instructions. Does not modify Etsy, configure variants, or trigger a store refresh. Import not synced products is a manually verified store prerequisite.",
+      inputSchema: selectorShape,
+      annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async (selector) => {
+      const loaded = await loadProduct(selector);
+      if (!loaded.ok) return loaded.error;
+      return success(await inspectPrintfulImport(loaded.product));
     },
   );
 

@@ -109,11 +109,11 @@ test("Etsy executor is create-or-update draft only and tracks remote asset IDs",
 });
 
 test("Printful executor updates imported ecommerce sync variants and never creates orders", () => {
-  const printful = source("lib/warlock-commerce/printful-sync-executor.ts");
+  const printful = source("lib/warlock-commerce/printful-sync-service.ts") + source("lib/warlock-commerce/printful-import.ts");
   assert.match(printful, /\/sync\/products\/@/);
   assert.match(printful, /\/sync\/variant\//);
   assert.match(printful, /method:\s*"PUT"/);
-  assert.match(printful, /WAITING_PRINTFUL_IMPORT/);
+  assert.match(printful, /AWAITING_PRINTFUL_IMPORT/);
   assert.doesNotMatch(printful, /\/orders|confirm.*order|submit.*order/i);
 });
 
