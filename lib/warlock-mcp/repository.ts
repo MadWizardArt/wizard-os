@@ -42,6 +42,7 @@ const selection = {
       retailPriceCents: true,
       productionBaseCents: true,
       productionQuotedAt: true,
+      productionQuoteJson: true,
       currency: true,
     },
   },

@@ -96,7 +96,7 @@ test("all current Etsy description write paths enforce the disclosure helper", (
 });
 
 test("Printful supplier preflight is read-only", () => {
-  const preflight = source("lib/warlock-commerce/printful-preflight.ts");
+  const preflight = source("lib/warlock-commerce/printful-preflight.ts") + source("lib/warlock-commerce/printful-catalog.ts");
   assert.match(preflight, /products\/variant/);
   assert.match(preflight, /v2\/catalog-variants/);
   assert.doesNotMatch(preflight, /method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);

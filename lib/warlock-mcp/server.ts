@@ -14,6 +14,8 @@ import { applyVerifiedEtsyConfiguration } from "../warlock-commerce/etsy-config-
 import { prisma } from "../prisma";
 import { intakeProduct } from "../warlock-intake";
 import { intakeProductShape } from "../warlock-intake-schema";
+import { searchPrintfulCatalog, resolvePrintfulCatalog, safePrintfulError } from "../warlock-commerce/printful-catalog";
+import { configurePrintfulVariant } from "../warlock-commerce/printful-configuration";
 import { attachProductFileShape, attachmentIntake } from "../warlock-attachment";
 
 const selectorShape = {
@@ -128,7 +130,7 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   server.registerTool(
@@ -174,6 +176,44 @@ export function createWarlockCommerceMcpServer() {
         return failure("warlock_attachment_failed", error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock attachment failed; select the file again for a fresh authorized download URL.");
       }
     },
+  );
+
+  server.registerTool(
+    "search_printful_catalog",
+    {
+      title: "Find Printful Blank Products",
+      description: "Search the live Printful catalog by title, brand, model or type. Omit storeId to discover accessible stores first. Returns product IDs and images with pagination. Discovery may use a five-minute cache; never treat this as a quote. Read-only. Use resolve_printful_catalog next.",
+      inputSchema: { storeId:z.number().int().positive().max(2147483647).optional(), query:z.string().trim().min(1).max(120), offset:z.number().int().min(0).max(10000).optional(), limit:z.number().int().min(1).max(50).optional() },
+      annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input => { try { return success(await searchPrintfulCatalog(input)); } catch(error) { return failure("printful_catalog_failed", safePrintfulError(error)); } },
+  );
+  server.registerTool(
+    "resolve_printful_catalog",
+    {
+      title: "Resolve Printful Sizes and Colors",
+      description: "Read exact catalog variant IDs for a product, optionally filtering exact colors and sizes. Returns supported techniques, file placements and options for inspection. Does not save mappings or quote final costs. Never guess IDs. Configure the chosen existing canonical variant with configure_printful_variant.",
+      inputSchema: { storeId:z.number().int().positive().max(2147483647), productId:z.number().int().positive().max(2147483647), colors:z.array(z.string().min(1).max(80)).max(30).optional(), sizes:z.array(z.string().min(1).max(80)).max(30).optional() },
+      annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input => { try { return success(await resolvePrintfulCatalog(input)); } catch(error) { return failure("printful_catalog_failed", safePrintfulError(error)); } },
+  );
+  server.registerTool(
+    "configure_printful_variant",
+    {
+      title: "Save Verified Printful Variant and Quote",
+      description: "Save a selected exact catalog mapping and fresh API production quote to an existing PHYSICAL Warlock variant. Takes canonical productId/variantId and Printful catalogProductId/catalogVariantId/storeId. Requires confirmation. Preserves approved retail price and Etsy configuration. This release uses Printful's default single print file and default non-embroidery technique only; extra placements/options are not configured. Quotes are USD for North America and exclude shipping, tax and order-specific fees. Execution rechecks costs and stock live. Does not write Etsy or Printful, publish or place orders.",
+      inputSchema: { productId:z.string().min(1).max(100), variantId:z.string().min(1).max(100), catalogProductId:z.number().int().positive().max(2147483647), catalogVariantId:z.number().int().positive().max(2147483647), storeId:z.number().int().positive().max(2147483647), confirmConfiguration:z.literal(true) },
+      annotations: configurationWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input => { try {
+      const configured=await configurePrintfulVariant(input,prisma);
+      const canonical=await findWarlockProduct({productId:input.productId});
+      return success({...configured,gates:canonical?evaluateCommerceGates(canonical):null});
+    } catch(error) { return failure("printful_configuration_failed", safePrintfulError(error)); } },
   );
 
   server.registerTool(

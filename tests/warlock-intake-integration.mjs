@@ -17,5 +17,14 @@ try {
  // Missing/foreign assets roll back the preceding pricing and listing changes.
  const failed=await fetch(`${base}/api/warlock/intake`,{method:'POST',headers,body:JSON.stringify({...completion,listing:{...completion.listing,price:12},assets:[{role:'hero',assetId:'foreign'}]})});assert.equal(failed.status,400);
  const unchanged=await pool.query('SELECT "retailPriceCents" FROM "SpellmarkVariant" WHERE "productId"=$1',[first.productId]);assert.equal(unchanged.rows[0].retailPriceCents,900);
+ // Dated quote provenance survives the real DB and canonical MCP repository.
+ const quote={source:'Printful Catalog API v2',currency:'USD',sellingRegion:'north_america',quotedAt:new Date().toISOString(),productionBaseCents:1234};
+ await pool.query('UPDATE "SpellmarkVariant" SET "productionQuoteJson"=$1 WHERE id=$2',[JSON.stringify(quote),variants.rows[0].id]);
+ const listed=await fetch(`${base}/api/warlock/mcp`,{method:'POST',headers:{...headers,accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'get_product',arguments:{productId:first.productId}}})});
+ assert.equal(listed.status,200);
+ const rpcBody=await listed.text();const line=rpcBody.split('\n').find(l=>l.startsWith('data: '));const rpc=JSON.parse(line?line.slice(6):rpcBody);
+ const canonical=rpc.result.structuredContent.product;
+ assert.deepEqual(JSON.parse(canonical.variants[0].productionQuoteJson),quote);
+ assert.equal(canonical.variants[0].retailPriceCents,900);
  console.log('Intake database integration: canonical completion, concurrent retry, persistence, authorization and rollback passed.');
 } finally {await pool.query('DELETE FROM "SpellmarkProduct" WHERE title=$1',[title]);await pool.end();}
