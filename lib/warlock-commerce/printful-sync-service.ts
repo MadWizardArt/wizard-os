@@ -11,7 +11,7 @@ export type SyncDependencies = {
   saveVariant: (id: string, data: { printfulSyncVariantId: number; etsySku: string }) => Promise<unknown>;
 };
 
-export async function configureImportedPrintful(manifest: WarlockProductManifest, deps: SyncDependencies): Promise<PrintfulSyncResult> {
+export async function configureImportedPrintful(manifest: WarlockProductManifest, deps: SyncDependencies, options: { preserveStoreInventory?: boolean; beforeConfigure?: () => void } = {}): Promise<PrintfulSyncResult> {
   const imported = await inspectPrintfulImport(manifest, deps.request);
   if (imported.state === "SKIPPED" || imported.state === "BLOCKED" || imported.state === "PRINTFUL_API_ERROR") return imported;
   const listing = manifest.listings.find(l => l.fulfillment === "PHYSICAL")!;
@@ -38,13 +38,16 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
     const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
     const temporary = await deps.temporaryAsset(master);
     try {
+      options.beforeConfigure?.();
       await deps.request("/sync/variant/" + mapped.printfulSyncVariantId, imported.storeId!, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant_id: variant.printfulVariantId, retail_price: (variant.retailPriceCents! / 100).toFixed(2), sku: etsySkuForVariant(variant), is_ignored: false,
+        body: JSON.stringify({ variant_id: variant.printfulVariantId,
+          ...(options.preserveStoreInventory ? {} : { retail_price: (variant.retailPriceCents! / 100).toFixed(2), sku: etsySkuForVariant(variant) }),
+          is_ignored: false,
           files: [{ type: "default", url: temporary.url, filename: master.fileName, visible: true }] }),
       });
     } catch (error) {
-      return { ...imported, state: "PRINTFUL_API_ERROR", checkedAt: new Date().toISOString(), errorCode: syncErrorCode(error), configuredVariantIds, nextAction: "The imported IDs and Etsy draft are saved. Resolve the Printful API error and retry confirmed execution to finish configuration." };
+      return { ...imported, state: error instanceof Error && error.message === "live_production_quote_expired" ? "BLOCKED" : "PRINTFUL_API_ERROR", checkedAt: new Date().toISOString(), errorCode: error instanceof Error && error.message === "live_production_quote_expired" ? error.message : syncErrorCode(error), configuredVariantIds, nextAction: options.preserveStoreInventory ? "The imported IDs and active Etsy listing are preserved. Resolve the blocker and retry reconcile_printful_product." : "The imported IDs and Etsy draft are saved. Resolve the Printful API error and retry confirmed execution to finish configuration." };
     }
     configuredVariantIds.push(variant.id);
   }

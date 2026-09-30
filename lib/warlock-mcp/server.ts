@@ -6,6 +6,7 @@ import { findWarlockProduct } from "./repository";
 import { evaluateCommerceGates } from "../warlock-commerce/gates";
 import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
+import { reconcilePrintfulProduct } from "../warlock-commerce/printful-reconciliation-executor";
 import { inspectPrintfulImport } from "../warlock-commerce/printful-import";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
@@ -131,7 +132,7 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.4.0",
+    version: "0.5.0",
   });
 
   server.registerTool(
@@ -420,6 +421,24 @@ export function createWarlockCommerceMcpServer() {
   );
 
   server.registerTool(
+    "reconcile_printful_product",
+    {
+      title: "Reconcile Printful for an Active Etsy Product",
+      description: "Complete Printful mapping for a canonical physical Etsy listing already published by the owner. Verify live Etsy ownership, active state, exact inventory IDs/SKUs and unchanged approved prices; refresh supplier costs/stock and gates, persist imported sync IDs, and configure Printful only. Etsy is read-only: no recreation, redrafting, inventory changes, publishing, or orders. Requires explicit reconciliation confirmation and the existing commerce write switch.",
+      inputSchema: { ...selectorShape, confirmReconciliation: z.literal(true) },
+      annotations: draftWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async (input) => {
+      if (commerceWriteMode() !== "draft") return failure("warlock_commerce_writes_disabled", "Confirmed supplier reconciliation requires WARLOCK_COMMERCE_WRITE_MODE=draft.");
+      const loaded = await loadProduct(input);
+      if (!loaded.ok) return loaded.error;
+      try { return success(await reconcilePrintfulProduct(loaded.product.id)); }
+      catch { return failure("printful_reconciliation_failed", "Could not load the canonical product or authorized Etsy connection for reconciliation."); }
+    },
+  );
+
+  server.registerTool(
     "execute_draft_product",
     {
       title: "Execute Draft Product",
@@ -445,7 +464,7 @@ export function createWarlockCommerceMcpServer() {
         console.error("Warlock MCP draft execution failed", error);
         return failure(
           "draft_execution_failed",
-          error instanceof Error ? error.message : "Draft execution failed.",
+          error instanceof Error && error.message === "etsy_listing_not_draft" ? "etsy_listing_not_draft: If the physical Etsy listing is already active, use reconcile_printful_product with confirmReconciliation=true to finish supplier mapping without Etsy writes." : error instanceof Error ? error.message : "Draft execution failed.",
         );
       }
     },
