@@ -22,7 +22,8 @@ function headers() {
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    // Chromium applies form-action to redirects after the consent POST as well.
+    "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${new URL(CHATGPT_REDIRECT_URI).origin}; base-uri 'none'; frame-ancestors 'none'`,
   };
 }
 

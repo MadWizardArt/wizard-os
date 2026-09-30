@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { chromium } from "@playwright/test";
 
 const origin = process.env.WARLOCK_PUBLIC_ORIGIN;
 const operatorKey = process.env.WARLOCK_API_KEY;
@@ -33,28 +34,33 @@ let tokens;
   assert.match(html, /Authorize Warlock Commerce/);
   assert.match(html, /name="code_challenge"/);
 
-  const form = new URLSearchParams({
-    response_type: "code",
-    client_id: CHATGPT_CLIENT_ID,
-    redirect_uri: CHATGPT_REDIRECT_URI,
-    resource,
-    scope: WARLOCK_OAUTH_SCOPE + " offline_access",
-    state,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-    operator_key: operatorKey,
-  });
-  const authorized = await fetch("http://127.0.0.1:3000/api/warlock/oauth/authorize", {
-    method: "POST",
-    redirect: "manual",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: form,
-  });
-  assert.equal(authorized.status, 303, "consent should issue an authorization code");
-  const callback = new URL(authorized.headers.get("location"));
-  code = callback.searchParams.get("code");
-  assert.ok(code, "authorization callback should carry a code");
-  assert.equal(callback.searchParams.get("state"), state);
+  // Use a real browser: fetch() does not enforce the consent page's CSP.
+  // Intercept ChatGPT's callback so the CI code never leaves the test browser.
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    await context.route(CHATGPT_REDIRECT_URI + "**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<p>OAuth callback received</p>" }));
+    const page = await context.newPage();
+    const violations = [];
+    page.on("console", (message) => {
+      if (message.text().includes("Content Security Policy")) violations.push(message.text());
+    });
+    await page.goto(redirect);
+    await page.locator("#operator_key").fill(operatorKey);
+    await Promise.all([
+      page.waitForURL((url) => url.origin + url.pathname === CHATGPT_REDIRECT_URI, { timeout: 15000 }),
+      page.getByRole("button", { name: "Authorize ChatGPT" }).click(),
+    ]);
+    const callback = new URL(page.url());
+    code = callback.searchParams.get("code");
+    assert.ok(code, "browser should reach the callback with an authorization code");
+    assert.equal(callback.searchParams.get("state"), state);
+    assert.equal(callback.searchParams.get("iss"), base);
+    assert.deepEqual(violations, [], "consent callback must not violate CSP");
+  } finally {
+    await browser.close();
+  }
 
   const exchange = await fetch("http://127.0.0.1:3000/api/warlock/oauth/token", {
     method: "POST",
