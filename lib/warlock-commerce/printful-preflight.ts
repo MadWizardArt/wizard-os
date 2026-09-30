@@ -1,5 +1,5 @@
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
-import { printfulGet, quotePrintfulVariant, type Get, type PrintfulQuote } from "./printful-catalog.ts";
+import { printfulGet, quotePrintfulVariant, safePrintfulError, type Get, type PrintfulQuote } from "./printful-catalog.ts";
 
 export type SupplierVariantCheck = {
   variantId:string; label:string; printfulProductId:number; printfulVariantId:number; printfulStoreId:number;
@@ -35,7 +35,7 @@ export async function runPrintfulSupplierPreflight(manifest:WarlockProductManife
         }
         Object.assign(check,{quote,catalogVariantExists:true,catalogProductMatches:true,storeAccessible:true,availability:quote.availability,pass:quote.availability==="in_stock"});
         if(!check.pass)result.errors.push("printful_variant_unavailable:"+variant.id);
-      }catch(error){result.errors.push("live_quote_failed:"+variant.id+":"+(error instanceof Error?error.message:"unknown"));}
+      }catch(error){result.errors.push("live_quote_failed:"+variant.id+":"+safePrintfulError(error));}
       checks[index]=check;
     }
   }

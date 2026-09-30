@@ -19,7 +19,9 @@ export async function printfulGet(path: string, storeId?: number): Promise<Json>
   try { response = await fetch("https://api.printful.com" + path, { headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12000) }); }
   catch { throw new Error("printful_unavailable"); }
   if (!response.ok) throw new Error("printful_http_" + response.status);
-  return record(await response.json());
+  let payload: unknown;
+  try { payload = await response.json(); } catch { throw new Error("printful_invalid_response"); }
+  return record(payload);
 }
 export type Get = typeof printfulGet;
 const cache = new Map<string, { until: number; verifiedAt: string; products: Json[] }>();
