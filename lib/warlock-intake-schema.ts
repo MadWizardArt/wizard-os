@@ -13,7 +13,15 @@ const listing = z.object({
   taxonomyId: z.number().int().positive().max(2147483647).optional(),
   shippingProfileId: profile.optional(), readinessStateId: profile.optional(),
 });
+// ChatGPT file objects declare all four supported properties; only URL and ID are required.
+export const chatGptFileSchema = z.object({
+  download_url: z.string().url().max(8000),
+  file_id: z.string().trim().min(1).max(200),
+  mime_type: z.string().max(100).optional(),
+  file_name: z.string().max(240).optional(),
+}).strict();
 export const intakeProductShape = {
+  files: z.array(chatGptFileSchema).max(40).optional(),
   productId: z.string().trim().min(1).max(100).optional(),
   source: z.string().trim().min(1).max(80).optional(),
   product: z.object({
@@ -34,10 +42,11 @@ export const intakeProductShape = {
   assets: z.array(z.object({
     name: z.string().trim().min(1).max(240).optional(),
     role: z.enum(["hero", "mockup", "customer_file", "master", "other"]),
-    assetId: z.string().min(1).max(100).optional(), url: z.string().url().max(4000).optional(),
+    assetId: z.string().min(1).max(100).optional().describe("Existing canonical Warlock asset ID; never a ChatGPT file ID."),
+    fileId: z.string().min(1).max(200).optional().describe("ChatGPT file_id matching an entry in the top-level files parameter."), url: z.string().url().max(4000).optional(),
     base64: z.string().max(4 * 1024 * 1024).optional(), contentType: z.string().max(100).optional(),
     fulfillment: z.enum(["DIGITAL", "PHYSICAL"]).optional(), position: z.number().int().min(1).max(20).optional(),
-  }).refine(a => [a.assetId, a.url, a.base64].filter(x => x !== undefined).length === 1, "Provide exactly one of assetId, url, or base64.")).max(40).optional(),
+  }).refine(a => [a.assetId, a.fileId, a.url, a.base64].filter(x => x !== undefined).length === 1, "Provide exactly one of assetId, fileId, url, or base64.")).max(40).optional(),
   confirmIntake: z.literal(true),
 };
 export const intakeProductSchema = z.object(intakeProductShape).refine(v => !(v.listing && v.listings), "Use listing or listings, not both.");

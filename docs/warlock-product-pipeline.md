@@ -68,3 +68,27 @@ Etsy download limits, private storage, supplier quotes and all existing commerce
 gates remain enforced. Execution checks private asset availability before its first
 Etsy write. Intake never publishes, places orders, or executes Etsy drafts itself.
 After deploying this schema change, manually refresh Warlock's tool list in Business.
+
+### Native ChatGPT attachments
+
+Intake advertises `_meta["openai/fileParams"] = ["files"]`. ChatGPT passes a
+`files` array with `download_url` and `file_id` required and `mime_type` / `file_name`
+optional. All four properties are declared in the descriptor, as required by
+OpenAI's Scan Tools contract. For each file, supply a corresponding `assets` entry
+with `fileId` matching that `file_id`, an explicit `role`, and optional `name`,
+`fulfillment`, and `position`. The server downloads the authorized URL and imports
+its real bytes through the same private-storage pipeline. Default attachment names
+are converted to ASCII-safe filenames; supply `name` for a specific customer name.
+A bare ChatGPT `file_id` is not a Warlock `assetId` and cannot retrieve bytes alone.
+When a temporary URL expires, pass a fresh native file object and retry; canonical
+assets and listing links remain deduplicated by product, role and content hash.
+
+Refresh the Business app's tool list after deployment so it can negotiate the new
+native file parameter. The tool count remains eleven. On hosts that do not provide
+file params, use an authorized downloadable URL or owned canonical Warlock asset.
+
+Draft execution also requires production `WARLOCK_COMMERCE_WRITE_MODE=draft`.
+Enable that setting after package validation, then redeploy; existing per-product
+package, configuration, margin, supplier and private-storage gates still run before
+any external draft write. Never interpret a missing setting as implicit permission
+or bypass it by changing the guard's default.

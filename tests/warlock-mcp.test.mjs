@@ -72,3 +72,8 @@ test("Warlock MCP exposes confirmed canonical product intake", () => {
   assert.match(source("lib/warlock-intake.ts"), /spellmarkProduct\.create/);
   assert.match(source("lib/warlock-intake.ts"), /spellmarkVariant\.create/);
 });
+
+test("intake declares native top-level ChatGPT file input metadata", () => {
+  const server = source("lib/warlock-mcp/server.ts");
+  assert.match(server, /"openai\/fileParams": \["files"\]/);
+});

@@ -8,8 +8,8 @@ export function permittedIntakeUrl(raw: string) {
   const host = url.hostname.toLowerCase();
   const additional = (process.env.WARLOCK_INTAKE_ASSET_HOSTS ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
   if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443") ||
-    !(host.endsWith(".oaiusercontent.com") || /^oai(?:sdmnt|sdsor)pr[a-z0-9]*\.blob\.core\.windows\.net$/.test(host) || /^sdmntpr[a-z0-9]*\.blob\.core\.windows\.net$/.test(host) || /^oaisdmntpr[a-z0-9]*aws\.s3\.[a-z0-9.-]+\.amazonaws\.com$/.test(host) || additional.includes(host))) {
-    throw new Error("asset_source_not_allowed: Supply an existing Warlock assetId, base64 bytes, or an approved HTTPS download URL.");
+    !((host === "chatgpt.com" && url.pathname.startsWith("/backend-api/files/")) || host.endsWith(".oaiusercontent.com") || /^oai(?:sdmnt|sdsor)pr[a-z0-9]*\.blob\.core\.windows\.net$/.test(host) || /^sdmntpr[a-z0-9]*\.blob\.core\.windows\.net$/.test(host) || /^oaisdmntpr[a-z0-9]*aws\.s3\.[a-z0-9.-]+\.amazonaws\.com$/.test(host) || additional.includes(host))) {
+    throw new Error("asset_source_not_allowed: Supply an existing Warlock assetId, native ChatGPT files with assets.fileId, base64 bytes, or an approved HTTPS download URL.");
   }
   return url;
 }

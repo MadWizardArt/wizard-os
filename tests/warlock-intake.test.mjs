@@ -58,3 +58,19 @@ test('source restrictions and byte validation reject unsafe references and bogus
  await assert.rejects(readIntakeBytes({role:'hero',name:'hero.png',base64:Buffer.from('not an image').toString('base64')}),/asset_file_type_unsupported/);
  await assert.rejects(intakeProduct({...input,confirmIntake:false},database(),files));
 });
+test('native ChatGPT files download bytes and persist private assets instead of treating attachment IDs as canonical IDs', async () => {
+ const originalFetch = globalThis.fetch; const seen = [];
+ globalThis.fetch = async url => { seen.push(String(url)); return new Response(png, {headers:{'content-type':'image/png'}}); };
+ try {
+  const db=database(); const native={...input,files:[{file_id:'file_native',download_url:'https://files.oaiusercontent.com/authorized.png',file_name:'Luna Master.png',mime_type:'image/png'}],assets:[{role:'master',fileId:'file_native'},{role:'hero',fileId:'file_native'},asset('customer_file','download.png')]};
+  await intakeProduct(native,db,files);await intakeProduct(native,db,files);
+  assert.equal(db.state().assets.length,3);assert.equal(db.state().assets[0].fileName,'Luna_Master.png');assert.equal(db.state().links.length,2);assert.ok(seen.every(u=>u==='https://files.oaiusercontent.com/authorized.png'));assert.equal(validateWarlockManifest(manifest(db)).ready,true);
+ } finally {globalThis.fetch=originalFetch;}
+});
+test('bare ChatGPT file IDs, missing file objects, and missing file roles fail with actionable errors', async () => {
+ const db=database();
+ await assert.rejects(intakeProduct({...input,assets:[{role:'hero',assetId:'file_native'}]},db,files),/chatgpt_file_id_is_not_warlock_asset_id/);
+ await assert.rejects(intakeProduct({...input,assets:[{role:'hero',fileId:'file_native'}]},db,files),/chatgpt_file_input_missing/);
+ await assert.rejects(intakeProduct({...input,files:[{file_id:'file_native',download_url:'https://files.oaiusercontent.com/a'}]},db,files),/chatgpt_file_role_missing/);
+ assert.equal(db.state().products.length,0);
+});
