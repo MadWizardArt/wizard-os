@@ -11,6 +11,15 @@ function promoteMessage(message: unknown): unknown {
     return message;
   }
 
+  const toolNames = message.result.tools
+    .filter(isRecord)
+    .map((tool) => typeof tool.name === "string" ? tool.name : "(unnamed)");
+  console.info("Warlock MCP tools/list advertised", {
+    count: toolNames.length,
+    tools: toolNames,
+    hasIntakeProduct: toolNames.includes("intake_product"),
+  });
+
   return {
     ...message,
     result: {
