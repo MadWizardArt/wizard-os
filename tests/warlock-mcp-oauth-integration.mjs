@@ -130,7 +130,7 @@ let tokens;
   assert.equal(listed.status, 200, "initialized OAuth session should list tools");
   const listPayload = await rpcPayload(listed);
   const tools = listPayload.result?.tools;
-  assert.equal(tools?.length, 11, "all eleven Warlock tools should be returned");
+  assert.equal(tools?.length, 12, "all twelve Warlock tools should be returned");
   assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
   const intakeTool = tools.find(tool => tool.name === "intake_product");
   assert.deepEqual(intakeTool._meta["openai/fileParams"], ["files"]);
@@ -138,6 +138,14 @@ let tokens;
   assert.deepEqual([...fileSchema.required].sort(), ["download_url", "file_id"]);
   for (const name of ["download_url", "file_id", "mime_type", "file_name"]) {
     assert.equal(fileSchema.properties[name].type, "string");
+  }
+  const attachmentTool = tools.find(tool => tool.name === "attach_product_file");
+  assert.ok(attachmentTool, "single-file attachment tool must be advertised");
+  assert.deepEqual(attachmentTool._meta["openai/fileParams"], ["file"]);
+  assert.ok(attachmentTool.inputSchema.required.includes("file"));
+  assert.deepEqual([...attachmentTool.inputSchema.properties.file.required].sort(), ["download_url", "file_id"]);
+  for (const name of ["download_url", "file_id", "mime_type", "file_name"]) {
+    assert.equal(attachmentTool.inputSchema.properties.file.properties[name].type, "string");
   }
   for (const tool of tools) {
     assert.deepEqual(tool.securitySchemes, [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }], tool.name);
@@ -157,4 +165,4 @@ let tokens;
     }),
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
-  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all eleven tools/list descriptors including intake_product passed.");
+  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all twelve tools/list descriptors including intake_product passed.");
