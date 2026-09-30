@@ -40,8 +40,9 @@ export function buildCommerceExecutionPlan(manifest: WarlockProductManifest) {
 
   if (hasPhysical) {
     add("Printful", "Run live store, catalog-variant, and availability preflight.");
+    add("Printful", "Verify Import not synced products is enabled in the selected store if that toggle is present (manual prerequisite; unavailable through the API).");
     add("Etsy", "Create or update the physical Etsy draft and its variant inventory.", true);
-    add("Printful", "Wait for the Etsy draft product to appear in the connected Printful ecommerce sync feed.");
+    add("Printful", "Query the ecommerce sync feed by Etsy listing ID; report AWAITING_PRINTFUL_IMPORT with timestamp and use check_printful_import for later read-only checks.");
     add("Printful", "Map each imported Etsy variant to its approved Printful catalog variant and temporary signed master file.", true);
     add("Etsy", "Upload approved Spellmark hero images and physical mockups to the Etsy draft.", true);
   }

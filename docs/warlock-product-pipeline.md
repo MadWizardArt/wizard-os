@@ -121,7 +121,7 @@ in Etsy. Attachment retries preserve listings, configuration, prices and variant
 
 The catalog lives in Printful. Wizard OS provides the shared server service and
 MCP exposes it to Aurelia; no separate catalog database, proxy service or browser
-scraper is needed. The MCP now has **15 tools**:
+scraper is needed. The MCP now has **16 tools**:
 
 1. `search_printful_catalog(query)` without a store ID lists accessible stores.
    Select Spellmark's Etsy store explicitly. Repeat with `storeId` to search by
@@ -164,3 +164,37 @@ store-check deduplication. Quotes older than two minutes cannot reach draft writ
 
 Refresh the Business tool list after deployment. No publishing automation or order
 creation is introduced; Brandon reviews and publishes Etsy drafts.
+
+### Etsy draft import diagnostics
+
+`check_printful_import` is a live read-only MCP tool. It queries
+`/sync/products/@<canonical Etsy listing ID>` in the selected store without
+rewriting the draft, saving IDs, or triggering a store refresh. Results include
+`checkedAt`, store/listing IDs, exact variant matches, and recovery instructions.
+
+- `AWAITING_PRINTFUL_IMPORT`: product lookup returned 404. Verify **Import not
+  synced products** is enabled if the store displays that toggle, then use
+  **Refresh data** once and check later. Printful documents daily Etsy draft
+  import and a limit of 1,000 draft/inactive/expired listings.
+- `IMPORTED`: exact external IDs/SKUs uniquely match all editions; confirmed
+  execution can configure them. This does not mean already configured.
+- `VARIANT_MAPPING_FAILED`: product exists but some editions are missing,
+  ambiguous, or conflict with saved identity. No configuration writes occur.
+- `PRINTFUL_API_ERROR`: authorization, rate limiting, timeout, invalid response,
+  or identity verification failed. Sanitized codes distinguish these from 404.
+
+The public API does not expose the import toggle or a documented force-refresh
+operation. Its verification is reported as `MANUAL_CHECK_REQUIRED`; a missing
+product does not prove the setting is disabled. If the toggle is absent, Printful
+says existing products import automatically. Do not invent settings diagnostics
+or publish Etsy drafts to bypass the delay.
+
+Confirmed draft execution saves discovered product and matched variant IDs
+before supplier configuration, returns mapping/API errors with the Etsy draft
+IDs intact, and reaches human review only after configuration succeeds. Retry
+confirmed execution after import or recovery; use the read-only tool while
+waiting. No background polling or automatic retry is introduced.
+
+References: https://developers.printful.com/docs/ ;
+https://help.printful.com/hc/en-us/articles/50263352901905-How-do-I-manually-sync-products-to-my-store ;
+https://help.printful.com/hc/en-us/articles/50262491807889-Why-don-t-all-of-my-Etsy-products-show-up-on-Printful
