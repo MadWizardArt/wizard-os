@@ -189,10 +189,9 @@ export function buildWarlockDryRun(manifest: WarlockProductManifest) {
 
   if (physical.length > 0) {
     add("Printful", "Verify the selected Spellmark store and mapped catalog variants.", "READ");
-    add("Printful", "Create or update the physical sync product from the approved master artwork.", "PLANNED_WRITE");
-    add("Printful", "Generate product mockups for the mapped physical variants.", "PLANNED_WRITE");
     add("Etsy", "Create or update one physical draft listing and its edition inventory.", "PLANNED_WRITE");
     add("Etsy", "Upload approved hero and listing mockups to the physical draft.", "PLANNED_WRITE");
+    add("Printful", "Wait for Etsy ecommerce import, then map imported sync variants using the approved master artwork.", "PLANNED_WRITE");
   }
 
   if (digital.length > 0) {

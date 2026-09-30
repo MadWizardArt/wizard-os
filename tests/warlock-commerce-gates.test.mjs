@@ -89,7 +89,7 @@ test("all current Etsy description write paths enforce the disclosure helper", (
     "app/api/etsy/drafts/route.ts",
     "app/api/etsy/listings/[listingId]/route.ts",
     "lib/warlock-commerce/etsy-draft-executor.ts",
-    "app/api/warlock/intake/route.ts",
+    "lib/warlock-intake.ts",
   ]) {
     assert.match(source(path), /ensureEtsyAiDisclosure/);
   }
