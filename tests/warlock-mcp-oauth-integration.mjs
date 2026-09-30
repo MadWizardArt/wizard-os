@@ -130,7 +130,8 @@ let tokens;
   assert.equal(listed.status, 200, "initialized OAuth session should list tools");
   const listPayload = await rpcPayload(listed);
   const tools = listPayload.result?.tools;
-  assert.equal(tools?.length, 10, "all ten Warlock tools should be returned");
+  assert.equal(tools?.length, 11, "all eleven Warlock tools should be returned");
+  assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
   for (const tool of tools) {
     assert.deepEqual(tool.securitySchemes, [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }], tool.name);
     assert.deepEqual(tool._meta?.securitySchemes, tool.securitySchemes, tool.name);
@@ -149,4 +150,4 @@ let tokens;
     }),
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
-  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all ten tools/list descriptors passed.");
+  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all eleven tools/list descriptors including intake_product passed.");
