@@ -15,7 +15,23 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
   const variants = input.variants ?? [];
   if (new Set(variants.map(v => `${v.fulfillment}:${v.label}`)).size !== variants.length) throw new Error("duplicate_variant_label");
   const requestedListings = input.listings ?? (input.listing ? [input.listing] : []);
-  const assetInputs = [...(input.assets ?? [])].sort((a, b) => Number(b.role === "hero") - Number(a.role === "hero"));
+  const suppliedFiles = new Map((input.files ?? []).map(file => [file.file_id, file]));
+  if (suppliedFiles.size !== (input.files ?? []).length) throw new Error("duplicate_chatgpt_file_id");
+  const referencedFiles = new Set<string>();
+  const normalizedAssets = (input.assets ?? []).map(asset => {
+    if (asset.assetId && /^(file[_-]|libfile_)/.test(asset.assetId)) {
+      throw new Error("chatgpt_file_id_is_not_warlock_asset_id: Pass the attachment in top-level files and reference its file_id using assets.fileId.");
+    }
+    if (!asset.fileId) return asset;
+    const file = suppliedFiles.get(asset.fileId);
+    if (!file) throw new Error("chatgpt_file_input_missing: Supply the matching authorized file object in top-level files; a file ID alone cannot transfer bytes.");
+    referencedFiles.add(file.file_id);
+    const name = asset.name ?? file.file_name?.normalize("NFKD").replace(/[^A-Za-z0-9._-]/g, "_");
+    if (!name) throw new Error("chatgpt_file_name_missing: Supply assets.name when ChatGPT omits file_name.");
+    return { ...asset, fileId: undefined, url: file.download_url, name, contentType: asset.contentType ?? file.mime_type };
+  });
+  if ([...suppliedFiles.keys()].some(id => !referencedFiles.has(id))) throw new Error("chatgpt_file_role_missing: Reference every supplied file in assets with fileId and an explicit role.");
+  const assetInputs = normalizedAssets.sort((a, b) => Number(b.role === "hero") - Number(a.role === "hero"));
   // Download and validate all bytes before mutating canonical state. Never log signed source URLs.
   const prepared: Array<Awaited<ReturnType<typeof readIntakeBytes>> | null> = [];
   let totalBytes = 0;
@@ -101,7 +117,7 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
       let asset;
       if (inputAsset.assetId) {
         asset = await tx.spellmarkAsset.findFirst({ where: { id: inputAsset.assetId, productId } });
-        if (!asset) throw new Error("asset_not_owned_by_product");
+        if (!asset) throw new Error("asset_not_owned_by_product: assetId must identify an existing canonical asset belonging to this product. For new ChatGPT files, use files plus assets.fileId.");
         if (asset.role !== inputAsset.role) throw new Error("asset_role_mismatch");
         await files.verify(asset);
       } else {

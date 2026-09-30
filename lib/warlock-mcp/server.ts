@@ -134,10 +134,10 @@ export function createWarlockCommerceMcpServer() {
     "intake_product",
     {
       title: "Create or Complete Spellmark Product",
-      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned assetId, approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Use listings for both fulfillment types and retailPriceCents per edition. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
+      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned Warlock assetId, native ChatGPT files (files plus assets.fileId), approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Use listings for both fulfillment types and retailPriceCents per edition. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
       inputSchema: intakeProductShape,
       annotations: intakeAnnotations,
-      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES, "openai/fileParams": ["files"] },
     },
     async (input) => {
       try {

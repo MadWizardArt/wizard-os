@@ -132,6 +132,13 @@ let tokens;
   const tools = listPayload.result?.tools;
   assert.equal(tools?.length, 11, "all eleven Warlock tools should be returned");
   assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
+  const intakeTool = tools.find(tool => tool.name === "intake_product");
+  assert.deepEqual(intakeTool._meta["openai/fileParams"], ["files"]);
+  const fileSchema = intakeTool.inputSchema.properties.files.items;
+  assert.deepEqual([...fileSchema.required].sort(), ["download_url", "file_id"]);
+  for (const name of ["download_url", "file_id", "mime_type", "file_name"]) {
+    assert.equal(fileSchema.properties[name].type, "string");
+  }
   for (const tool of tools) {
     assert.deepEqual(tool.securitySchemes, [{ type: "oauth2", scopes: [WARLOCK_OAUTH_SCOPE] }], tool.name);
     assert.deepEqual(tool._meta?.securitySchemes, tool.securitySchemes, tool.name);
