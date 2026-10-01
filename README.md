@@ -23,7 +23,7 @@ The goal is simple: reduce dependence on active labor by making revenue, recurri
 7. **Artwork lifecycle** — works in progress, available inventory, sold archive, sales, receipts, costs, and fulfillment.
 8. **Warlock** — Etsy connection, draft creation, listing completion, files, and images.
 9. **The Museum** — Council rooms, governed intelligence, memory, cognition, counterweights, and Artist Gate.
-10. **The Grotto / Atelier** — private Muse galleries, references, headers, and Civitai image generation.
+10. **The Grotto / Atelier** — private All, Favorites, and Recent galleries; ten interchangeable reference slots; and Civitai image generation.
 
 ## Current application
 
@@ -45,11 +45,16 @@ Wizard OS is a live-data application. Operational screens read and write the Pos
 ## Run locally
 
 ```bash
+cp .env.example .env.local
+# Set DATABASE_URL and MUSE_ARTIST_ACCESS_KEY (16+ characters).
+# DIRECT_URL is only required when it differs from DATABASE_URL for migrations.
 npm install
 npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+The operational UI and core API require the private Artist Gate. `npm install` and Prisma client generation do not require a live `DIRECT_URL`; runtime data still requires `DATABASE_URL`. `npm run db:seed` creates only the four canonical workflow templates and never creates sample projects, artwork, customers, or financial records.
 
 ## Production build
 
@@ -65,7 +70,7 @@ npm start
 2. Import `MadWizardArt/wizard-os`.
 3. Leave the framework preset as **Next.js**.
 4. Deploy with the default build settings.
-5. After deployment, `/api/health` should return a JSON response with `ok: true`.
+5. After deployment, `/api/health` should return `ok: true` and `checks.database: "reachable"`. It returns `503` when PostgreSQL cannot be reached.
 
 Future pushes to `main` can automatically redeploy once the Vercel project is linked.
 
@@ -92,7 +97,7 @@ Validation: `node --experimental-strip-types --test tests/workflow.test.mjs test
 
 Painting availability is the single lifecycle source: Not ready → Works in Progress; Available/Reserved → Available Inventory; Sold → Sold Archive. The dashboard excludes finished paintings from production cards, queue and next actions while work orders remain available for history. Imported Available records require no copying or deletion. New paintings entered in Inventory default to Available; New Work Order can still begin production. Complete Painting records an availability transition without fabricating historic stage completion dates.
 
-Inventory has lifecycle tabs and search, direct completion, campaign linking, costs, sale recording and status corrections. ArtworkSale stores actual agreed sale terms separately from Transaction receipts. Unpaid sales move to Sold but contribute nothing to received-revenue goals. Payments and refunds reference the existing ledger; existing receipts may be linked instead of recreated. Fulfillment is separate from payment and artwork availability.
+Inventory has lifecycle tabs and search, direct completion, campaign linking, costs, sale recording and status corrections. ArtworkSale stores actual agreed sale terms separately from Transaction receipts. **Record Sale** is a manual received-funds action and therefore treats the artwork price as paid; if explicit payment/refund ledger rows are later attached, those rows become authoritative. Payments and refunds reference the existing ledger, and existing receipts may be linked instead of recreated. Fulfillment is separate from payment and artwork availability.
 
 Profit uses the actual discounted artwork price plus shipping income, less refunds (excluding tax), materials, framing, selling fees and shipping expense. The discount field documents the discount already reflected in the selling price; it is not deducted again. Null costs remain unknown, and profit is provisional until all four cost categories are recorded. Profit from unpaid sale terms is distinct from cash received. Returned/voided sales use net payments retained instead of canceled unpaid sale value. No archive-wide profit total is presented because production costs belong to the artwork, including when it is resold.
 

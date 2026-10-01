@@ -1,9 +1,11 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+import { unlockBrowser } from "./artist-session.mjs";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await unlockBrowser(page, base);
   await page.goto(`${base}/etsy`);
   await page.getByRole("heading", { name: "Warlock", exact: true }).waitFor();
   await page.getByRole("navigation", { name: "Warlock workspace" }).getByRole("button", { name: /Products/ }).click();
@@ -14,9 +16,9 @@ try {
   assert.ok(page.url().includes("tab=production"));
   await page.getByRole("navigation", { name: "Warlock workspace" }).getByRole("button", { name: /Listings/ }).click();
   await page.getByText("Your existing Etsy draft tools remain intact.", { exact: false }).waitFor();
-  const unauth = await page.request.get(`${base}/api/warlock/products`);
-  assert.equal(unauth.status(), 401, "private product data requires Artist Gate");
-  const write = await page.request.post(`${base}/api/warlock/products`, { data: { title: "Unauthorized" } });
-  assert.equal(write.status(), 401, "product writes require Artist Gate");
+  const unauth = await fetch(`${base}/api/warlock/products`);
+  assert.equal(unauth.status, 401, "private product data requires Artist Gate");
+  const write = await fetch(`${base}/api/warlock/products`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Unauthorized" }) });
+  assert.equal(write.status, 401, "product writes require Artist Gate");
   console.log("PASS: unified Warlock tabs, existing Etsy tools, no demo records, artist-gated product API.");
 } finally { await browser.close(); }

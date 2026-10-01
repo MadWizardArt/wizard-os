@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { createArtistSession, withArtist } from "./artist-session.mjs";
 const base = "http://127.0.0.1:3000";
+const cookie = await createArtistSession(base);
 async function state() {
-  const r = await fetch(base + "/api/campaigns");
+  const r = await fetch(base + "/api/campaigns", withArtist(base, cookie));
   assert.equal(r.status, 200, await r.clone().text());
   return r.json();
 }
 async function save(body) {
-  const r = await fetch(base + "/api/campaigns", {
+  const r = await fetch(base + "/api/campaigns", withArtist(base, cookie, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }));
   assert.equal(r.status, 200, await r.clone().text());
   return (await r.json()).result;
 }
@@ -69,11 +71,11 @@ await save({
   excludeShipping: true,
 });
 
-const retiredBootstrap = await fetch(base + "/api/campaigns", {
+const retiredBootstrap = await fetch(base + "/api/campaigns", withArtist(base, cookie, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ action: "initialize" }),
-});
+}));
 assert.equal(retiredBootstrap.status, 400, "Retired campaign bootstrap must stay unavailable.");
 
 s = await state();
@@ -166,7 +168,7 @@ assert.ok(
 );
 assert.equal(s.paintings[0].regularPriceCents, 20000);
 const m = await (
-  await fetch(base + "/api/metrics/income?month=2026-09")
+  await fetch(base + "/api/metrics/income?month=2026-09", withArtist(base, cookie))
 ).json();
 assert.equal(m.qualifyingCents, 0);
 console.log(

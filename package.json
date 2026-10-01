@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
-    "@prisma/adapter-neon": "^7.0.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.0.0",
     "@vercel/blob": "^2.8.0",

@@ -13,9 +13,11 @@ test("legacy one-off Volans Etsy release route is retired", () => {
 
   const execution = source("lib/warlock-commerce/draft-execution.ts");
   const etsy = source("lib/warlock-commerce/etsy-draft-executor.ts");
+  const console = source("app/etsy/EtsyConsole.tsx");
   assert.match(execution, /executeEtsyDrafts/);
   assert.match(etsy, /buildPhysicalInventoryBody/);
   assert.match(etsy, /etsy_listing_not_draft/);
+  assert.doesNotMatch(console, /releases\/volans|VOLANS AETHEREUS · Physical lineup/);
 });
 
 test("Volans canonical data locks the three-edition price and SKU ladder", () => {

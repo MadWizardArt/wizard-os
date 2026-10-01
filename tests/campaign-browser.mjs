@@ -1,5 +1,8 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+import { createArtistSession, unlockBrowser, withArtist } from "./artist-session.mjs";
+const base = "http://127.0.0.1:3000";
+const cookie = await createArtistSession(base);
 const options = { headless: true };
 if (process.env.CHROME_PATH) {
   options.executablePath = process.env.CHROME_PATH;
@@ -19,8 +22,9 @@ try {
   });
   const errors = [];
   page.on("pageerror", (e) => errors.push({ url: page.url(), message: e.message }));
+  await unlockBrowser(page, base);
   const campaignState = await (
-    await fetch("http://127.0.0.1:3000/api/campaigns")
+    await fetch(`${base}/api/campaigns`, withArtist(base, cookie))
   ).json();
   const studioCampaign = campaignState.campaigns.find(
     (campaign) => campaign.title === "End-of-September Studio Sale",
@@ -179,7 +183,7 @@ try {
   await page.reload();
   await page.getByRole('tab',{name:/Sold Archive/}).click();
   await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
-  assert.ok((await card.textContent()).includes('Unpaid'));
+  assert.ok((await card.textContent()).includes('Paid'));
   assert.ok((await card.textContent()).includes('Awaiting shipment'));
   assert.ok((await card.textContent()).includes('Provisional profit'));
   await page.screenshot({path:'/tmp/wizard-sold-archive.png',fullPage:true});
@@ -191,7 +195,7 @@ try {
   await page.reload();
   await page.getByRole('heading',{name:'Direct completed browser painting',exact:true}).waitFor();
   assert.ok((await card.textContent()).includes('Returned sale'));
-  console.log('PASS: browser direct completed entry, WIP exclusion, unpaid sold archive, provisional profit, fulfillment and return persist after reload');
+  console.log('PASS: browser direct completed entry, WIP exclusion, manual paid sale, provisional profit, fulfillment and return persist after reload');
   assert.deepEqual(errors, []);
   console.log(
     "PASS: real browser reload, Eastern dates in Tokyo browser, shared month/agenda task edits, inventory links, six-day sale window, Facebook draft persistence, mobile width",

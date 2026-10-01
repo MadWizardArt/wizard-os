@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { createArtistSession, withArtist } from './artist-session.mjs';
 const base='http://127.0.0.1:3000';
-async function get(path='/api/campaigns'){const r=await fetch(base+path);assert.ok(r.ok,await r.clone().text());return r.json();}
-async function save(body,path='/api/artwork'){const r=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});assert.ok(r.ok,await r.clone().text());return (await r.json()).result;}
+const cookie=await createArtistSession(base);
+async function get(path='/api/campaigns'){const r=await fetch(base+path,withArtist(base,cookie));assert.ok(r.ok,await r.clone().text());return r.json();}
+async function save(body,path='/api/artwork'){const r=await fetch(base+path,withArtist(base,cookie,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));assert.ok(r.ok,await r.clone().text());return (await r.json()).result;}
 const before=await get();const revenue=before.goal.receivedCents;
 let campaign=before.campaigns.find(c=>c.title==='End-of-September Studio Sale');
 if(!campaign){campaign=await save({action:'campaign',title:'Artwork lifecycle test campaign',status:'Preparing',startDate:'2026-09-25',endDate:'2026-09-30',targetCents:400000,notes:'Disposable artwork lifecycle fixture'},'/api/campaigns');}
@@ -12,7 +14,7 @@ const activeProjects=await get('/api/projects');assert.equal(activeProjects.some
 const project=(await get('/api/projects?scope=all')).find(x=>x.id===p.projectId);assert.equal(project.artworkAvailability,'Available');
 await save({action:'linkPainting',projectId:p.projectId,campaignId,salePriceCents:15000},'/api/campaigns');
 const terms={action:'sale',projectId:p.projectId,campaignId,saleDate:'2026-09-25',salePriceCents:15000,discountCents:5000,salesTaxCents:1000,shippingIncomeCents:2000,sellingFeesCents:null,shippingExpenseCents:null,materialsCostCents:null,framingCostCents:null,fulfillment:'Awaiting shipment',receivedCents:0,receivedTaxCents:0,receivedShippingCents:0,receivedDate:'2026-09-25',source:'Lifecycle test',requestKey:'lifecycle-test-sale'};
-const sale=await save(terms);await save(terms);s=await get();painting=s.paintings.find(x=>x.projectId===p.projectId);assert.equal(painting.availability,'Sold');assert.equal(painting.sales.length,1);assert.equal(painting.sales[0].summary.paymentStatus,'Unpaid');assert.equal(s.goal.receivedCents,revenue);assert.equal(painting.sales[0].fulfillment,'Awaiting shipment');
+const sale=await save(terms);await save(terms);s=await get();painting=s.paintings.find(x=>x.projectId===p.projectId);assert.equal(painting.availability,'Sold');assert.equal(painting.sales.length,1);assert.equal(painting.sales[0].summary.paymentStatus,'Paid');assert.equal(s.goal.receivedCents,revenue+15000);assert.equal(painting.sales[0].fulfillment,'Awaiting shipment');
 await save({action:'receipt',projectId:p.projectId,artworkSaleId:sale.id,type:'INCOME',amountCents:10000,salesTaxCents:0,shippingCents:0,receivedDate:'2026-09-25',source:'Partial payment',receiptKey:'lifecycle-partial',markSold:false},'/api/campaigns');
 await save({action:'receipt',projectId:p.projectId,artworkSaleId:sale.id,type:'REFUND',amountCents:2000,salesTaxCents:0,shippingCents:0,receivedDate:'2026-09-26',source:'Refund',receiptKey:'lifecycle-refund',markSold:false},'/api/campaigns');
 s=await get();painting=s.paintings.find(x=>x.projectId===p.projectId);assert.equal(painting.sales[0].summary.receivedCents,8000);assert.equal(s.goal.receivedCents,revenue+8000);assert.equal(painting.regularPriceCents,20000);assert.equal(painting.sales[0].summary.profitCents,15000);assert.equal(painting.sales[0].summary.costsComplete,false);
@@ -20,4 +22,4 @@ await save({action:'costs',projectId:p.projectId,materialsCostCents:2000,framing
 const old=s.transactions.find(t=>t.receiptKey==='lifecycle-partial')??s.transactions.find(t=>t.source==='Partial payment');const count=s.transactions.length;
 await save({action:'linkPayment',projectId:p.projectId,saleId:sale.id,transactionId:old.id});await save({action:'linkPayment',projectId:p.projectId,saleId:sale.id,transactionId:old.id});s=await get();assert.equal(s.transactions.length,count);assert.equal(s.goal.receivedCents,revenue+8000);
 await save({action:'status',projectId:p.projectId,availability:'Available',reason:'Returned in test',saleDisposition:'Returned'});s=await get();painting=s.paintings.find(x=>x.projectId===p.projectId);assert.equal(painting.availability,'Available');assert.equal(painting.sales[0].status,'Returned');campaign=s.campaigns.find(c=>c.id===campaignId);assert.ok(campaign,'Artwork lifecycle campaign must still exist.');assert.ok(campaign.artwork.some(a=>a.projectId===p.projectId));assert.equal(s.goal.receivedCents,revenue+8000);
-console.log('PASS: lifecycle identity, dynamic campaign fixture, active-project separation, completion, unpaid sale, partial payment, refund, cost completeness, receipt reuse and returned history');
+console.log('PASS: lifecycle identity, dynamic campaign fixture, active-project separation, completion, manual paid sale, partial payment correction, refund, cost completeness, receipt reuse and returned history');

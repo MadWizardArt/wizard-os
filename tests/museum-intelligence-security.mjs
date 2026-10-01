@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createArtistSession, withArtist } from "./artist-session.mjs";
 
 const base = process.env.WIZARD_TEST_BASE_URL || "http://127.0.0.1:3000";
 
@@ -11,12 +12,16 @@ async function request(path, init) {
 
 const session = await request("/api/museum/artist-session");
 assert.equal(session.response.status, 200, "Artist session status must remain readable so the lock screen can render.");
-assert.equal(session.body.configured, false, "CI must not have an Artist key configured.");
+assert.equal(session.body.configured, true, "CI must exercise the configured production-style Artist Gate.");
 assert.equal(session.body.authenticated, false, "Anonymous CI request must not be authenticated.");
 assert.equal(session.body.fuelEnabled, false, "AI fuel must remain disabled without Artist access configuration.");
 assert.equal(session.body.knowledgeIntakeConfigured, true, "CI should expose only that the test intake bridge is configured.");
 assert.equal(Object.hasOwn(session.body, "accessKey"), false, "Session status must never expose an Artist key.");
 assert.equal(Object.hasOwn(session.body, "ingestKey"), false, "Session status must never expose a Knowledge Intake key.");
+
+const anonymousCore = await request("/api/campaigns");
+assert.equal(anonymousCore.response.status, 401, "Core business data must reject anonymous reads.");
+assert.match(String(anonymousCore.body?.error || ""), /Artist session required/i);
 
 for (const path of ["/api/museum/knowledge", "/api/museum/intelligence", "/api/museum/mind-state?muse=novy", "/api/museum/counterweight"]) {
   const result = await request(path);
@@ -99,5 +104,9 @@ const questDelete = await request("/api/museum/intelligence", {
   body: JSON.stringify({ id: "not-a-real-quest" }),
 });
 assert.equal(questDelete.response.status, 401, "Failed quest deletion must remain behind the Artist Gate.");
+
+const cookie = await createArtistSession(base);
+const authenticatedCore = await fetch(`${base}/api/campaigns`, withArtist(base, cookie));
+assert.equal(authenticatedCore.status, 200, "A valid Artist session must retain access to core business data.");
 
 console.log("Selective Intelligence Artist Gate security checks passed.");

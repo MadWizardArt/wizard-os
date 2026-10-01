@@ -10,19 +10,10 @@ import {
   verifyArtistAccessKey,
   verifyArtistSession,
 } from "../../../../lib/museum-artist-auth";
+import { isSameOrigin } from "../../../../lib/request-security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === request.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
 
 function state(request: NextRequest) {
   return {
@@ -40,7 +31,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin Artist login is not accepted." }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Cross-origin Artist login is not accepted." }, { status: 403 });
   if (!artistAccessConfigured()) {
     return NextResponse.json({ error: "Artist access is not configured on Wizard OS yet." }, { status: 503 });
   }
@@ -57,7 +48,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin Artist logout is not accepted." }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Cross-origin Artist logout is not accepted." }, { status: 403 });
   const response = NextResponse.json({ authenticated: false });
   clearArtistSessionCookie(response);
   return response;

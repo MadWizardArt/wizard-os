@@ -1,9 +1,11 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { unlockBrowser } from './artist-session.mjs';
 const browser = await chromium.launch({headless:true});
 try {
  const page = await browser.newPage({viewport:{width:390,height:844}});
  const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
+ await unlockBrowser(page, base);
  await page.goto(base);
 
  await page.waitForFunction(()=>{

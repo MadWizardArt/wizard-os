@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { createArtistSession, withArtist } from "./artist-session.mjs";
 
 const base = process.env.WIZARD_TEST_BASE_URL || "http://127.0.0.1:3000";
+const cookie = await createArtistSession(base);
 
 async function request(path, init = {}) {
-  const response = await fetch(`${base}${path}`, init);
+  const response = await fetch(`${base}${path}`, withArtist(base, cookie, init));
   let body = null;
   try { body = await response.json(); } catch {}
   return { response, body };

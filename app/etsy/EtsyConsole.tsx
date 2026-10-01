@@ -19,13 +19,6 @@ const OWL_RELEASES: PreparedRelease[] = [
     description: "Original Spellmark illustration of a barn owl set within an illuminated-manuscript-inspired folio, with printed parchment texture, celestial motifs and a gold-toned halo. The gold-toned areas are ink colors in the artwork—not metallic foil or gilding. Colors may vary across screens and finished prints.\n\nThis is an INSTANT DIGITAL DOWNLOAD, not a physical item. You receive two JPEG print compositions (11×14 and 8×12 inches) and printing/license instructions in a ZIP. No frame, paper or postage included. Production quality was approved after a physical home inkjet proof on September 25, 2026. For personal use only; no resale or redistribution.",
     tags: ["printable owl art","owl digital print","celestial owl","medieval wall art","digital download","barn owl print","dark academia decor","printable wall art","gothic wall art","illuminated art","mystical owl","nature printable","curiosity cabinet"],
   },
-  {
-    key: "physical", label: "VOLANS AETHEREUS · Physical lineup", listingType: "physical", productVariantId: "",
-    title: "VOLANS AETHEREUS — The Sky Wanderer | Medieval Manuscript Barn Owl Art Print | Cabinet of Curiosities",
-    price: 24,
-    description: "Production-approved physical lineup with three Etsy variations: 8×10 unframed $24, 11×14 unframed $28, and 11×14 black-framed $69. Warlock creates the single draft and then writes all three price/SKU offerings to Etsy inventory.",
-    tags: ["barn owl print","medieval wall art","celestial owl","manuscript art","dark academia decor","owl wall decor","nature illustration","gothic wall art","illuminated art","mystical owl","curiosity cabinet","black framed print","Spellmark"],
-  },
 ];
 
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
@@ -85,16 +78,12 @@ export default function EtsyConsole() {
   async function createDraft(event: FormEvent) {
     event.preventDefault(); setCreating(true); setResult(null);
     try {
-      const isVolansPhysical = preparedKey === "physical";
-      const endpoint = isVolansPhysical ? "/api/etsy/releases/volans" : "/api/etsy/drafts";
-      const payload = isVolansPhysical
-        ? { taxonomyId:Number(taxonomyId), shippingProfileId:Number(shippingProfileId), readinessStateId:Number(readinessStateId) }
-        : {
-            title,description,price:Number(price),quantity:999,taxonomyId:Number(taxonomyId),tags:tags.split(",").map(t=>t.trim()).filter(Boolean).slice(0,13),
-            listingType,shippingProfileId:listingType==="physical"?Number(shippingProfileId):undefined,
-            readinessStateId:listingType==="physical"?Number(readinessStateId):undefined,productVariantId:productVariantId||undefined,
-          };
-      const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const payload = {
+        title,description,price:Number(price),quantity:999,taxonomyId:Number(taxonomyId),tags:tags.split(",").map(t=>t.trim()).filter(Boolean).slice(0,13),
+        listingType,shippingProfileId:listingType==="physical"?Number(shippingProfileId):undefined,
+        readinessStateId:listingType==="physical"?Number(readinessStateId):undefined,productVariantId:productVariantId||undefined,
+      };
+      const response=await fetch("/api/etsy/drafts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
       const data=await response.json(); if(!response.ok) throw new Error(data.details?.error||data.error||"Draft creation failed");
       setResult(data); const listingId=Number(data?.listingId ?? data?.listing?.listing_id); reset();
       if(listingId) window.dispatchEvent(new CustomEvent("warlock:draft-created",{detail:{listingId}}));

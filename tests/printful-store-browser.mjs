@@ -1,9 +1,11 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+import { unlockBrowser } from "./artist-session.mjs";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await unlockBrowser(page, base);
   const submitted = [];
   await page.route("**/api/printful?action=status", (route) => route.fulfill({
     contentType: "application/json",
