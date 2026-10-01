@@ -6,7 +6,7 @@ const original=[1,2].map(n=>({id:'v'+n,productId:'p1',label:n===1?'2XL':'3XL',re
 const input={productId:'p1',confirmPrices:true,prices:original.map(v=>({variantId:v.id,expectedRetailPriceCents:5700,retailPriceCents:5744}))};
 function fixture(){
  const variants=structuredClone(original),writes=[];
- const tx={spellmarkVariant:{findMany:async({where})=>variants.filter(v=>v.productId===where.productId && where.id.in.includes(v.id)),updateMany:async({where,data})=>{writes.push({where,data});Object.assign(variants.find(v=>v.id===where.id),data);return {count:1};}}};
+ const tx={$queryRaw:async()=>[],spellmarkVariant:{findMany:async({where})=>variants.filter(v=>v.productId===where.productId && where.id.in.includes(v.id)),updateMany:async({where,data})=>{writes.push({where,data});Object.assign(variants.find(v=>v.id===where.id),data);return {count:1};}}};
  const db={$transaction:async(callback,options)=>{assert.equal(options.isolationLevel,'Serializable');const before=structuredClone(variants);try{return await callback(tx);}catch(error){variants.splice(0,variants.length,...before);throw error;}}};return {db,variants,writes,tx};
 }
 test('confirmed post-draft price edits update only the selected retail fields; exact retry is a no-op',async()=>{

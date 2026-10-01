@@ -130,9 +130,9 @@ let tokens;
   assert.equal(listed.status, 200, "initialized OAuth session should list tools");
   const listPayload = await rpcPayload(listed);
   const tools = listPayload.result?.tools;
-  assert.equal(tools?.length, 18, "all eighteen Warlock tools should be returned");
+  assert.equal(tools?.length, 20, "all twenty Warlock tools should be returned");
   assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
-  for (const name of ["update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
+  for (const name of ["inspect_etsy_variant_prices", "update_etsy_variant_prices", "update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
   const intakeTool = tools.find(tool => tool.name === "intake_product");
   assert.deepEqual(intakeTool._meta["openai/fileParams"], ["files"]);
   const fileSchema = intakeTool.inputSchema.properties.files.items;
@@ -153,6 +153,21 @@ let tokens;
     assert.deepEqual(tool._meta?.securitySchemes, tool.securitySchemes, tool.name);
   }
 
+  const livePriceTool=tools.find(tool=>tool.name==="update_etsy_variant_prices");
+  assert.equal(livePriceTool.annotations.readOnlyHint,false);
+  assert.ok(livePriceTool.inputSchema.required.includes("confirmLivePriceWrite"));
+  assert.ok(livePriceTool.inputSchema.required.includes("expectedInventoryFingerprint"));
+  const inspectPriceTool=tools.find(tool=>tool.name==="inspect_etsy_variant_prices");
+  assert.equal(inspectPriceTool.annotations.readOnlyHint,true);
+  // CI does not enable commerce writes; the live capability must stop before credentials or APIs.
+  const priceWrite=await callMcp({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:"update_etsy_variant_prices",arguments:{
+    productId:"ci-disabled",expectedInventoryFingerprint:"a".repeat(64),confirmLivePriceWrite:true,
+    prices:[{variantId:"ci-variant",expectedEtsyPriceCents:5700,expectedPrintfulRetailPriceCents:5700,retailPriceCents:5744}],
+  }}},sessionId);
+  const priceResult=(await rpcPayload(priceWrite)).result;
+  assert.equal(priceResult.isError,true);
+  assert.match(priceResult.content[0].text,/warlock_commerce_writes_disabled/);
+
   const replay = await fetch("http://127.0.0.1:3000/api/warlock/oauth/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -166,4 +181,4 @@ let tokens;
     }),
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
-  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all eighteen tools/list descriptors including intake_product passed.");
+  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all twenty tools/list descriptors including intake_product passed.");

@@ -1,3 +1,6 @@
+import { inspectEtsyVariantPrices, updateEtsyVariantPrices } from "../warlock-commerce/live-price-executor";
+import { livePriceInspectionShape, livePriceUpdateShape } from "../warlock-commerce/live-price-schema";
+import { safeLivePriceError } from "../warlock-commerce/live-prices";
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { buildWarlockDryRun, validateWarlockManifest } from "./manifest";
@@ -133,7 +136,7 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.6.0",
+    version: "0.7.0",
   });
 
   server.registerTool(
@@ -223,7 +226,7 @@ export function createWarlockCommerceMcpServer() {
     "update_product_prices",
     {
       title: "Update Existing Warlock Retail Prices",
-      description: "Save confirmed USD retail-price changes for owned canonical variants, including after Etsy draft creation or publication. First get_product to obtain productId, variantId and current retailPriceCents. Supply prices with expectedRetailPriceCents and the approved new retailPriceCents, in integer cents, plus confirmPrices:true. All selected prices update atomically; conflicting current prices block the batch and exact retries are safe. This is the post-draft canonical price-edit path: do not use intake_product. Preserves supplier quotes, assets, variant mappings, listing IDs and status. Does not change Etsy or Printful retail prices, publish, place orders or recreate listings. Verify/edit existing Etsy prices separately, then evaluate margins and reconcile if needed.",
+      description: "Save confirmed USD retail-price changes for owned canonical variants, including after Etsy draft creation or publication. First get_product to obtain productId, variantId and current retailPriceCents. Supply prices with expectedRetailPriceCents and the approved new retailPriceCents, in integer cents, plus confirmPrices:true. All selected prices update atomically; conflicting current prices block the batch and exact retries are safe. This is the post-draft canonical price-edit path: do not use intake_product. Preserves supplier quotes, assets, variant mappings, listing IDs and status. Does not change Etsy or Printful retail prices, publish, place orders or recreate listings. Use inspect_etsy_variant_prices and separately confirmed update_etsy_variant_prices to apply and verify existing Etsy/Printful retail prices, then reconcile if needed.",
       inputSchema: productPricesShape,
       annotations: { ...annotations, readOnlyHint:false },
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
@@ -232,6 +235,29 @@ export function createWarlockCommerceMcpServer() {
       try { return success(await updateProductPrices(input,prisma)); }
       catch(error){ return failure("warlock_price_update_failed",safeProductPriceError(error)); }
     },
+  );
+
+  server.registerTool(
+    "inspect_etsy_variant_prices",
+    {
+      title: "Inspect Live Etsy and Printful Retail Prices",
+      description: "Read the owned active physical Etsy listing's exact variant IDs/SKUs, USD retail prices and complete inventory fingerprint, plus the mapped configured Printful retail prices. Returns current expected values for update_etsy_variant_prices. Requires already-saved Etsy product and Printful sync IDs. Read-only; never refreshes or recreates imports. Digital and draft listings are outside this tool's current scope.",
+      inputSchema: livePriceInspectionShape,
+      annotations: liveReadAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input=>{try{return success(await inspectEtsyVariantPrices(input.productId));}catch(error){return failure("live_price_inspection_failed",safeLivePriceError(error));}},
+  );
+  server.registerTool(
+    "update_etsy_variant_prices",
+    {
+      title: "Update and Verify Live Variation Retail Prices",
+      description: "Confirmed price-only changes for an owned already-active physical Etsy listing, followed by a retail_price-only mirror to its configured Printful variants. First save approved Warlock targets with update_product_prices, then inspect_etsy_variant_prices. Supply its expectedInventoryFingerprint and up to six selected variantId/expectedEtsyPriceCents/expectedPrintfulRetailPriceCents/retailPriceCents entries, plus confirmLivePriceWrite:true. Targets must match canonical prices; current supplier costs and margins are checked. Re-reads ownership, active state, IDs/SKUs, prices, inventory and supplier file configuration before writing; preserves the current inventory's quantities, enabled flags, property values and processing profiles. Verifies Etsy after writing and Printful after each retail mirror. No publishing, re-drafting, asset upload, order creation or mapping changes. Etsy is the storefront price source. External edits are not atomic across providers: partial/uncertain completion returns VERIFY_OR_RETRY_REQUIRED; inspect before retrying. The full-inventory write is not atomic with the preceding GET; avoid simultaneous manual inventory edits. Requires existing commerce write mode draft; this is a narrowly confirmed price-only exception to active-listing protection.",
+      inputSchema: livePriceUpdateShape,
+      annotations: draftWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input=>{try{return success(await updateEtsyVariantPrices(input));}catch(error){return failure("live_price_update_failed",safeLivePriceError(error));}},
   );
 
   server.registerTool(

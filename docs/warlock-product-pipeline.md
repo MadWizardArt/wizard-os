@@ -294,3 +294,58 @@ For Night Herbarium, the approved 2XL and 3XL retail target of $57.44 is submitt
 not a hardwired supplier price or a claim that production records have been updated.
 No new environment variable is needed. Refresh the connector's tool list if the
 Business session still advertises 17 tools; the new count is 18.
+
+
+### Confirmed live Etsy variation pricing and Printful retail mirroring
+
+Warlock MCP v0.7.0 advertises 20 tools. `inspect_etsy_variant_prices` reads the owned,
+already-active physical Etsy listing's exact product IDs/SKUs, current USD prices,
+complete inventory fingerprint and mapped Printful retail prices. It requires the
+saved Etsy and Printful sync identities. No import refresh or write occurs.
+
+After saving approved canonical targets through `update_product_prices`, call
+`update_etsy_variant_prices` with `productId`, the inspector's
+`expectedInventoryFingerprint`, `confirmLivePriceWrite: true`, and up to six
+selected price entries. Each entry supplies `variantId`, `expectedEtsyPriceCents`,
+`expectedPrintfulRetailPriceCents` (including null/zero when returned by Printful),
+and `retailPriceCents`, which must match the canonical target. Live physical
+products are limited to 30 editions per listing; digital/draft price edits are
+outside this tool's current scope.
+
+The tool checks owned active listing identity, exact variant IDs/SKUs, currency,
+expected prices, fresh supplier costs/stock, configured file fingerprints and
+selected-edition margins. It re-reads inventory and canonical state after the slow
+checks. Etsy's inventory API requires the complete current inventory body, so it
+preserves current quantities, enabled flags, SKUs, property values, price/quantity
+property grouping and processing profiles; only selected prices are replaced.
+Unsupported or ambiguous inventory blocks before writing. API product/offering
+IDs and response-only fields are omitted as required by Etsy, then existing product
+IDs and the complete desired inventory are checked through a fresh GET.
+
+After Etsy prices verify, Printful receives only `retail_price` for each selected
+sync variant. Supplier files, options, mappings and configuration fingerprints are
+verified before and after each mirror. Etsy is the storefront price source;
+Printful's retail values are explicitly mirrored, never assumed to auto-sync.
+No metadata, assets, listing-state, publication, re-draft or order calls occur.
+
+The existing `WARLOCK_COMMERCE_WRITE_MODE=draft` flag enables this separately
+confirmed price-only exception; draft execution still rejects active listings and
+publishing stays unavailable. No new variable or schema migration is required.
+The app serializes canonical and live retail operations using the same product
+advisory lock. The pre-write GET and inventory PUT are not atomic: simultaneous manual
+inventory edits or sales between the final GET and PUT remain a race. Avoid manual
+inventory edits during an update; post-write verification detects discrepancies
+but cannot guarantee prevention of that external race.
+
+Success is `LIVE_PRICES_VERIFIED` only after Etsy, canonical targets and all selected
+Printful retail mirrors agree. `VERIFY_OR_RETRY_REQUIRED` explicitly reports stages,
+Etsy write attempts/verification and verified Printful progress. Provider operations
+are not an atomic transaction. Network timeouts, provider rejection or interrupted
+operator locks may leave partial changes; inspect current values before retrying the
+same targets. No automatic rollback or re-drafting is attempted. Exact retries do
+not re-write completed prices. Actual production price verification happens in the
+authenticated Business commerce session after deployment.
+
+API references:
+- https://developers.etsy.com/documentation/tutorials/listings/#updating-inventory
+- https://developers.printful.com/docs/#tag/Ecommerce-Platform-Sync-API
