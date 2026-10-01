@@ -48,11 +48,17 @@ let tokens;
     });
     await page.goto(redirect);
     await page.locator("#operator_key").fill(operatorKey);
-    await Promise.all([
-      page.waitForURL((url) => url.origin + url.pathname === CHATGPT_REDIRECT_URI, { timeout: 15000 }),
+    const [authorization] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.request().method() === "POST"
+        && new URL(response.url()).pathname === "/api/warlock/oauth/authorize"),
       page.getByRole("button", { name: "Authorize ChatGPT" }).click(),
     ]);
-    const callback = new URL(page.url());
+    assert.equal(authorization.status(), 303, "browser consent should issue a callback redirect");
+    const location = authorization.headers().location;
+    assert.ok(location, "authorization response should include a callback location");
+    const callback = new URL(location);
+    assert.equal(callback.origin + callback.pathname, CHATGPT_REDIRECT_URI);
     code = callback.searchParams.get("code");
     assert.ok(code, "browser should reach the callback with an authorization code");
     assert.equal(callback.searchParams.get("state"), state);
