@@ -29,7 +29,7 @@ async function supplierRetail(deps:LivePriceDependencies,manifest:WarlockProduct
  const configuration=readSyncConfiguration(payload,v.printfulSyncVariantId!,v.printfulVariantId!,manifest.listings[0].printfulSyncProductId!);
  if(!configuration.configured)throw Error("live_price_printful_configuration_incomplete");
  const result=object(object(payload).result),sync=object(result.sync_variant),product=object(result.sync_product);
- if(positiveId(product.id)!==String(manifest.listings[0].printfulSyncProductId) || String(product.external_id)!==manifest.listings[0].etsyListingId || (sync.external_id!==undefined && String(sync.external_id)!==v.etsyProductId) || (sync.sku!==undefined && sync.sku!==etsySkuForVariant(v)))throw Error("live_price_printful_identity_mismatch");
+ if(positiveId(product.id)!==String(manifest.listings[0].printfulSyncProductId) || String(product.external_id)!==manifest.listings[0].etsyListingId || (sync.external_id!==undefined && String(sync.external_id)!==v.etsyProductId) || (sync.sku!=null && sync.sku!==etsySkuForVariant(v)))throw Error("live_price_printful_identity_mismatch");
  if(sync.currency!=="USD")throw Error("live_price_printful_currency_not_usd");
  return {retailPriceCents:sync.retail_price===null ? null : cents(sync.retail_price),configurationFingerprint:configuration.fingerprint};
 }

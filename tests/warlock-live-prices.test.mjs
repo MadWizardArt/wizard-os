@@ -71,3 +71,8 @@ test('active price capability is separately confirmed and publishing/draft guard
  const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8'),transport=source('lib/warlock-commerce/etsy-price-transport.ts');assert.match(transport,/method:"PUT"/);assert.match(transport,/inventory\?legacy=false/);assert.match(transport,/redirect:"error"/);assert.doesNotMatch(transport,/method:"PATCH"|state:"active"|createDraft/);assert.match(source('lib/warlock-commerce/etsy-draft-executor.ts'),/etsy_listing_not_draft/);
  assert.equal(safeLivePriceError(Error('postgresql://secret')),'live_price_request_failed');
 });
+
+test('Printful nullable SKU is accepted with exact saved sync, parent listing, catalog and external variant IDs',async()=>{
+ const f=fixture();f.printful.get(302).result.sync_variant.sku=null;const raw=await request(f);
+ assert.equal((await updateLiveVariantPrices(raw,123,f.deps)).state,'LIVE_PRICES_VERIFIED');
+});
