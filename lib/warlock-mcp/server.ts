@@ -17,6 +17,7 @@ import { prisma } from "../prisma";
 import { intakeProduct } from "../warlock-intake";
 import { intakeProductShape } from "../warlock-intake-schema";
 import { searchPrintfulCatalog, resolvePrintfulCatalog, safePrintfulError } from "../warlock-commerce/printful-catalog";
+import { updateProductPrices, productPricesShape, safeProductPriceError } from "../warlock-commerce/product-prices";
 import { configurePrintfulVariant } from "../warlock-commerce/printful-configuration";
 import { attachProductFileShape, attachmentIntake } from "../warlock-attachment";
 
@@ -132,14 +133,14 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.5.0",
+    version: "0.6.0",
   });
 
   server.registerTool(
     "intake_product",
     {
       title: "Create or Complete Spellmark Product",
-      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned Warlock assetId, native ChatGPT files (files plus assets.fileId), approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Use listings for both fulfillment types and retailPriceCents per edition. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
+      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned Warlock assetId, native ChatGPT files (files plus assets.fileId), approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Use listings for both fulfillment types and retailPriceCents per edition. Intake locks after draft execution; use update_product_prices for later canonical retail-price edits. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
       inputSchema: intakeProductShape,
       annotations: intakeAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES, "openai/fileParams": ["files"] },
@@ -152,7 +153,7 @@ export function createWarlockCommerceMcpServer() {
           gates: canonical ? evaluateCommerceGates(canonical) : null });
       } catch (error) {
         // Do not expose/log signed asset URLs or input package bytes.
-        return failure("warlock_intake_failed", error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
+        return failure("warlock_intake_failed", error instanceof Error && error.message === "intake_locked_after_draft_execution" ? "intake_locked_after_draft_execution: Use update_product_prices for confirmed canonical retail-price edits; existing Etsy prices are updated separately." : error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
       }
     },
   );
@@ -216,6 +217,21 @@ export function createWarlockCommerceMcpServer() {
       const canonical=await findWarlockProduct({productId:input.productId});
       return success({...configured,gates:canonical?evaluateCommerceGates(canonical):null});
     } catch(error) { return failure("printful_configuration_failed", safePrintfulError(error)); } },
+  );
+
+  server.registerTool(
+    "update_product_prices",
+    {
+      title: "Update Existing Warlock Retail Prices",
+      description: "Save confirmed USD retail-price changes for owned canonical variants, including after Etsy draft creation or publication. First get_product to obtain productId, variantId and current retailPriceCents. Supply prices with expectedRetailPriceCents and the approved new retailPriceCents, in integer cents, plus confirmPrices:true. All selected prices update atomically; conflicting current prices block the batch and exact retries are safe. This is the post-draft canonical price-edit path: do not use intake_product. Preserves supplier quotes, assets, variant mappings, listing IDs and status. Does not change Etsy or Printful retail prices, publish, place orders or recreate listings. Verify/edit existing Etsy prices separately, then evaluate margins and reconcile if needed.",
+      inputSchema: productPricesShape,
+      annotations: { ...annotations, readOnlyHint:false },
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input => {
+      try { return success(await updateProductPrices(input,prisma)); }
+      catch(error){ return failure("warlock_price_update_failed",safeProductPriceError(error)); }
+    },
   );
 
   server.registerTool(
