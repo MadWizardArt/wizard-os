@@ -1,3 +1,5 @@
+import { readSyncConfiguration } from "./printful-sync-configuration.ts";
+import type { PrintfulQuote } from "./printful-catalog.ts";
 import type { WarlockProductManifest, WarlockManifestAsset } from "../warlock-mcp/manifest.ts";
 import { inspectPrintfulImport, syncErrorCode } from "./printful-import.ts";
 import type { PrintfulImportStatus, SyncRequest } from "./printful-import.ts";
@@ -42,6 +44,17 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
     for (const mapped of imported.variants) {
       const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
       variantId = variant.id;
+      stage = "VERIFY_SYNC_CONFIGURATION";
+      const remote=readSyncConfiguration(await deps.request("/sync/variant/"+mapped.printfulSyncVariantId,imported.storeId!),mapped.printfulSyncVariantId,variant.printfulVariantId!,imported.printfulSyncProductId);
+      const quote:PrintfulQuote | undefined=variant.productionQuoteJson ? JSON.parse(variant.productionQuoteJson) : undefined;
+      options.beforeConfigure?.();
+      if(remote.configured){
+        if(quote?.configurationKind!=="CONFIGURED_SYNC" || quote.syncVariantId!==mapped.printfulSyncVariantId || quote.configurationFingerprint!==remote.fingerprint) throw new Error("printful_saved_configuration_changed");
+        // A configured variant already has its approved files. Never replace its placements on retry.
+        configuredVariantIds.push(variant.id);
+        continue;
+      }
+      if(quote?.configurationKind==="CONFIGURED_SYNC") throw new Error("printful_saved_configuration_changed");
       stage = "SIGN_MASTER_ASSET";
       const temporary = await deps.temporaryAsset(master);
       stage = "VERIFY_LIVE_QUOTE";
@@ -63,13 +76,13 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
     const row = error && typeof error === "object" ? error as { code?: unknown; name?: unknown; providerMessage?: unknown } : {};
     const causeCode = typeof row.code === "string" && /^P\d{4}$/.test(row.code) ? "prisma_" + row.code
       : row.name === "PrismaClientValidationError" ? "database_validation_failed"
-      : error instanceof Error && error.message === "live_production_quote_expired" ? error.message : syncErrorCode(error);
+      : error instanceof Error && /^(?:live_production_quote_expired|printful_[a-z0-9_]+)$/.test(error.message) ? error.message : syncErrorCode(error);
     const code = stage === "SAVE_IMPORT_WAIT" ? "printful_import_wait_persistence_failed"
       : stage === "SAVE_SYNC_PRODUCT" ? "printful_sync_product_persistence_failed"
       : stage === "SAVE_SYNC_VARIANT" ? "printful_sync_variant_persistence_failed"
       : stage === "SAVE_SYNC_COMPLETION" ? "printful_sync_completion_persistence_failed"
       : stage === "SIGN_MASTER_ASSET" ? "printful_asset_signing_failed"
-      : stage === "VERIFY_LIVE_QUOTE" ? causeCode : syncErrorCode(error);
+      : stage === "VERIFY_LIVE_QUOTE" || stage === "VERIFY_SYNC_CONFIGURATION" ? causeCode : syncErrorCode(error);
     return { ...imported, state: stage === "CONFIGURE_SYNC_VARIANT" ? "PRINTFUL_API_ERROR" : "BLOCKED",
       checkedAt: new Date().toISOString(), errorCode: code, configuredVariantIds,
       diagnostic: { stage, variantId, causeCode, ...(stage === "CONFIGURE_SYNC_VARIANT" && typeof row.providerMessage === "string" ? { providerMessage: row.providerMessage } : {}) },

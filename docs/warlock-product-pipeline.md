@@ -152,10 +152,11 @@ API outage or throttling blocks writes. Current quotes are included in the execu
 report; approved retail prices are never automatically adjusted. API redirects
 are rejected and upstream error bodies/credentials are not forwarded.
 
-This release supports the executor's existing **default single print file**, default
-non-embroidery technique, one unit, USD and North America. Technique/placement
-choices are returned for inspection, but multi-placement printing, embroidery and
-paid customization options need a later explicit design/file/fee configuration.
+New imports support the executor's **default single print file**, default
+non-embroidery technique, one unit, USD and North America. Existing configured
+standard DTG front/back/sleeve stacks now support live pricing and preservation
+(see below). New multi-placement file setup, embroidery and paid customization
+options require separate explicit design/file/fee configuration.
 A default placement carrying an additional surcharge or extra paid file layer is
 rejected rather than underquoted. Quotes exclude shipping, taxes and order-specific
 fees; margin reports retain those exclusions. Supplier preflight is bounded to
@@ -238,3 +239,31 @@ and final completion persistence. Database errors expose only Prisma codes, neve
 connection strings or raw exception bodies. Printful rejection messages are
 returned with credentials and signed URLs redacted. Partial configured variant
 IDs and imported identity are retained in the report so retries are reviewable.
+
+
+### Preserve configured Printful placements during supplier refresh
+
+Once an imported sync variant ID is saved, `configure_printful_variant` and execution
+preflight read that variant's actual Printful print files. Standard DTG front, back,
+left-sleeve and right-sleeve stacks are priced from live variant and placement prices,
+with one included placement credited using the catalog placement order. Store discounts
+come from the API; no garment prices are embedded in code. Existing default single-file
+products retain their supported base quote, including non-DTG products.
+
+The dated snapshot records the sync variant ID, selected placements, fee breakdown and
+a configuration fingerprint, without file URLs. A default snapshot can upgrade to the
+verified configured stack. A previously configured stack that changes or disappears
+blocks execution until `configure_printful_variant` explicitly refreshes it. Unsupported
+options, special placements, incomplete files or ambiguous pricing block refresh and
+leave the prior saved cost intact. Approved retail prices are never changed.
+
+Sync retries re-read the imported configuration and preserve an already configured
+variant when its fingerprint matches the fresh quote. They do not sign or upload a
+replacement default file, change supplier prices/SKUs, or replace back/sleeve placements.
+Only unconfigured imports receive the existing default-file setup. Etsy remains read-only
+for active-listing reconciliation; publication and orders remain manual.
+
+For the already synced Night Herbarium sweatshirt, refresh each existing edition using
+`configure_printful_variant` with its unchanged catalog/store selection, then evaluate
+margins. This saves current configured costs; do not restore screenshot prices as constants.
+Live configured charges still exclude shipping, taxes and order-specific fees.

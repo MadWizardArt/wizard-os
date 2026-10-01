@@ -1,3 +1,4 @@
+import { readSyncConfiguration } from "./printful-sync-configuration.ts";
 import { createHash } from "node:crypto";
 
 export type Json = Record<string, unknown>;
@@ -10,7 +11,7 @@ export function rows(value: unknown): Json[] {
   return value.map(record);
 }
 export async function printfulGet(path: string, storeId?: number): Promise<Json> {
-  if (!/^\/(?:products|stores|v2\/catalog-variants)(?:[/?]|$)/.test(path)) throw new Error("printful_path_rejected");
+  if (!/^\/(?:products|stores|sync\/variant|v2\/catalog-variants|v2\/catalog-products)(?:[/?]|$)/.test(path)) throw new Error("printful_path_rejected");
   const token = process.env.PRINTFUL_PRIVATE_TOKEN?.trim();
   if (!token) throw new Error("printful_token_missing");
   const headers: Record<string, string> = { Authorization: "Bearer " + token, "X-PF-Language": "en_US" };
@@ -58,7 +59,7 @@ export async function resolvePrintfulCatalog(input: { storeId: number; productId
     product:{ productId:product.id, title:product.title, brand:product.brand, model:product.model, techniques:product.techniques, files:product.files, options:product.options },
     availableColors:[...new Set(variants.map(v=>v.color))], availableSizes:[...new Set(variants.map(v=>v.size))],
     variants:matched.map(v=>({ catalogVariantId:v.id, productId:v.product_id, name:v.name, color:v.color, size:v.size, image:v.image })),
-    nextAction:"Select an exact catalogVariantId and use configure_printful_variant to fetch and save a live USD quote. Default single-print configuration only; extra placements/options are not configured automatically." };
+    nextAction:"Select an exact catalogVariantId and use configure_printful_variant to fetch and save a live USD quote. New imports use one default print file. Existing saved sync variants refresh their actual configured placements; unsupported options block refresh. Extra placements/options are not configured automatically." };
 }
 export function cents(value: unknown): number {
   if (typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value)) throw new Error("printful_price_invalid");
@@ -73,8 +74,10 @@ export type PrintfulQuote = {
   productionBaseCents:number; quotedAt:string; source:"Printful Catalog API v2";
   availability:"in_stock" | "unavailable" | "unknown";
   exclusions:string[];
+  configurationKind?:"DEFAULT" | "CONFIGURED_SYNC"; syncVariantId?:number; configurationFingerprint?:string;
+  placements?:Array<{placement:string; priceCents:number}>; includedPlacementCents?:number;
 };
-export async function quotePrintfulVariant(input: { storeId:number; productId:number; catalogVariantId:number }, get: Get = printfulGet): Promise<PrintfulQuote> {
+export async function quotePrintfulVariant(input: { storeId:number; productId:number; catalogVariantId:number; syncVariantId?:number }, get: Get = printfulGet): Promise<PrintfulQuote> {
   const id = input.catalogVariantId;
   const [detail, prices, stock, stores] = await Promise.all([
     get("/products/variant/"+id,input.storeId),
@@ -91,7 +94,7 @@ export async function quotePrintfulVariant(input: { storeId:number; productId:nu
   if(defaults.length!==1) throw new Error("printful_default_technique_ambiguous");
   const technique=String(defaults[0].key).toLowerCase();
   if (technique.includes("embroidery")) throw new Error("printful_embroidery_setup_not_supported");
-  // The existing sync executor sends one default print file and no extra options.
+  // New variants use one default file; saved sync variants must quote their actual files.
   const file=rows(product.files).find(f=>f.id==="default");
   if(!file || (file.additional_price!==null && cents(file.additional_price)!==0)) throw new Error("printful_default_placement_surcharge_unsupported");
   const priceTechniques=rows(pricedVariant.techniques).filter(t=>String(t.technique_key).toLowerCase()===technique);
@@ -101,7 +104,44 @@ export async function quotePrintfulVariant(input: { storeId:number; productId:nu
   const placement=placements[0];
   const layers=rows(placement.layers);
   if(layers.length!==1 || layers[0].type!=="file" || cents(layers[0].additional_price)!==0) throw new Error("printful_extra_layer_cost_unsupported");
-  const productionBaseCents=cents(priceTechniques[0].discounted_price ?? priceTechniques[0].price);
+  let productionBaseCents=cents(priceTechniques[0].discounted_price ?? priceTechniques[0].price);
+  let configuration:Partial<PrintfulQuote>={configurationKind:"DEFAULT"};
+  if(input.syncVariantId){
+    const configured=readSyncConfiguration(await get("/sync/variant/"+input.syncVariantId,input.storeId),input.syncVariantId,id);
+    if(configured.configured){
+      if(configured.hasOptions) throw new Error("printful_configured_options_quote_unsupported");
+      const isDefaultOnly=configured.fileTypes.length===1 && [String(file.id),String(file.type)].includes(configured.fileTypes[0]);
+      if(isDefaultOnly){
+        configuration={configurationKind:"CONFIGURED_SYNC",syncVariantId:input.syncVariantId,configurationFingerprint:configured.fingerprint,placements:[{placement:String(placement.id),priceCents:placement.price===undefined ? 0 : cents(placement.discounted_price ?? placement.price)}],includedPlacementCents:placement.price===undefined ? 0 : cents(placement.discounted_price ?? placement.price)};
+      } else {
+        // Only standard DTG placements have a supported included-placement rule here.
+        const selected=configured.fileTypes.map(type=>{
+          const definitions=rows(product.files).filter(f=>f.id===type);
+          if(definitions.length!==1) throw new Error("printful_configured_placement_unknown");
+          const definition=definitions[0];
+          const matches=rows(pricedProduct.placements).filter(p=>String(p.technique_key).toLowerCase()===technique && (p.id===definition.type || p.id===definition.id));
+          if(matches.length!==1) throw new Error("printful_configured_placement_quote_missing");
+          const chosen=matches[0], chosenLayers=rows(chosen.layers);
+          if(technique!=="dtg" || !["front","back","sleeve_left","sleeve_right"].includes(String(chosen.id))) throw new Error("printful_configured_placement_quote_unsupported");
+          if(chosenLayers.length!==1 || chosenLayers[0].type!=="file" || cents(chosenLayers[0].additional_price)!==0) throw new Error("printful_extra_layer_cost_unsupported");
+          return {placement:String(chosen.id),priceCents:cents(chosen.discounted_price ?? chosen.price)};
+        });
+        if(new Set(selected.map(p=>p.placement)).size!==selected.length) throw new Error("printful_configured_placement_ambiguous");
+        const catalog=record((await get("/v2/catalog-products/"+input.productId,input.storeId)).data);
+        if(catalog.id!==input.productId) throw new Error("printful_catalog_identity_mismatch");
+        const order=rows(catalog.placements).filter(p=>String(p.technique).toLowerCase()===technique || String(p.technique_key).toLowerCase()===technique);
+        if(!order.length || selected.some(p=>!order.some(o=>o.placement===p.placement || o.id===p.placement))) throw new Error("printful_configured_placement_order_unknown");
+        const first=order.find(o=>selected.some(p=>p.placement===(o.placement ?? o.id)))!;
+        const included=selected.find(p=>p.placement===(first.placement ?? first.id))!;
+        const cap=rows(pricedProduct.placements).find(p=>String(p.technique_key).toLowerCase()===technique && p.id===(order[0].placement ?? order[0].id));
+        if(!cap || !["front","back"].includes(String(cap.id))) throw new Error("printful_configured_included_placement_unknown");
+        const includedPlacementCents=selected.length===1 ? included.priceCents : Math.min(included.priceCents,cents(cap.discounted_price ?? cap.price));
+        productionBaseCents+=selected.reduce((sum,p)=>sum+p.priceCents,0)-includedPlacementCents;
+        if(!Number.isSafeInteger(productionBaseCents) || productionBaseCents>2147483647) throw new Error("printful_price_invalid");
+        configuration={configurationKind:"CONFIGURED_SYNC",syncVariantId:input.syncVariantId,configurationFingerprint:configured.fingerprint,placements:selected,includedPlacementCents};
+      }
+    }
+  }
   if(productionBaseCents<=0) throw new Error("printful_price_invalid");
   const statuses=rows(record(stock.data).techniques).filter(t=>String(t.technique).toLowerCase()===technique)
     .flatMap(t=>rows(t.selling_regions)).filter(r=>["north_america","usa","canada"].includes(String(r.name)))
@@ -110,7 +150,7 @@ export async function quotePrintfulVariant(input: { storeId:number; productId:nu
   return { catalogProductId:input.productId, catalogVariantId:id, storeId:input.storeId, technique,
     fileType:String(file.type), placement:String(placement.id), sellingRegion:"north_america", currency:"USD",
     productionBaseCents, quotedAt:new Date().toISOString(), source:"Printful Catalog API v2", availability,
-    exclusions:["Shipping","Taxes","Additional placements and options","Embroidery digitization","Order-specific fees"] };
+    ...configuration, exclusions:["Shipping","Taxes",...(configuration.configurationKind==="CONFIGURED_SYNC" ? [] : ["Additional placements and options"]),"Embroidery digitization","Order-specific fees"] };
 }
 
 export function safePrintfulError(error:unknown) {
