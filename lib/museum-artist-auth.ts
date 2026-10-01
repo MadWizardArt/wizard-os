@@ -1,8 +1,14 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import type { NextRequest, NextResponse } from "next/server";
+import { prisma } from "./prisma";
 
 export const ARTIST_SESSION_COOKIE = "wizard_artist_session";
 const SESSION_HOURS = 12;
+const REMEMBERED_SESSION_DAYS = 30;
+const ARTIST_CREDENTIAL_ID = "primary";
+const MIN_PASSWORD_LENGTH = 12;
+const scrypt = promisify(scryptCallback);
 
 function accessKey() {
   return process.env.MUSE_ARTIST_ACCESS_KEY?.trim() || "";
@@ -46,6 +52,45 @@ export function verifyArtistAccessKey(candidate: unknown) {
   return safeEqual(keyedFingerprint(configured, supplied), keyedFingerprint(configured, configured));
 }
 
+async function passwordDigest(password: string, salt: string) {
+  return (await scrypt(password, salt, 64)) as Buffer;
+}
+
+export async function artistPasswordConfigured() {
+  return Boolean(await prisma.artistCredential.findUnique({
+    where: { id: ARTIST_CREDENTIAL_ID },
+    select: { id: true },
+  }));
+}
+
+export function validateArtistPassword(password: unknown) {
+  if (typeof password !== "string") return "Choose a password.";
+  if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  if (password.length > 128) return "Use no more than 128 characters.";
+  return null;
+}
+
+export async function configureArtistPassword(password: string) {
+  const validation = validateArtistPassword(password);
+  if (validation) throw new Error(validation);
+  const salt = randomBytes(24).toString("base64url");
+  const hash = (await passwordDigest(password, salt)).toString("base64url");
+  return prisma.artistCredential.create({
+    data: { id: ARTIST_CREDENTIAL_ID, passwordSalt: salt, passwordHash: hash },
+  });
+}
+
+export async function verifyArtistPassword(candidate: unknown) {
+  if (typeof candidate !== "string" || !candidate) return false;
+  const credential = await prisma.artistCredential.findUnique({
+    where: { id: ARTIST_CREDENTIAL_ID },
+  });
+  if (!credential) return false;
+  const supplied = await passwordDigest(candidate, credential.passwordSalt);
+  const expected = Buffer.from(credential.passwordHash, "base64url");
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
 export function verifyKnowledgeIngestKey(candidate: unknown) {
   const configured = ingestKey();
   if (!knowledgeIngestConfigured() || typeof candidate !== "string") return false;
@@ -54,9 +99,12 @@ export function verifyKnowledgeIngestKey(candidate: unknown) {
   return safeEqual(keyedFingerprint(configured, supplied), keyedFingerprint(configured, configured));
 }
 
-export function createArtistSessionToken() {
+export function createArtistSessionToken(remember = false) {
   if (!artistAccessConfigured()) throw new Error("Artist access is not configured.");
-  const expiresAt = Date.now() + SESSION_HOURS * 60 * 60 * 1000;
+  const duration = remember
+    ? REMEMBERED_SESSION_DAYS * 24 * 60 * 60 * 1000
+    : SESSION_HOURS * 60 * 60 * 1000;
+  const expiresAt = Date.now() + duration;
   const nonce = randomBytes(18).toString("hex");
   const body = `${expiresAt}.${nonce}`;
   return { token: `${body}.${digest(body)}`, expiresAt };

@@ -161,7 +161,7 @@ function MuseAnswer({ answer }: { answer: string }) {
 
 export default function SelectiveIntelligencePage() {
   const [session, setSession] = useState<ArtistSession | null>(null);
-  const [accessKey, setAccessKey] = useState("");
+  const [password, setPassword] = useState("");
   const [knowledge, setKnowledge] = useState<CouncilKnowledgeRecord[]>([]);
   const [payload, setPayload] = useState<IntelligencePayload>(EMPTY_PAYLOAD);
   const [mind, setMind] = useState<MindContinuityPayload | null>(null);
@@ -242,12 +242,12 @@ export default function SelectiveIntelligencePage() {
       const response = await fetch("/api/museum/artist-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessKey }),
+        body: JSON.stringify({ password }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Artist Gate did not unlock.");
       setSession(json);
-      setAccessKey("");
+      setPassword("");
       setNotice("Welcome back, Artist. The Council is ready when you are.");
       await loadProtected();
     } catch (error) {
@@ -547,8 +547,8 @@ export default function SelectiveIntelligencePage() {
                 : "Configure the Artist access key in the production environment before the Council can use powered reasoning."}</p>
             </div>
             {session?.configured && <div className={styles.unlockRow}>
-              <input type="password" value={accessKey} onChange={(event) => setAccessKey(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void unlock(); }} placeholder="Artist access key" autoComplete="current-password" />
-              <button className={styles.primary} disabled={busy === "unlock" || accessKey.length < 1} onClick={unlock}>{busy === "unlock" ? "Unlocking…" : "Unlock"}</button>
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void unlock(); }} placeholder="Artist password" autoComplete="current-password" />
+              <button className={styles.primary} disabled={busy === "unlock" || password.length < 1} onClick={unlock}>{busy === "unlock" ? "Unlocking…" : "Unlock"}</button>
             </div>}
           </section>
         )}

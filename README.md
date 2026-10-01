@@ -46,11 +46,17 @@ Wizard OS is a live-data application. Operational screens read and write the Pos
 
 ```bash
 cp .env.example .env.local
-# Set DATABASE_URL and MUSE_ARTIST_ACCESS_KEY (16+ characters).
+# Set DATABASE_URL, MUSE_ARTIST_ACCESS_KEY (16+ characters, used once for
+# password setup/recovery), and MUSE_ARTIST_SESSION_SECRET.
 # DIRECT_URL is only required when it differs from DATABASE_URL for migrations.
 npm install
 npm run dev
 ```
+
+On first launch, open Wizard OS, enter the bootstrap Artist access key once,
+and create a password of at least 12 characters. Only a salted password hash is
+stored in PostgreSQL. Normal browser access then uses that password and the
+secure Artist session cookie.
 
 Open `http://localhost:3000`.
 

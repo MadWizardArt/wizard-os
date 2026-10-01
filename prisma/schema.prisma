@@ -7,6 +7,14 @@ datasource db {
   provider = "postgresql"
 }
 
+model ArtistCredential {
+  id           String   @id
+  passwordSalt String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 enum ProjectType {
   ARTWORK
   COMMISSION

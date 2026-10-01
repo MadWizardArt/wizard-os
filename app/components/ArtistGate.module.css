@@ -76,6 +76,20 @@
   color: #e9edf1;
 }
 
+.form .remember {
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.form .remember input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #8a3953;
+}
+
 .form input:focus-visible,
 .form button:focus-visible {
   outline: 2px solid #a99164;

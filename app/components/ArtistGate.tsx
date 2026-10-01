@@ -6,6 +6,7 @@ import styles from "./ArtistGate.module.css";
 type SessionState = {
   authenticated: boolean;
   configured: boolean;
+  passwordConfigured: boolean;
 };
 
 async function readSession() {
@@ -16,7 +17,10 @@ async function readSession() {
 
 export default function ArtistGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionState | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [accessKey, setAccessKey] = useState("");
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,15 +37,21 @@ export default function ArtistGate({ children }: { children: React.ReactNode }) 
     setSubmitting(true);
     setError("");
     try {
+      const setup = session?.passwordConfigured === false;
+      if (setup && password !== confirmPassword) throw new Error("The passwords do not match.");
       const response = await fetch("/api/museum/artist-session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accessKey }),
+        body: JSON.stringify(setup
+          ? { setupPassword: true, accessKey, password, remember }
+          : { password, remember }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Artist access was not accepted.");
       setAccessKey("");
-      setSession({ authenticated: true, configured: true });
+      setPassword("");
+      setConfirmPassword("");
+      setSession({ authenticated: true, configured: true, passwordConfigured: true });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Artist access was not accepted.");
     } finally {
@@ -64,22 +74,56 @@ export default function ArtistGate({ children }: { children: React.ReactNode }) 
             <p className={styles.copy}>
               {session?.configured === false
                 ? "Artist access is not configured for this environment."
-                : "Enter your Artist access key to open the private workspace."}
+                : session?.passwordConfigured === false
+                  ? "Create your private Artist password. Your current access key is required once for setup."
+                  : "Enter your Artist password to open the private workspace."}
             </p>
             {session?.configured !== false && (
               <form className={styles.form} onSubmit={unlock}>
-                <label>
-                  Artist access key
+                {session?.passwordConfigured === false && <label>
+                  Current Artist access key
                   <input
                     type="password"
-                    autoComplete="current-password"
+                    autoComplete="off"
                     required
                     value={accessKey}
                     onChange={(event) => setAccessKey(event.target.value)}
                   />
+                </label>}
+                <label>
+                  {session?.passwordConfigured === false ? "Choose password" : "Artist password"}
+                  <input
+                    type="password"
+                    autoComplete={session?.passwordConfigured === false ? "new-password" : "current-password"}
+                    minLength={12}
+                    maxLength={128}
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+                {session?.passwordConfigured === false && <label>
+                  Confirm password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={128}
+                    required
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                </label>}
+                <label className={styles.remember}>
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(event) => setRemember(event.target.checked)}
+                  />
+                  Remember this device for 30 days
                 </label>
                 <button type="submit" disabled={submitting}>
-                  {submitting ? "Opening…" : "Open Wizard OS"}
+                  {submitting ? "Opening…" : session?.passwordConfigured === false ? "Set Password & Open" : "Open Wizard OS"}
                 </button>
               </form>
             )}
