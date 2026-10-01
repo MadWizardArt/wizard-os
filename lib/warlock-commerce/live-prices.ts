@@ -3,7 +3,7 @@ import type { SupplierPreflight } from "./printful-preflight.ts";
 import type { SyncRequest } from "./printful-import.ts";
 import { etsySkuForVariant } from "./etsy-inventory.ts";
 import { cents } from "./printful-catalog.ts";
-import { readSyncConfiguration } from "./printful-sync-configuration.ts";
+import { readSyncConfiguration,type PricingOptionIssue } from "./printful-sync-configuration.ts";
 import { evaluateCommerceGates } from "./gates.ts";
 import { withLivePrintfulQuotes } from "./live-quotes.ts";
 import { livePriceUpdateSchema } from "./live-price-schema.ts";
@@ -53,7 +53,7 @@ export async function updateLiveVariantPrices(raw:unknown,shopId:number,deps:Liv
  const input=livePriceUpdateSchema.parse(raw);
  if(new Set(input.prices.map(p=>p.variantId)).size!==input.prices.length)throw Error("live_price_duplicate_variant");
  let stage="INSPECT",etsyWriteAttempted=false,etsyPricesVerified=false;
- let supplierFailures:Array<{variantId:string;errorCode:string}>=[];
+ let supplierFailures:Array<{variantId:string;errorCode:string;optionIssues?:PricingOptionIssue[]}>=[];
  const printfulWriteAttemptedVariantIds:string[]=[],printfulVerifiedVariantIds:string[]=[];
  const deadline=Date.now()+145000;
  const budget=()=>{if(Date.now()>deadline-25000)throw Error("live_price_time_budget_retry");};
@@ -72,7 +72,7 @@ export async function updateLiveVariantPrices(raw:unknown,shopId:number,deps:Liv
   if(!complete && first.inventory.fingerprint!==input.expectedInventoryFingerprint)throw Error("live_price_inventory_changed_reinspect");
   stage="SUPPLIER_PREFLIGHT";
   const supplier=await deps.supplier(manifest);
-  supplierFailures=supplier.variants.filter(v=>!v.pass && v.errorCode && manifest.variants.some(owned=>owned.id===v.variantId)).slice(0,30).map(v=>({variantId:v.variantId,errorCode:safeLivePriceError(Error(v.errorCode))}));
+  supplierFailures=supplier.variants.filter(v=>!v.pass && v.errorCode && manifest.variants.some(owned=>owned.id===v.variantId)).slice(0,30).map(v=>({variantId:v.variantId,errorCode:safeLivePriceError(Error(v.errorCode)),...(v.optionIssues ? {optionIssues:v.optionIssues} : {})}));
   const fresh=withLivePrintfulQuotes(manifest,supplier);
   const selected={...fresh,variants:fresh.variants.filter(v=>input.prices.some(p=>p.variantId===v.id))};
   if(!evaluateCommerceGates(selected).margin.pass)throw Error("live_price_margin_below_floor");

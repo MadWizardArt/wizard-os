@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { searchPrintfulCatalog, resolvePrintfulCatalog, quotePrintfulVariant, cents, printfulGet, safePrintfulError } from '../lib/warlock-commerce/printful-catalog.ts';
 import { configurePrintfulVariant } from '../lib/warlock-commerce/printful-configuration.ts';
+import {PrintfulPricingOptionsError} from '../lib/warlock-commerce/printful-sync-configuration.ts';
 import { runPrintfulSupplierPreflight } from '../lib/warlock-commerce/printful-preflight.ts';
 import { withLivePrintfulQuotes } from '../lib/warlock-commerce/live-quotes.ts';
 import { evaluateCommerceGates } from '../lib/warlock-commerce/gates.ts';
@@ -148,4 +149,26 @@ test('all documented Printful text and ordinary palettes are inactive for back a
   const f=configuredFixtures({options:ids.map(id=>({id,value}))}),before=structuredClone(f.sync),q=await quotePrintfulVariant(configuredSelection,f.get);
   assert.equal(q.productionBaseCents,2325);assert.deepEqual(q.inactiveOptionIds,ids.map(id=>'product:'+id).sort());assert.deepEqual(f.sync,before);
  }
+});
+test('documented licensing and mockup metadata preserve live quotes, values and configuration fingerprints',async()=>{
+ for(const value of [[],['CLC'],['CLC','AFFINITY','BR','EX','NCAA','FAN','BCOMPLY','TAG','DLH','CORE81']]){
+  const f=configuredFixtures({options:[{id:'license_type',value},{id:'lifelike',value:true},{id:'notes',value:''},{id:'inside_pocket',value:false}]}),before=structuredClone(f.sync),q=await quotePrintfulVariant(configuredSelection,f.get);
+  assert.equal(q.productionBaseCents,2325);assert.deepEqual(q.metadataOptionIds,['product:license_type','product:lifelike','product:notes']);assert.deepEqual(q.disabledOptionIds,['product:inside_pocket']);assert.deepEqual(f.sync,before);
+ }
+ const digital=configuredFixtures({defaultTechnique:'digital',files:[{id:81,type:'default',status:'ok',options:[]}],options:[{id:'license_type',value:[]},{id:'lifelike',value:false}]});assert.equal((await quotePrintfulVariant(configuredSelection,digital.get)).productionBaseCents,2000);
+ const f=configuredFixtures({options:[{id:'license_type',value:[]}]}),q=await quotePrintfulVariant(configuredSelection,f.get),v={...canonical,printfulSyncVariantId:5000000001,productionQuoteJson:JSON.stringify(q)};
+ assert.equal((await runPrintfulSupplierPreflight({variants:[v]},f.get)).pass,true);f.sync.options[0].value=['CLC'];assert.equal((await runPrintfulSupplierPreflight({variants:[v]},f.get)).pass,false);
+});
+test('all unsupported product and file options are reported together without revealing their values',async()=>{
+ const f=configuredFixtures({options:[{id:'license_type',value:['private-secret']},{id:'inside_pocket',value:true},{id:'notes',value:'https://secret.example/file'},{id:'unknown_fee',value:123}]});f.sync.files[0].options=[{id:'full_color',value:true}];
+ await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),error=>{
+  assert.ok(error instanceof PrintfulPricingOptionsError);assert.equal(error.message,'printful_configured_product_option_quote_unsupported_license_type');
+  assert.deepEqual(error.optionIssues.map(i=>i.optionId),['license_type','inside_pocket','notes','unknown_fee','full_color']);assert.equal(error.optionIssues[0].valueKind,'nonempty_array');assert.ok(!JSON.stringify(error.optionIssues).includes('secret'));return true;
+ });
+ const result=await runPrintfulSupplierPreflight({variants:[{...canonical,printfulSyncVariantId:5000000001}]},f.get);assert.equal(result.pass,false);assert.equal(result.variants[0].optionIssues.length,5);assert.ok(!JSON.stringify(result).includes('secret'));
+});
+test('malformed licensing metadata never becomes a generic no-cost option exception',async()=>{
+ for(const value of [null,'',false,'CLC',['CLC','CLC'],['UNKNOWN'],[null]])await assert.rejects(quotePrintfulVariant(configuredSelection,configuredFixtures({options:[{id:'license_type',value}]}).get),/printful_configured_product_option_quote_unsupported_license_type/);
+ const f=configuredFixtures({options:[{id:'license_type',value:[]},{id:'license_type',value:[]},{id:'https://secret.example/token',value:'secret'},{id:'unknown_cost',value:[]} ]});
+ await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),error=>{assert.equal(error.message,'printful_configured_options_malformed');assert.deepEqual(error.optionIssues.map(i=>i.reason),['duplicate','malformed','unsupported']);assert.ok(!JSON.stringify(error.optionIssues).includes('secret'));return true;});
 });

@@ -1,10 +1,11 @@
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 import { printfulGet, quotePrintfulVariant, safePrintfulError, type Get, type PrintfulQuote } from "./printful-catalog.ts";
+import {PrintfulPricingOptionsError,type PricingOptionIssue} from "./printful-sync-configuration.ts";
 
 export type SupplierVariantCheck = {
   variantId:string; label:string; printfulProductId:number; printfulVariantId:number; printfulStoreId:number;
   catalogVariantExists:boolean; catalogProductMatches:boolean; storeAccessible:boolean;
-  availability:"in_stock" | "unavailable" | "unknown"; quote?:PrintfulQuote; pass:boolean; errorCode?:string;
+  availability:"in_stock" | "unavailable" | "unknown"; quote?:PrintfulQuote; pass:boolean; errorCode?:string; optionIssues?:PricingOptionIssue[];
 };
 export type SupplierPreflight = { configured:boolean; pass:boolean; checkedAt:string; variants:SupplierVariantCheck[]; errors:string[] };
 
@@ -35,7 +36,7 @@ export async function runPrintfulSupplierPreflight(manifest:WarlockProductManife
         }
         Object.assign(check,{quote,catalogVariantExists:true,catalogProductMatches:true,storeAccessible:true,availability:quote.availability,pass:quote.availability==="in_stock"});
         if(!check.pass)result.errors.push("printful_variant_unavailable:"+variant.id);
-      }catch(error){check.errorCode=safePrintfulError(error);result.errors.push("live_quote_failed:"+variant.id+":"+check.errorCode);}
+      }catch(error){check.errorCode=safePrintfulError(error);if(error instanceof PrintfulPricingOptionsError)check.optionIssues=error.optionIssues;result.errors.push("live_quote_failed:"+variant.id+":"+check.errorCode);}
       checks[index]=check;
     }
   }

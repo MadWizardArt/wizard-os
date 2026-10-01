@@ -35,29 +35,52 @@ export function readSyncConfiguration(payload: unknown, syncVariantId: number, c
  * Their full values remain in the fingerprint; this never changes supplier files/options.
  * https://developers.printful.com/docs/#tag/Common/Options
  */
-export function validateSyncPricingOptions(configuration: Extract<ReturnType<typeof readSyncConfiguration>, {configured:true}>, technique:string): string[] {
-  const ignored=new Set<string>();
+export type PricingOptionIssue={scope:"product"|"file";optionId:string;reason:"unsupported"|"malformed"|"duplicate";valueKind:string};
+export class PrintfulPricingOptionsError extends Error {
+  readonly optionIssues:PricingOptionIssue[];
+  constructor(optionIssues:PricingOptionIssue[]){
+    const first=optionIssues[0];
+    super(first.reason!=="unsupported" ? "printful_configured_options_malformed" : "printful_configured_"+first.scope+"_option_quote_unsupported_"+first.optionId);
+    this.optionIssues=optionIssues;
+  }
+}
+export function validateSyncPricingOptions(configuration: Extract<ReturnType<typeof readSyncConfiguration>, {configured:true}>, technique:string) {
+  const inactive=new Set<string>(),metadata=new Set<string>(),disabled=new Set<string>();
+  const issues:PricingOptionIssue[]=[];
+  const valueKind=(value:unknown)=>Array.isArray(value) ? (value.length ? "nonempty_array" : "empty_array") : value===null ? "null" : typeof value;
+  const issue=(scope:"product"|"file",optionId:string,reason:PricingOptionIssue["reason"],value:unknown)=>{if(issues.length<64)issues.push({scope,optionId,reason,valueKind:valueKind(value)});};
+  const licenses=new Set(["CLC","AFFINITY","BR","EX","NCAA","FAN","BCOMPLY","TAG","DLH","CORE81"]);
   const standardDtg=technique==="dtg" && configuration.fileTypes.every(type=>["default","front","back","sleeve_left","sleeve_right"].includes(type));
   // Both documented palette tables share these placements. Keep them paired so
   // imported text palettes cannot be omitted while their ordinary palette works.
   const paletteSuffixes=["","_back","_right","_left","_apparel","_apparel_back","_chest_center","_large_center","_large_corner_right","_chest_left","_corner_left","_chest_top_left","_corner_right","_outside_left","_outside_right","_inside_left","_inside_right","_patch_front","_sleeve_left_top","_sleeve_right_top","_wrist_left","_wrist_right"];
   const threadIds=new Set([...paletteSuffixes.flatMap(suffix=>["thread_colors"+suffix,"text_thread_colors"+suffix]),"thread_colors_3d","thread_colors_outline"]);
   for(const group of configuration.pricingOptions){
-    if(!Array.isArray(group.options)) throw new Error("printful_configured_options_malformed");
+    const scope=group.scope==="product" ? "product" : "file";
+    if(!Array.isArray(group.options)){issue(scope,"invalid_options","malformed",group.options);continue;}
     const seen=new Set<string>();
     for(const raw of group.options){
-      const option=object(raw), key=option.id, value=option.value;
-      if(typeof key!=="string" || !/^[a-z][a-z0-9_]{0,63}$/.test(key) || seen.has(key)) throw new Error("printful_configured_options_malformed");
+      if(!raw || typeof raw!=="object" || Array.isArray(raw)){issue(scope,"invalid_option","malformed",raw);continue;}
+      const option=raw as Json, key=option.id, value=option.value;
+      if(typeof key!=="string" || !/^[a-z][a-z0-9_]{0,63}$/.test(key)){issue(scope,"invalid_option_id","malformed",value);continue;}
+      if(seen.has(key)){issue(scope,key,"duplicate",value);continue;}
       seen.add(key);
+      const label=scope+":"+key;
+      // Documented metadata does not select a print placement or production option.
+      // Accept only the provider's documented shapes/values, preserving all values.
+      if(scope==="product" && ((key==="license_type" && Array.isArray(value) && value.every(v=>typeof v==="string" && licenses.has(v)) && new Set(value).size===value.length) || (key==="lifelike" && typeof value==="boolean"))){metadata.add(label);continue;}
+      if(scope==="product" && key==="notes" && value===""){metadata.add(label);continue;}
+      if(standardDtg && ((scope==="product" && key==="inside_pocket" && value===false) || (scope==="file" && key==="full_color" && value===false))){disabled.add(label);continue;}
       // Thread palettes and flat embroidery selection are inactive with no embroidery files.
       const palette=Array.isArray(value) ? value : typeof value==="string" ? (value==="" ? [] : value.split(",")) : null;
-      const safe=standardDtg && (group.scope==="product"
+      const safe=standardDtg && (scope==="product"
         ? (threadIds.has(key) && palette!==null && palette.every(color=>typeof color==="string" && /^#[0-9a-fA-F]{6}$/.test(color)))
-          || (key==="embroidery_type" && value==="flat") || (key==="notes" && value==="") || (key==="lifelike" && typeof value==="boolean")
-        : (key==="auto_thread_color" && typeof value==="boolean") || (key==="full_color" && value===false));
-      if(!safe) throw new Error("printful_configured_"+group.scope+"_option_quote_unsupported_"+key);
-      ignored.add(group.scope+":"+key);
+          || (key==="embroidery_type" && value==="flat")
+        : (key==="auto_thread_color" && typeof value==="boolean"));
+      if(!safe){issue(scope,key,"unsupported",value);continue;}
+      inactive.add(label);
     }
   }
-  return [...ignored].sort();
+  if(issues.length)throw new PrintfulPricingOptionsError(issues);
+  return {inactiveOptionIds:[...inactive].sort(),metadataOptionIds:[...metadata].sort(),disabledOptionIds:[...disabled].sort()};
 }
