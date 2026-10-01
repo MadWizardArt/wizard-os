@@ -7,7 +7,7 @@ const manifest = {id:'p1',variants,listings:[{id:'l1',fulfillment:'PHYSICAL',ets
 const imported=()=>({result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:variants.map((v,n)=>({id:301+n,external_id:v.etsyProductId,sku:v.etsySku}))}});
 function dependencies(payload=imported()) {
  const calls=[];
- const deps={request:async(path,store,init={},allow404)=>{calls.push({kind:'request',path,store,init,allow404});return init.method==='PUT'?{result:{}}:payload;},
+ const deps={request:async(path,store,init={},allow404)=>{calls.push({kind:'request',path,store,init,allow404});return init.method==='PUT'?{result:{}}:path.startsWith('/sync/variant/')?{result:{sync_variant:{id:Number(path.split('/').at(-1)),sync_product_id:101,synced:false,files:[]}}}:payload;},
  temporaryAsset:async()=>{calls.push({kind:'asset'});return {url:'https://signed.example/design.png'};},
  saveListing:async(id,data)=>calls.push({kind:'listing',id,data}),saveVariant:async(id,data)=>calls.push({kind:'variant',id,data})};
  return {deps,calls};
@@ -47,7 +47,7 @@ test('malformed responses, wrong external product and API errors are distinct fr
  }
 });
 test('configuration API failure retains discovered identity and partial progress; retry uses saved IDs',async()=>{
- const {deps,calls}=dependencies();const original=deps.request;deps.request=async(...args)=>{if(args[0]==='/sync/variant/302')throw Error('printful_http_429');return original(...args)};
+ const {deps,calls}=dependencies();const original=deps.request;deps.request=async(...args)=>{if(args[0]==='/sync/variant/302' && args[2]?.method==='PUT')throw Error('printful_http_429');return original(...args)};
  const r=await configureImportedPrintful(manifest,deps);assert.equal(r.state,'PRINTFUL_API_ERROR');assert.equal(r.errorCode,'printful_http_429');assert.deepEqual(r.configuredVariantIds,['v1']);assert.equal(r.etsyListingId,'4586039819');assert.equal(r.printfulSyncProductId,101);assert.equal(calls.filter(c=>c.kind==='variant').length,2);assert.ok(!calls.some(c=>c.data?.status==='SYNCED'));
  const retry=structuredClone(manifest);retry.variants.forEach((v,n)=>v.printfulSyncVariantId=301+n);
  assert.equal((await configureImportedPrintful(retry,dependencies().deps)).state,'SYNCED');
@@ -67,4 +67,15 @@ test('transport treats only lookup 404 as absent, isolates store, disables cachi
   globalThis.fetch=async()=>new Response('secret',{status:403});await assert.rejects(printfulSyncRequest('/sync/products/@4586039819',99,{},true),/^Error: printful_http_403$/);
   globalThis.fetch=async()=>new Response('secret');await assert.rejects(printfulSyncRequest('/sync/products/@4586039819',99),/^Error: printful_invalid_response$/);
  }finally{globalThis.fetch=oldFetch;if(oldToken===undefined)delete process.env.PRINTFUL_PRIVATE_TOKEN;else process.env.PRINTFUL_PRIVATE_TOKEN=oldToken;}
+});
+
+test('sync retry preserves existing configured files, options and prices and rejects configuration drift',async()=>{
+ const {readSyncConfiguration}=await import('../lib/warlock-commerce/printful-sync-configuration.ts');
+ const m=structuredClone(manifest),{deps,calls}=dependencies();
+ const snapshots=new Map(m.variants.map((v,n)=>[301+n,{result:{sync_variant:{id:301+n,sync_product_id:101,synced:true,variant_id:v.printfulVariantId,options:[],files:[{id:81,type:'back',status:'ok',options:[]},{id:82,type:'sleeve_right',status:'ok',options:[],url:'https://private.example/secret'}]}}}]));
+ m.variants.forEach((v,n)=>v.productionQuoteJson=JSON.stringify({configurationKind:'CONFIGURED_SYNC',syncVariantId:301+n,configurationFingerprint:readSyncConfiguration(snapshots.get(301+n),301+n,v.printfulVariantId,101).fingerprint}));
+ const request=deps.request;deps.request=async(path,...args)=>path.startsWith('/sync/variant/')?(calls.push({kind:'configured-get',path}),snapshots.get(Number(path.split('/').at(-1)))):request(path,...args);
+ const result=await configureImportedPrintful(m,deps,{preserveStoreInventory:true});assert.equal(result.state,'SYNCED');assert.ok(!calls.some(c=>c.kind==='asset'||c.init?.method==='PUT'));assert.ok(!JSON.stringify(result).includes('private.example'));
+ snapshots.get(301).result.sync_variant.files[0].id=999;assert.equal((await configureImportedPrintful(m,deps)).errorCode,'printful_saved_configuration_changed');
+ m.variants[0].productionQuoteJson=null;assert.equal((await configureImportedPrintful(m,deps)).state,'BLOCKED');
 });

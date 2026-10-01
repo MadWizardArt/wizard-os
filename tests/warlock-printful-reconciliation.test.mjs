@@ -14,7 +14,7 @@ function fixture(){
  const deps={etsyRead:async path=>{calls.push({kind:'etsy-get',path});return structuredClone(path.includes('inventory')?inventory:listing);},
  supplier:async m=>{calls.push({kind:'supplier',m});return {pass:true,errors:[],variants:[{variantId:'v1',pass:true,quote}]};},
  verifyMaster:async()=>calls.push({kind:'verify'}),
- sync:{request:async(path,store,init={})=>{calls.push({kind:'printful',path,store,init});return init.method==='PUT'?{result:{}}:{result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:[{id:301,external_id:'2001',sku:'SM-1'}]}};},
+ sync:{request:async(path,store,init={})=>{calls.push({kind:'printful',path,store,init});return init.method==='PUT'?{result:{}}:path.startsWith('/sync/variant/')?{result:{sync_variant:{id:301,sync_product_id:101,synced:false,files:[]}}}:{result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:[{id:301,external_id:'2001',sku:'SM-1'}]}};},
  temporaryAsset:async()=>({url:'https://signed.example/art.png'}),saveListing:async(id,data)=>calls.push({kind:'listing-save',id,data}),saveVariant:async(id,data)=>calls.push({kind:'variant-save',id,data})}};
  return {deps,calls,listing,inventory,quote};
 }

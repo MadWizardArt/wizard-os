@@ -28,10 +28,10 @@ export async function runPrintfulSupplierPreflight(manifest:WarlockProductManife
         printfulVariantId:variant.printfulVariantId,printfulStoreId:variant.printfulStoreId,catalogVariantExists:false,
         catalogProductMatches:false,storeAccessible:false,availability:"unknown",pass:false};
       try{
-        const quote=await quotePrintfulVariant({storeId:variant.printfulStoreId,productId:variant.printfulProductId,catalogVariantId:variant.printfulVariantId},fresh);
+        const quote=await quotePrintfulVariant({storeId:variant.printfulStoreId,productId:variant.printfulProductId,catalogVariantId:variant.printfulVariantId,...(variant.printfulSyncVariantId ? {syncVariantId:variant.printfulSyncVariantId} : {})},fresh);
         if(variant.productionQuoteJson){
           const old=JSON.parse(variant.productionQuoteJson) as PrintfulQuote;
-          if(old.catalogProductId!==quote.catalogProductId || old.catalogVariantId!==quote.catalogVariantId || old.storeId!==quote.storeId || old.technique!==quote.technique || old.fileType!==quote.fileType || old.placement!==quote.placement) throw new Error("printful_saved_configuration_changed");
+          if(old.catalogProductId!==quote.catalogProductId || old.catalogVariantId!==quote.catalogVariantId || old.storeId!==quote.storeId || old.technique!==quote.technique || (quote.configurationKind!=="CONFIGURED_SYNC" && (old.fileType!==quote.fileType || old.placement!==quote.placement)) || (old.configurationKind==="CONFIGURED_SYNC" && (quote.configurationKind!=="CONFIGURED_SYNC" || old.configurationFingerprint!==quote.configurationFingerprint || old.syncVariantId!==quote.syncVariantId))) throw new Error("printful_saved_configuration_changed");
         }
         Object.assign(check,{quote,catalogVariantExists:true,catalogProductMatches:true,storeAccessible:true,availability:quote.availability,pass:quote.availability==="in_stock"});
         if(!check.pass)result.errors.push("printful_variant_unavailable:"+variant.id);

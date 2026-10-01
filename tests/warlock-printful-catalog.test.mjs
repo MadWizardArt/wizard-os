@@ -75,3 +75,49 @@ test('only discovery caches results, isolated by token and store',async()=>{
   process.env.PRINTFUL_PRIVATE_TOKEN='catalog-cache-fixture-other';await searchPrintfulCatalog({query:'shirt',storeId:99});assert.equal(requests,4);
  }finally{globalThis.fetch=oldFetch;if(oldToken===undefined)delete process.env.PRINTFUL_PRIVATE_TOKEN;else process.env.PRINTFUL_PRIVATE_TOKEN=oldToken;}
 });
+
+function configuredFixtures({base='20.00',sleeve='3.25',options=[],files,order,defaultTechnique='dtg'}={}) {
+ const baseFixture=fixtures({cost:base,technique:defaultTechnique});
+ const sync={id:5000000001,sync_product_id:4000000001,synced:true,variant_id:4011,options,files:files ?? [{id:81,type:'back',status:'ok',options:[]},{id:82,type:'sleeve_right',status:'ok',options:[]}]};
+ const get=async(path,store)=>{
+  if(path.startsWith('/sync/variant/'))return {result:{sync_variant:sync}};
+  if(path==='/v2/catalog-products/71')return {data:{id:71,placements:order ?? ['front','back','sleeve_right'].map(placement=>({placement,technique:'dtg'}))}};
+  const response=await baseFixture.get(path,store);
+  if(path==='/products/variant/4011')response.result.product.files.push({id:'back',type:'back',additional_price:'5.00'},{id:'sleeve_right',type:'sleeve_right',additional_price:'3.25'});
+  if(path.includes('/prices'))response.data.product.placements.push(...['back','sleeve_right'].map(id=>({id,technique_key:'dtg',price:id==='back'?'5.00':sleeve,discounted_price:id==='back'?'5.00':sleeve,layers:[{type:'file',additional_price:'0.00'}]})));
+  if(path.includes('/prices'))Object.assign(response.data.product.placements[0],{price:'5.00',discounted_price:'5.00'});
+  return response;
+ };return {get,sync};
+}
+const configuredSelection={...selection,syncVariantId:5000000001};
+test('configured back and sleeve quote includes live extra placement fees once, without frozen supplier prices',async()=>{
+ const a=await quotePrintfulVariant(configuredSelection,configuredFixtures().get);
+ assert.equal(a.productionBaseCents,2325);assert.equal(a.configurationKind,'CONFIGURED_SYNC');assert.equal(a.includedPlacementCents,500);assert.deepEqual(a.placements.map(p=>p.placement),['back','sleeve_right']);assert.ok(!a.exclusions.includes('Additional placements and options'));
+ const b=await quotePrintfulVariant(configuredSelection,configuredFixtures({base:'22.00',sleeve:'4.00'}).get);assert.equal(b.productionBaseCents,2600);assert.equal(a.configurationFingerprint,b.configurationFingerprint);
+ // First selected placement follows catalog ordering, not the order of files.
+ const c=await quotePrintfulVariant(configuredSelection,configuredFixtures({order:['front','sleeve_right','back'].map(placement=>({placement,technique:'dtg'}))}).get);assert.equal(c.productionBaseCents,2500);
+});
+test('configured single default non-DTG products retain supported base pricing',async()=>{
+ const q=await quotePrintfulVariant(configuredSelection,configuredFixtures({defaultTechnique:'digital',files:[{id:81,type:'default',status:'ok',options:[]}]}).get);
+ assert.equal(q.productionBaseCents,2000);assert.equal(q.configurationKind,'CONFIGURED_SYNC');
+});
+test('configuration options, unknown placements, malformed/foreign sync identities block refresh without modifying saved costs',async()=>{
+ for(const change of [f=>f.sync.options=[{id:'paid-option',value:true}],f=>f.sync.files[0].type='inside_label',f=>f.sync.id=99,f=>f.sync.variant_id=123,f=>f.sync.files[0].status='failed',f=>f.sync.synced=false]){
+  const f=configuredFixtures();change(f);await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),/printful_/);
+  const v={...canonical,printfulSyncVariantId:5000000001,productionBaseCents:3048};assert.equal((await runPrintfulSupplierPreflight({variants:[v]},f.get)).pass,false);assert.equal(v.productionBaseCents,3048);
+ }
+});
+test('preflight upgrades a default snapshot to configured placement pricing and blocks configured drift or removal',async()=>{
+ const old=await quotePrintfulVariant(selection,fixtures().get),f=configuredFixtures();
+ const v={...canonical,printfulSyncVariantId:5000000001,productionQuoteJson:JSON.stringify(old)};
+ const fresh=await runPrintfulSupplierPreflight({variants:[v]},f.get);assert.equal(fresh.pass,true);assert.equal(withLivePrintfulQuotes({variants:[v]},fresh).variants[0].productionBaseCents,2325);
+ v.productionQuoteJson=JSON.stringify(fresh.variants[0].quote);f.sync.files[0].id=90;assert.equal((await runPrintfulSupplierPreflight({variants:[v]},f.get)).pass,false);
+ f.sync.files=[];f.sync.synced=false;assert.equal((await runPrintfulSupplierPreflight({variants:[v]},f.get)).pass,false);
+});
+test('explicit configure refresh quotes the stored large sync ID and saves full cost without changing retail',async()=>{
+ let saved;const before={...canonical,printfulSyncVariantId:'5000000001'};
+ const db={spellmarkVariant:{findFirst:async()=>before,updateMany:async args=>{saved=args;return {count:1};}}};
+ const q=async input=>{assert.equal(input.syncVariantId,5000000001);return quotePrintfulVariant(input,configuredFixtures().get);};
+ await configurePrintfulVariant({productId:'p1',variantId:'v1',catalogProductId:71,catalogVariantId:4011,storeId:99},db,q);
+ assert.equal(saved.data.productionBaseCents,2325);assert.equal(saved.where.printfulSyncVariantId,'5000000001');assert.ok(!('retailPriceCents' in saved.data));
+});
