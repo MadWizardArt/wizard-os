@@ -59,7 +59,7 @@ export default function ArtistGate({ children }: { children: React.ReactNode }) 
     }
   }
 
-  if (session?.authenticated) return children;
+  if (session?.authenticated && session.passwordConfigured) return children;
 
   return (
     <main className={styles.screen}>

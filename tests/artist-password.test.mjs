@@ -20,6 +20,7 @@ test("Artist Gate supports one-time setup and remembered sessions", () => {
   const route = source("app/api/museum/artist-session/route.ts");
   assert.match(gate, /setupPassword: true/);
   assert.match(gate, /Remember this device for 30 days/);
+  assert.match(gate, /session\?\.authenticated && session\.passwordConfigured/);
   assert.match(route, /verifyArtistPassword/);
   assert.match(route, /body\.remember === true/);
 });
