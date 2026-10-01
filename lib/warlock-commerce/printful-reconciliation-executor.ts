@@ -1,3 +1,4 @@
+import { printfulSyncPersistence } from "./printful-sync-persistence.ts";
 import { prisma } from "../prisma";
 import { getWarlockEtsyOperatorContext } from "../warlock-auth";
 import { findWarlockProduct } from "../warlock-mcp/repository";
@@ -20,8 +21,7 @@ export async function reconcilePrintfulProduct(productId: string) {
     verifyMaster: asset => verifyIntakeAsset({ ...asset, productId }),
     sync: {
       request: printfulSyncRequest, temporaryAsset: createTemporaryPrintfulAssetUrl,
-      saveListing: (id, data) => prisma.spellmarkListing.update({ where: { id }, data }),
-      saveVariant: (id, data) => prisma.spellmarkVariant.update({ where: { id }, data }),
+      ...printfulSyncPersistence(prisma),
     },
   });
 }

@@ -17,6 +17,10 @@ try {
  // Missing/foreign assets roll back the preceding pricing and listing changes.
  const failed=await fetch(`${base}/api/warlock/intake`,{method:'POST',headers,body:JSON.stringify({...completion,listing:{...completion.listing,price:12},assets:[{role:'hero',assetId:'foreign'}]})});assert.equal(failed.status,400);
  const unchanged=await pool.query('SELECT "retailPriceCents" FROM "SpellmarkVariant" WHERE "productId"=$1',[first.productId]);assert.equal(unchanged.rows[0].retailPriceCents,900);
+ // Opaque supplier sync IDs larger than int32 survive the real DB and MCP repository.
+ await pool.query('UPDATE "SpellmarkVariant" SET "printfulSyncVariantId"=$1 WHERE id=$2',['5000000001',variants.rows[0].id]);
+ await pool.query('UPDATE "SpellmarkListing" SET "printfulSyncProductId"=$1 WHERE id=$2',['4000000001',listings.rows[0].id]);
+ const stored=await pool.query('SELECT "printfulSyncVariantId" FROM "SpellmarkVariant" WHERE id=$1',[variants.rows[0].id]);assert.equal(stored.rows[0].printfulSyncVariantId,'5000000001');
  // Dated quote provenance survives the real DB and canonical MCP repository.
  const quote={source:'Printful Catalog API v2',currency:'USD',sellingRegion:'north_america',quotedAt:new Date().toISOString(),productionBaseCents:1234};
  await pool.query('UPDATE "SpellmarkVariant" SET "productionQuoteJson"=$1 WHERE id=$2',[JSON.stringify(quote),variants.rows[0].id]);
@@ -26,5 +30,7 @@ try {
  const canonical=rpc.result.structuredContent.product;
  assert.deepEqual(JSON.parse(canonical.variants[0].productionQuoteJson),quote);
  assert.equal(canonical.variants[0].retailPriceCents,900);
+ assert.equal(canonical.variants[0].printfulSyncVariantId,5000000001);
+ assert.equal(canonical.listings[0].printfulSyncProductId,4000000001);
  console.log('Intake database integration: canonical completion, concurrent retry, persistence, authorization and rollback passed.');
 } finally {await pool.query('DELETE FROM "SpellmarkProduct" WHERE title=$1',[title]);await pool.end();}

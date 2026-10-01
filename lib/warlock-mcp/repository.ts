@@ -1,3 +1,4 @@
+import { exposedSyncId } from "../warlock-commerce/sync-id-storage.ts";
 import { prisma } from "../prisma";
 import type { WarlockProductManifest } from "./manifest";
 
@@ -93,10 +94,11 @@ const selection = {
 
 export async function findWarlockProduct(selector: WarlockProductSelector): Promise<WarlockProductManifest | null> {
   if (selector.productId) {
-    return prisma.spellmarkProduct.findUnique({
+    const product = await prisma.spellmarkProduct.findUnique({
       where: { id: selector.productId },
       select: selection,
-    }) as Promise<WarlockProductManifest | null>;
+    });
+    return product ? exposeSyncIds(product) : null;
   }
 
   if (!selector.title) return null;
@@ -106,5 +108,15 @@ export async function findWarlockProduct(selector: WarlockProductSelector): Prom
     take: 2,
   });
   if (matches.length > 1) throw new Error("warlock_product_title_ambiguous");
-  return (matches[0] ?? null) as WarlockProductManifest | null;
+  return matches[0] ? exposeSyncIds(matches[0]) : null;
+}
+
+function exposeSyncIds(product: Omit<WarlockProductManifest, "variants" | "listings"> & {
+  variants: Array<Omit<WarlockProductManifest["variants"][number], "printfulSyncVariantId"> & { printfulSyncVariantId: string | null }>;
+  listings: Array<Omit<WarlockProductManifest["listings"][number], "printfulSyncProductId"> & { printfulSyncProductId: string | null }>;
+}): WarlockProductManifest {
+  return { ...product,
+    variants: product.variants.map(v => ({ ...v, printfulSyncVariantId: exposedSyncId(v.printfulSyncVariantId) })),
+    listings: product.listings.map(l => ({ ...l, printfulSyncProductId: exposedSyncId(l.printfulSyncProductId) })),
+  };
 }

@@ -222,3 +222,19 @@ Etsy state, uploads listing assets, creates duplicate listings, or handles order
 Results are `RECONCILED`, `AWAITING_PRINTFUL_IMPORT`, or `BLOCKED` with detailed
 Printful mapping/API progress. Repeated confirmed reconciliation can resume partial
 configuration; success means supplier configuration completed, not publishing.
+
+### Sync ID storage and failure diagnostics
+
+Printful sync product/variant IDs are stored as opaque decimal text so IDs above
+2,147,483,647 cannot overflow signed PostgreSQL INTEGER columns. The migration
+casts existing values without deleting records or indexes. Catalog/store IDs
+are unaffected. The MCP repository preserves its numeric contract only for
+positive JavaScript-safe integers; unsafe values are rejected rather than rounded.
+
+The shared draft/reconciliation sync service returns `diagnostic.stage`, canonical
+`variantId` where relevant, and a sanitized `causeCode` for product-ID persistence,
+variant-ID persistence, master signing, live quote checks, supplier configuration,
+and final completion persistence. Database errors expose only Prisma codes, never
+connection strings or raw exception bodies. Printful rejection messages are
+returned with credentials and signed URLs redacted. Partial configured variant
+IDs and imported identity are retained in the report so retries are reviewable.
