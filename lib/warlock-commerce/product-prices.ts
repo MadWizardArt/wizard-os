@@ -18,6 +18,7 @@ export async function updateProductPrices(raw:unknown, db:PrismaClient){
   const input=schema.parse(raw);
   if(new Set(input.prices.map(p=>p.variantId)).size!==input.prices.length) throw new Error("duplicate_price_variant");
   const prices=await db.$transaction(async tx=>{
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"warlock-product-prices:"+input.productId}))::text`;
     const variants=await tx.spellmarkVariant.findMany({where:{productId:input.productId,id:{in:input.prices.map(p=>p.variantId)}}});
     if(variants.length!==input.prices.length) throw new Error("price_variant_not_owned_by_product");
     // Validate the whole batch before writing. A replay of the same target is a no-op.
@@ -40,7 +41,7 @@ export async function updateProductPrices(raw:unknown, db:PrismaClient){
     return result;
   },{isolationLevel:"Serializable"});
   return {productId:input.productId,state:"CANONICAL_PRICES_SAVED",prices,etsyMutated:false,printfulMutated:false,
-    nextAction:"Warlock retail prices are saved. Re-evaluate margins with current supplier quotes. Etsy and Printful retail prices are unchanged; verify and edit Etsy prices separately. For active listings, do not rerun intake or draft execution to change prices."};
+    nextAction:"Warlock retail prices are saved. Re-evaluate margins with current supplier quotes. Etsy and Printful retail prices are unchanged; use inspect_etsy_variant_prices and the separately confirmed update_etsy_variant_prices tool to apply and verify the approved live prices. For active listings, do not rerun intake or draft execution to change prices."};
 }
 export function safeProductPriceError(error:unknown){
   if(error && typeof error==="object" && "code" in error && error.code==="P2034") return "retail_price_changed_retry";

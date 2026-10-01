@@ -92,9 +92,9 @@ const selection = {
   },
 } as const;
 
-export async function findWarlockProduct(selector: WarlockProductSelector): Promise<WarlockProductManifest | null> {
+export async function findWarlockProduct(selector: WarlockProductSelector, db: Pick<typeof prisma, "spellmarkProduct"> = prisma): Promise<WarlockProductManifest | null> {
   if (selector.productId) {
-    const product = await prisma.spellmarkProduct.findUnique({
+    const product = await db.spellmarkProduct.findUnique({
       where: { id: selector.productId },
       select: selection,
     });
@@ -102,7 +102,7 @@ export async function findWarlockProduct(selector: WarlockProductSelector): Prom
   }
 
   if (!selector.title) return null;
-  const matches = await prisma.spellmarkProduct.findMany({
+  const matches = await db.spellmarkProduct.findMany({
     where: { title: selector.title },
     select: selection,
     take: 2,
