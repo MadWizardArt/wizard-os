@@ -480,7 +480,7 @@ model SpellmarkVariant {
   etsyListingId       String?
   etsySku             String?
   etsyProductId       String?
-  printfulSyncVariantId Int?
+  printfulSyncVariantId String?
   retailPriceCents    Int?
   productionBaseCents Int?
   productionQuotedAt  DateTime?
@@ -514,7 +514,7 @@ model SpellmarkListing {
   isSupply         Boolean              @default(false)
   shouldAutoRenew  Boolean              @default(true)
   etsyListingId    String?
-  printfulSyncProductId Int?
+  printfulSyncProductId String?
   lastDraftSyncAt  DateTime?
   status           String               @default("CONFIG")
   createdAt        DateTime             @default(now())

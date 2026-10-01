@@ -3,7 +3,7 @@ import { inspectPrintfulImport, syncErrorCode } from "./printful-import.ts";
 import type { PrintfulImportStatus, SyncRequest } from "./printful-import.ts";
 import { etsySkuForVariant } from "./etsy-inventory.ts";
 
-export type PrintfulSyncResult = Omit<PrintfulImportStatus, "state"> & { state: PrintfulImportStatus["state"] | "SYNCED"; configuredVariantIds?: string[] };
+export type PrintfulSyncResult = Omit<PrintfulImportStatus, "state"> & { state: PrintfulImportStatus["state"] | "SYNCED"; configuredVariantIds?: string[]; diagnostic?: { stage: string; variantId?: string; causeCode: string; providerMessage?: string } };
 export type SyncDependencies = {
   request: SyncRequest;
   temporaryAsset: (asset: WarlockManifestAsset) => Promise<{ url: string }>;
@@ -15,42 +15,64 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
   const imported = await inspectPrintfulImport(manifest, deps.request);
   if (imported.state === "SKIPPED" || imported.state === "BLOCKED" || imported.state === "PRINTFUL_API_ERROR") return imported;
   const listing = manifest.listings.find(l => l.fulfillment === "PHYSICAL")!;
-  if (imported.state === "AWAITING_PRINTFUL_IMPORT") {
-    await deps.saveListing(listing.id, { status: "WAITING_PRINTFUL" });
-    return imported;
-  }
-  // Save imported identity before remote configuration so partial failures are resumable.
-  await deps.saveListing(listing.id, { printfulSyncProductId: imported.printfulSyncProductId, status: imported.state === "VARIANT_MAPPING_FAILED" ? "PRINTFUL_MAPPING_FAILED" : "WAITING_PRINTFUL" });
-  for (const mapped of imported.variants) {
-    const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
-    await deps.saveVariant(variant.id, { printfulSyncVariantId: mapped.printfulSyncVariantId, etsySku: etsySkuForVariant(variant) });
-  }
-  if (imported.state === "VARIANT_MAPPING_FAILED") return imported;
-  const master = manifest.assets.find(a => a.role === "master");
-  if (!master) return { ...imported, state: "BLOCKED", errorCode: "master_missing", nextAction: "Attach the approved master file before configuration." };
-  // Validate the complete set before configuring any remote edition.
-  if (imported.variants.some(mapped => {
-    const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
-    return !variant.printfulVariantId || !variant.retailPriceCents;
-  })) return { ...imported, state: "BLOCKED", errorCode: "printful_variant_configuration_missing", nextAction: "Complete approved catalog mappings and retail prices, then retry." };
+  let stage = "SAVE_SYNC_PRODUCT";
+  let variantId: string | undefined;
   const configuredVariantIds: string[] = [];
-  for (const mapped of imported.variants) {
-    const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
-    const temporary = await deps.temporaryAsset(master);
-    try {
-      options.beforeConfigure?.();
-      await deps.request("/sync/variant/" + mapped.printfulSyncVariantId, imported.storeId!, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant_id: variant.printfulVariantId,
-          ...(options.preserveStoreInventory ? {} : { retail_price: (variant.retailPriceCents! / 100).toFixed(2), sku: etsySkuForVariant(variant) }),
-          is_ignored: false,
-          files: [{ type: "default", url: temporary.url, filename: master.fileName, visible: true }] }),
-      });
-    } catch (error) {
-      return { ...imported, state: error instanceof Error && error.message === "live_production_quote_expired" ? "BLOCKED" : "PRINTFUL_API_ERROR", checkedAt: new Date().toISOString(), errorCode: error instanceof Error && error.message === "live_production_quote_expired" ? error.message : syncErrorCode(error), configuredVariantIds, nextAction: options.preserveStoreInventory ? "The imported IDs and active Etsy listing are preserved. Resolve the blocker and retry reconcile_printful_product." : "The imported IDs and Etsy draft are saved. Resolve the Printful API error and retry confirmed execution to finish configuration." };
+  try {
+    if (imported.state === "AWAITING_PRINTFUL_IMPORT") {
+      stage = "SAVE_IMPORT_WAIT";
+      await deps.saveListing(listing.id, { status: "WAITING_PRINTFUL" });
+      return imported;
     }
-    configuredVariantIds.push(variant.id);
+    // Save imported identity before remote configuration so partial failures are resumable.
+    await deps.saveListing(listing.id, { printfulSyncProductId: imported.printfulSyncProductId, status: imported.state === "VARIANT_MAPPING_FAILED" ? "PRINTFUL_MAPPING_FAILED" : "WAITING_PRINTFUL" });
+    for (const mapped of imported.variants) {
+      const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
+      stage = "SAVE_SYNC_VARIANT"; variantId = variant.id;
+      await deps.saveVariant(variant.id, { printfulSyncVariantId: mapped.printfulSyncVariantId, etsySku: etsySkuForVariant(variant) });
+    }
+    if (imported.state === "VARIANT_MAPPING_FAILED") return imported;
+    const master = manifest.assets.find(a => a.role === "master");
+    if (!master) return { ...imported, state: "BLOCKED", errorCode: "master_missing", nextAction: "Attach the approved master file before configuration." };
+    // Validate the complete set before configuring any remote edition.
+    if (imported.variants.some(mapped => {
+      const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
+      return !variant.printfulVariantId || !variant.retailPriceCents;
+    })) return { ...imported, state: "BLOCKED", errorCode: "printful_variant_configuration_missing", nextAction: "Complete approved catalog mappings and retail prices, then retry." };
+    for (const mapped of imported.variants) {
+      const variant = manifest.variants.find(v => v.id === mapped.variantId)!;
+      variantId = variant.id;
+      stage = "SIGN_MASTER_ASSET";
+      const temporary = await deps.temporaryAsset(master);
+      stage = "VERIFY_LIVE_QUOTE";
+      options.beforeConfigure?.();
+      stage = "CONFIGURE_SYNC_VARIANT";
+      await deps.request("/sync/variant/" + mapped.printfulSyncVariantId, imported.storeId!, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ variant_id: variant.printfulVariantId,
+            ...(options.preserveStoreInventory ? {} : { retail_price: (variant.retailPriceCents! / 100).toFixed(2), sku: etsySkuForVariant(variant) }),
+            is_ignored: false,
+            files: [{ type: "default", url: temporary.url, filename: master.fileName, visible: true }] }),
+        });
+      configuredVariantIds.push(variant.id);
+    }
+    stage = "SAVE_SYNC_COMPLETION"; variantId = undefined;
+    await deps.saveListing(listing.id, { printfulSyncProductId: imported.printfulSyncProductId, status: "SYNCED", lastDraftSyncAt: new Date() });
+    return { ...imported, state: "SYNCED", configuredVariantIds, nextAction: "Review the Etsy draft and Printful configuration. Publish manually only when approved." };
+  } catch (error) {
+    const row = error && typeof error === "object" ? error as { code?: unknown; name?: unknown; providerMessage?: unknown } : {};
+    const causeCode = typeof row.code === "string" && /^P\d{4}$/.test(row.code) ? "prisma_" + row.code
+      : row.name === "PrismaClientValidationError" ? "database_validation_failed"
+      : error instanceof Error && error.message === "live_production_quote_expired" ? error.message : syncErrorCode(error);
+    const code = stage === "SAVE_IMPORT_WAIT" ? "printful_import_wait_persistence_failed"
+      : stage === "SAVE_SYNC_PRODUCT" ? "printful_sync_product_persistence_failed"
+      : stage === "SAVE_SYNC_VARIANT" ? "printful_sync_variant_persistence_failed"
+      : stage === "SAVE_SYNC_COMPLETION" ? "printful_sync_completion_persistence_failed"
+      : stage === "SIGN_MASTER_ASSET" ? "printful_asset_signing_failed"
+      : stage === "VERIFY_LIVE_QUOTE" ? causeCode : syncErrorCode(error);
+    return { ...imported, state: stage === "CONFIGURE_SYNC_VARIANT" ? "PRINTFUL_API_ERROR" : "BLOCKED",
+      checkedAt: new Date().toISOString(), errorCode: code, configuredVariantIds,
+      diagnostic: { stage, variantId, causeCode, ...(stage === "CONFIGURE_SYNC_VARIANT" && typeof row.providerMessage === "string" ? { providerMessage: row.providerMessage } : {}) },
+      nextAction: options.preserveStoreInventory ? "The active Etsy listing is preserved. Resolve the reported stage/cause and retry reconcile_printful_product." : "The Etsy draft is preserved. Resolve the reported stage/cause and retry confirmed execution." };
   }
-  await deps.saveListing(listing.id, { printfulSyncProductId: imported.printfulSyncProductId, status: "SYNCED", lastDraftSyncAt: new Date() });
-  return { ...imported, state: "SYNCED", configuredVariantIds, nextAction: "Review the Etsy draft and Printful configuration. Publish manually only when approved." };
 }

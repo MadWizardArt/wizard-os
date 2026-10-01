@@ -40,7 +40,17 @@ export const printfulSyncRequest: SyncRequest = async (path, storeId, init = {},
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15_000),
   });
   if (allow404 && response.status === 404) return null;
-  if (!response.ok) throw new Error("printful_http_" + response.status);
+  if (!response.ok) {
+    const payload = object(await response.json().catch(() => null));
+    const upstream = object(payload?.error);
+    const raw = upstream?.message ?? payload?.result;
+    const providerMessage = typeof raw === "string" ? raw.split(token).join("[redacted]")
+      .replace(/https?:\/\/[^\s"'<>]+/g, "[redacted URL]")
+      .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+      .replace(/\b(authorization|token|secret|signature)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+      .replace(/[\r\n]+/g, " ").slice(0, 240) : undefined;
+    throw Object.assign(new Error("printful_http_" + response.status), { providerMessage });
+  }
   const payload = object(await response.json().catch(() => null));
   if (!payload) throw new Error("printful_invalid_response");
   return payload;

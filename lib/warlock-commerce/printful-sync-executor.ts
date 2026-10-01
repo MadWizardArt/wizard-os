@@ -1,3 +1,4 @@
+import { printfulSyncPersistence } from "./printful-sync-persistence.ts";
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 import { prisma } from "../prisma";
 import { createTemporaryPrintfulAssetUrl } from "./asset-delivery.ts";
@@ -11,7 +12,6 @@ export async function syncPhysicalListingToPrintful(manifest: WarlockProductMani
   return configureImportedPrintful(manifest, {
     request: printfulSyncRequest,
     temporaryAsset: createTemporaryPrintfulAssetUrl,
-    saveListing: (id, data) => prisma.spellmarkListing.update({ where: { id }, data }),
-    saveVariant: (id, data) => prisma.spellmarkVariant.update({ where: { id }, data }),
+    ...printfulSyncPersistence(prisma),
   });
 }
