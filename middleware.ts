@@ -16,6 +16,11 @@ const INDEPENDENTLY_AUTHENTICATED_PREFIXES = [
 ];
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const ORIGIN_EXEMPT_MUTATIONS = new Set([
+  // OAuth consent has its own operator-key, client, redirect, state, and PKCE
+  // validation and may sit behind a connector-facing reverse proxy.
+  "/api/warlock/oauth/authorize",
+]);
 
 function hasIndependentAuthentication(pathname: string) {
   return INDEPENDENTLY_AUTHENTICATED_PREFIXES.some(
@@ -29,7 +34,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!READ_METHODS.has(request.method) && !isSameOrigin(request)) {
+  if (
+    !READ_METHODS.has(request.method)
+    && !ORIGIN_EXEMPT_MUTATIONS.has(pathname)
+    && !isSameOrigin(request)
+  ) {
     return NextResponse.json(
       { error: "Same-origin Artist action required." },
       { status: 403, headers: { "Cache-Control": "no-store" } },
