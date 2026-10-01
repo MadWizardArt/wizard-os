@@ -81,7 +81,7 @@ test('Printful nullable SKU is accepted with exact saved sync, parent listing, c
 test('real configured supplier preflight permits DTG defaults and preserves them through verified live price writes',async()=>{
  const f=fixture();
  for(const payload of f.printful.values()){
-  payload.result.sync_variant.options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]}];
+  payload.result.sync_variant.options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]},{id:'text_thread_colors_chest_left',value:[]}];
   payload.result.sync_variant.files[0].options=[{id:'auto_thread_color',value:true}];
  }
  const supplierGet=async(path)=>{
