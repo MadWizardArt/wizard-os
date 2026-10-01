@@ -267,3 +267,30 @@ For the already synced Night Herbarium sweatshirt, refresh each existing edition
 `configure_printful_variant` with its unchanged catalog/store selection, then evaluate
 margins. This saves current configured costs; do not restore screenshot prices as constants.
 Live configured charges still exclude shipping, taxes and order-specific fees.
+
+
+### Confirmed retail edits after draft execution
+
+Warlock MCP v0.6.0 advertises 18 tools, including `update_product_prices`. Product
+intake remains locked after external execution; it must not be used to re-create or
+amend an executed product just to change retail prices.
+
+1. Call `get_product` and select the canonical product and exact variant IDs.
+2. Call `update_product_prices` with `productId`, `confirmPrices: true`, and a `prices`
+   array. Each entry requires `variantId`, `expectedRetailPriceCents` (the current
+   saved cents, or null when unset), and the approved positive `retailPriceCents`.
+3. All selected prices are saved together in a serializable transaction. Stale
+   prices, foreign variants or unsupported currency block the entire batch. Exact
+   retries are no-ops. Only retail-price fields change; supplier quotes, files,
+   sync IDs, listings and listing status are preserved.
+4. Re-evaluate margins using the configured live supplier costs. The result reports
+   `CANONICAL_PRICES_SAVED`, `etsyMutated: false` and `printfulMutated: false`.
+   Existing Etsy/Printful retail prices are unchanged. Verify/edit the Etsy prices
+   separately; an active listing must not go through draft execution to change prices.
+   Reconciliation continues to require canonical and live Etsy prices to agree.
+
+For Night Herbarium, the approved 2XL and 3XL retail target of $57.44 is submitted as
+5744 cents for each corresponding variant. This example is user-approved retail,
+not a hardwired supplier price or a claim that production records have been updated.
+No new environment variable is needed. Refresh the connector's tool list if the
+Business session still advertises 17 tools; the new count is 18.
