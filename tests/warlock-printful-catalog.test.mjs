@@ -113,7 +113,7 @@ test('inactive DTG embroidery defaults retain fingerprints while back and sleeve
  b.sync.options[1].value=['#FFFFFF'];assert.equal((await runPrintfulSupplierPreflight({variants:[v]},b.get)).pass,false);
 });
 test('unknown, paid, malformed, misplaced and active embroidery options fail with bounded option diagnostics',async()=>{
- for(const options of [[{id:'inside_pocket',value:true}],[{id:'embroidery_type',value:'3d'}],[{id:'notes',value:'Please edit the artwork'}],[{id:'thread_colors',value:['not a color']}],[{id:'full_color',value:false}],[{id:'notes',value:''},{id:'notes',value:''}],{id:'notes',value:''}]){
+ for(const options of [[{id:'inside_pocket',value:true}],[{id:'text_thread_colors_custom',value:[]}],[{id:'embroidery_type',value:'3d'}],[{id:'notes',value:'Please edit the artwork'}],[{id:'thread_colors',value:['not a color']}],[{id:'full_color',value:false}],[{id:'notes',value:''},{id:'notes',value:''}],{id:'notes',value:''}]){
   await assert.rejects(quotePrintfulVariant(configuredSelection,configuredFixtures({options}).get),/printful_configured_(?:product_option_quote_unsupported_[a-z_]+|options_malformed)/);
  }
  const f=configuredFixtures();f.sync.files[0].options=[{id:'full_color',value:true}];await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),/printful_configured_file_option_quote_unsupported_full_color/);
@@ -139,4 +139,13 @@ test('explicit configure refresh quotes the stored large sync ID and saves full 
  const q=async input=>{assert.equal(input.syncVariantId,5000000001);return quotePrintfulVariant(input,configuredFixtures().get);};
  await configurePrintfulVariant({productId:'p1',variantId:'v1',catalogProductId:71,catalogVariantId:4011,storeId:99},db,q);
  assert.equal(saved.data.productionBaseCents,2325);assert.equal(saved.where.printfulSyncVariantId,'5000000001');assert.ok(!('retailPriceCents' in saved.data));
+});
+
+test('all documented Printful text and ordinary palettes are inactive for back and right-sleeve DTG',async()=>{
+ // Independent option list from the official Common/Options tables.
+ const ids=['text_thread_colors', 'text_thread_colors_apparel', 'text_thread_colors_apparel_back', 'text_thread_colors_back', 'text_thread_colors_chest_center', 'text_thread_colors_chest_left', 'text_thread_colors_chest_top_left', 'text_thread_colors_corner_left', 'text_thread_colors_corner_right', 'text_thread_colors_inside_left', 'text_thread_colors_inside_right', 'text_thread_colors_large_center', 'text_thread_colors_large_corner_right', 'text_thread_colors_left', 'text_thread_colors_outside_left', 'text_thread_colors_outside_right', 'text_thread_colors_patch_front', 'text_thread_colors_right', 'text_thread_colors_sleeve_left_top', 'text_thread_colors_sleeve_right_top', 'text_thread_colors_wrist_left', 'text_thread_colors_wrist_right', 'thread_colors', 'thread_colors_3d', 'thread_colors_apparel', 'thread_colors_apparel_back', 'thread_colors_back', 'thread_colors_chest_center', 'thread_colors_chest_left', 'thread_colors_chest_top_left', 'thread_colors_corner_left', 'thread_colors_corner_right', 'thread_colors_inside_left', 'thread_colors_inside_right', 'thread_colors_large_center', 'thread_colors_large_corner_right', 'thread_colors_left', 'thread_colors_outline', 'thread_colors_outside_left', 'thread_colors_outside_right', 'thread_colors_patch_front', 'thread_colors_right', 'thread_colors_sleeve_left_top', 'thread_colors_sleeve_right_top', 'thread_colors_wrist_left', 'thread_colors_wrist_right'];
+ for(const value of [[],['#000000'],'#FFFFFF']){
+  const f=configuredFixtures({options:ids.map(id=>({id,value}))}),before=structuredClone(f.sync),q=await quotePrintfulVariant(configuredSelection,f.get);
+  assert.equal(q.productionBaseCents,2325);assert.deepEqual(q.inactiveOptionIds,ids.map(id=>'product:'+id).sort());assert.deepEqual(f.sync,before);
+ }
 });

@@ -38,7 +38,10 @@ export function readSyncConfiguration(payload: unknown, syncVariantId: number, c
 export function validateSyncPricingOptions(configuration: Extract<ReturnType<typeof readSyncConfiguration>, {configured:true}>, technique:string): string[] {
   const ignored=new Set<string>();
   const standardDtg=technique==="dtg" && configuration.fileTypes.every(type=>["default","front","back","sleeve_left","sleeve_right"].includes(type));
-  const threadIds=new Set(["thread_colors","thread_colors_back","thread_colors_right","thread_colors_left","thread_colors_apparel","thread_colors_apparel_back","thread_colors_chest_center","thread_colors_large_center","thread_colors_large_corner_right","thread_colors_chest_left","thread_colors_corner_left","thread_colors_chest_top_left","thread_colors_corner_right","thread_colors_outside_left","thread_colors_outside_right","thread_colors_inside_left","thread_colors_inside_right","thread_colors_patch_front","thread_colors_sleeve_left_top","thread_colors_sleeve_right_top","thread_colors_wrist_left","thread_colors_wrist_right","thread_colors_3d","text_thread_colors","text_thread_colors_back","text_thread_colors_right","text_thread_colors_left","text_thread_colors_apparel","text_thread_colors_apparel_back"]);
+  // Both documented palette tables share these placements. Keep them paired so
+  // imported text palettes cannot be omitted while their ordinary palette works.
+  const paletteSuffixes=["","_back","_right","_left","_apparel","_apparel_back","_chest_center","_large_center","_large_corner_right","_chest_left","_corner_left","_chest_top_left","_corner_right","_outside_left","_outside_right","_inside_left","_inside_right","_patch_front","_sleeve_left_top","_sleeve_right_top","_wrist_left","_wrist_right"];
+  const threadIds=new Set([...paletteSuffixes.flatMap(suffix=>["thread_colors"+suffix,"text_thread_colors"+suffix]),"thread_colors_3d","thread_colors_outline"]);
   for(const group of configuration.pricingOptions){
     if(!Array.isArray(group.options)) throw new Error("printful_configured_options_malformed");
     const seen=new Set<string>();
