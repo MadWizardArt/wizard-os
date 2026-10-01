@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {inspectLiveVariantPrices,updateLiveVariantPrices,safeLivePriceError} from '../lib/warlock-commerce/live-prices.ts';
 import {readSyncConfiguration} from '../lib/warlock-commerce/printful-sync-configuration.ts';
+import {runPrintfulSupplierPreflight} from '../lib/warlock-commerce/printful-preflight.ts';
 import {assertCommercePriceWritesEnabled,publishingEnabled} from '../lib/warlock-commerce/write-guard.ts';
 function fixture(){
  const calls=[],manifest={id:'p1',title:'Night Herbarium',description:'AI-assisted art',assets:[],listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819',printfulSyncProductId:101,status:'SYNCED',title:'Night Herbarium',description:'AI-assisted art',assets:[],taxonomyId:1,shippingProfileId:'1',readinessStateId:'18201076875'}],variants:[1,2,3].map(n=>({id:'v'+n,fulfillment:'PHYSICAL',label:['S','2XL','3XL'][n-1],etsyListingId:'4586039819',etsyProductId:String(2000+n),etsySku:'SM-'+n,printfulSyncVariantId:300+n,printfulProductId:71,printfulVariantId:4000+n,printfulStoreId:99,retailPriceCents:n===1?4000:5744,currency:'USD',productionBaseCents:2000,productionQuotedAt:new Date()}))};
@@ -75,4 +76,29 @@ test('active price capability is separately confirmed and publishing/draft guard
 test('Printful nullable SKU is accepted with exact saved sync, parent listing, catalog and external variant IDs',async()=>{
  const f=fixture();f.printful.get(302).result.sync_variant.sku=null;const raw=await request(f);
  assert.equal((await updateLiveVariantPrices(raw,123,f.deps)).state,'LIVE_PRICES_VERIFIED');
+});
+
+test('real configured supplier preflight permits DTG defaults and preserves them through verified live price writes',async()=>{
+ const f=fixture();
+ for(const payload of f.printful.values()){
+  payload.result.sync_variant.options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]}];
+  payload.result.sync_variant.files[0].options=[{id:'auto_thread_color',value:true}];
+ }
+ const supplierGet=async(path)=>{
+  if(path==='/stores')return {result:[{id:99}]};
+  if(path.startsWith('/sync/variant/'))return structuredClone(f.printful.get(Number(path.split('/').at(-1))));
+  if(path==='/v2/catalog-products/71')return {data:{id:71,placements:['front','back','sleeve_right'].map(placement=>({placement,technique:'dtg'}))}};
+  const id=Number(path.match(/(?:variant\/|catalog-variants\/)(\d+)/)[1]);
+  if(path.startsWith('/products/'))return {result:{variant:{id,product_id:71},product:{id:71,techniques:[{key:'dtg',is_default:true}],files:[{id:'default',type:'front',additional_price:null},{id:'back',type:'back'},{id:'sleeve_right',type:'sleeve_right'}]}}};
+  if(path.includes('/prices'))return {data:{currency:'USD',variant:{id,techniques:[{technique_key:'dtg',price:'20.00'}]},product:{id:71,placements:['front','back','sleeve_right'].map(id=>({id,technique_key:'dtg',price:id==='sleeve_right'?'3.25':'5.00',layers:[{type:'file',additional_price:'0.00'}]}))}}};
+  return {data:{techniques:[{technique:'dtg',selling_regions:[{name:'north_america',availability:'in stock'}]}]}};
+ };
+ f.deps.supplier=manifest=>runPrintfulSupplierPreflight(manifest,supplierGet);
+ const original=structuredClone(f.printful.get(302).result.sync_variant),raw=await request(f);
+ const result=await updateLiveVariantPrices(raw,123,f.deps);assert.equal(result.state,'LIVE_PRICES_VERIFIED');
+ const after=f.printful.get(302).result.sync_variant;assert.equal(after.retail_price,'57.44');assert.deepEqual(after.files,original.files);assert.deepEqual(after.options,original.options);
+ const blocked=fixture();blocked.printful.get(302).result.sync_variant.options=[{id:'inside_pocket',value:true}];
+ // Use the real quote path with the changed payload, rather than a canned pass result.
+ f.printful.set(302,blocked.printful.get(302));f.calls.length=0;
+ const retry=await request(f),failure=await updateLiveVariantPrices(retry,123,f.deps);assert.equal(failure.state,'BLOCKED');assert.equal(failure.stage,'SUPPLIER_PREFLIGHT');assert.equal(writes(f).length,0);assert.ok(JSON.stringify(failure).includes('inside_pocket'));
 });

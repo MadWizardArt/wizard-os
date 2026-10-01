@@ -101,6 +101,25 @@ test('configured single default non-DTG products retain supported base pricing',
  const q=await quotePrintfulVariant(configuredSelection,configuredFixtures({defaultTechnique:'digital',files:[{id:81,type:'default',status:'ok',options:[]}]}).get);
  assert.equal(q.productionBaseCents,2000);assert.equal(q.configurationKind,'CONFIGURED_SYNC');
 });
+test('inactive DTG embroidery defaults retain fingerprints while back and sleeve fees refresh live',async()=>{
+ const options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]},{id:'thread_colors_back',value:['#000000']},{id:'notes',value:''},{id:'lifelike',value:true}];
+ const f=configuredFixtures({options});f.sync.files[0].options=[{id:'auto_thread_color',value:true},{id:'full_color',value:false}];
+ const before=structuredClone(f.sync),a=await quotePrintfulVariant(configuredSelection,f.get);
+ assert.equal(a.productionBaseCents,2325);assert.ok(a.inactiveOptionIds.includes('product:embroidery_type'));assert.ok(a.inactiveOptionIds.includes('file:auto_thread_color'));assert.deepEqual(f.sync,before);
+ const b=configuredFixtures({base:'22.00',sleeve:'4.00',options});b.sync.files[0].options=before.files[0].options;
+ const fresh=await quotePrintfulVariant(configuredSelection,b.get);assert.equal(fresh.productionBaseCents,2600);assert.equal(a.configurationFingerprint,fresh.configurationFingerprint);
+ const v={...canonical,printfulSyncVariantId:5000000001,productionQuoteJson:JSON.stringify(a)};
+ assert.equal((await runPrintfulSupplierPreflight({variants:[v]},b.get)).pass,true);
+ b.sync.options[1].value=['#FFFFFF'];assert.equal((await runPrintfulSupplierPreflight({variants:[v]},b.get)).pass,false);
+});
+test('unknown, paid, malformed, misplaced and active embroidery options fail with bounded option diagnostics',async()=>{
+ for(const options of [[{id:'inside_pocket',value:true}],[{id:'embroidery_type',value:'3d'}],[{id:'notes',value:'Please edit the artwork'}],[{id:'thread_colors',value:['not a color']}],[{id:'full_color',value:false}],[{id:'notes',value:''},{id:'notes',value:''}],{id:'notes',value:''}]){
+  await assert.rejects(quotePrintfulVariant(configuredSelection,configuredFixtures({options}).get),/printful_configured_(?:product_option_quote_unsupported_[a-z_]+|options_malformed)/);
+ }
+ const f=configuredFixtures();f.sync.files[0].options=[{id:'full_color',value:true}];await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),/printful_configured_file_option_quote_unsupported_full_color/);
+ const nonDtg=configuredFixtures({defaultTechnique:'digital',files:[{id:81,type:'default',status:'ok',options:[]}],options:[{id:'embroidery_type',value:'flat'}]});await assert.rejects(quotePrintfulVariant(configuredSelection,nonDtg.get),/printful_configured_product_option_quote_unsupported_embroidery_type/);
+ const secret=configuredFixtures({options:[{id:'https://secret.example/token',value:'secret'}]});await assert.rejects(quotePrintfulVariant(configuredSelection,secret.get),/^Error: printful_configured_options_malformed$/);
+});
 test('configuration options, unknown placements, malformed/foreign sync identities block refresh without modifying saved costs',async()=>{
  for(const change of [f=>f.sync.options=[{id:'paid-option',value:true}],f=>f.sync.files[0].type='inside_label',f=>f.sync.id=99,f=>f.sync.variant_id=123,f=>f.sync.files[0].status='failed',f=>f.sync.synced=false]){
   const f=configuredFixtures();change(f);await assert.rejects(quotePrintfulVariant(configuredSelection,f.get),/printful_/);

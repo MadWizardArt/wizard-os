@@ -349,3 +349,8 @@ authenticated Business commerce session after deployment.
 API references:
 - https://developers.etsy.com/documentation/tutorials/listings/#updating-inventory
 - https://developers.printful.com/docs/#tag/Ecommerce-Platform-Sync-API
+# Configured DTG option defaults
+
+Configured standard DTG variants may carry inactive Printful embroidery defaults. Live quotes allow documented thread palettes, flat embroidery selection, empty notes, and the boolean mockup `lifelike` setting at product scope; file scope allows boolean `auto_thread_color` and disabled `full_color`. These are allowed only with standard DTG files (default/front/back/left sleeve/right sleeve). Their complete values remain in the configuration fingerprint and no files or options are rewritten. Base and placement prices still come from fresh supplier APIs; stored costs never substitute for a failed quote.
+
+Unknown options, nonempty editing notes, active full-color embroidery, malformed/duplicate options and unsupported techniques remain blocked. Live-price preflight failures include bounded per-variant error codes identifying the unsupported option ID, without option values or file URLs. Reference: https://developers.printful.com/docs/#tag/Common/Options.

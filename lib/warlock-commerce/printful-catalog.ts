@@ -1,4 +1,4 @@
-import { readSyncConfiguration } from "./printful-sync-configuration.ts";
+import { readSyncConfiguration, validateSyncPricingOptions } from "./printful-sync-configuration.ts";
 import { createHash } from "node:crypto";
 
 export type Json = Record<string, unknown>;
@@ -76,6 +76,7 @@ export type PrintfulQuote = {
   exclusions:string[];
   configurationKind?:"DEFAULT" | "CONFIGURED_SYNC"; syncVariantId?:number; configurationFingerprint?:string;
   placements?:Array<{placement:string; priceCents:number}>; includedPlacementCents?:number;
+  inactiveOptionIds?:string[];
 };
 export async function quotePrintfulVariant(input: { storeId:number; productId:number; catalogVariantId:number; syncVariantId?:number }, get: Get = printfulGet): Promise<PrintfulQuote> {
   const id = input.catalogVariantId;
@@ -109,7 +110,7 @@ export async function quotePrintfulVariant(input: { storeId:number; productId:nu
   if(input.syncVariantId){
     const configured=readSyncConfiguration(await get("/sync/variant/"+input.syncVariantId,input.storeId),input.syncVariantId,id);
     if(configured.configured){
-      if(configured.hasOptions) throw new Error("printful_configured_options_quote_unsupported");
+      const inactiveOptionIds=validateSyncPricingOptions(configured,technique);
       const isDefaultOnly=configured.fileTypes.length===1 && [String(file.id),String(file.type)].includes(configured.fileTypes[0]);
       if(isDefaultOnly){
         configuration={configurationKind:"CONFIGURED_SYNC",syncVariantId:input.syncVariantId,configurationFingerprint:configured.fingerprint,placements:[{placement:String(placement.id),priceCents:placement.price===undefined ? 0 : cents(placement.discounted_price ?? placement.price)}],includedPlacementCents:placement.price===undefined ? 0 : cents(placement.discounted_price ?? placement.price)};
@@ -140,6 +141,7 @@ export async function quotePrintfulVariant(input: { storeId:number; productId:nu
         if(!Number.isSafeInteger(productionBaseCents) || productionBaseCents>2147483647) throw new Error("printful_price_invalid");
         configuration={configurationKind:"CONFIGURED_SYNC",syncVariantId:input.syncVariantId,configurationFingerprint:configured.fingerprint,placements:selected,includedPlacementCents};
       }
+      configuration.inactiveOptionIds=inactiveOptionIds;
     }
   }
   if(productionBaseCents<=0) throw new Error("printful_price_invalid");

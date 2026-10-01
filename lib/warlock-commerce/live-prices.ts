@@ -53,6 +53,7 @@ export async function updateLiveVariantPrices(raw:unknown,shopId:number,deps:Liv
  const input=livePriceUpdateSchema.parse(raw);
  if(new Set(input.prices.map(p=>p.variantId)).size!==input.prices.length)throw Error("live_price_duplicate_variant");
  let stage="INSPECT",etsyWriteAttempted=false,etsyPricesVerified=false;
+ let supplierFailures:Array<{variantId:string;errorCode:string}>=[];
  const printfulWriteAttemptedVariantIds:string[]=[],printfulVerifiedVariantIds:string[]=[];
  const deadline=Date.now()+145000;
  const budget=()=>{if(Date.now()>deadline-25000)throw Error("live_price_time_budget_retry");};
@@ -70,7 +71,9 @@ export async function updateLiveVariantPrices(raw:unknown,shopId:number,deps:Liv
   const complete=first.inventory.mapped.every(m=>!input.prices.some(p=>p.variantId===m.variantId && p.retailPriceCents!==m.priceCents));
   if(!complete && first.inventory.fingerprint!==input.expectedInventoryFingerprint)throw Error("live_price_inventory_changed_reinspect");
   stage="SUPPLIER_PREFLIGHT";
-  const supplier=await deps.supplier(manifest),fresh=withLivePrintfulQuotes(manifest,supplier);
+  const supplier=await deps.supplier(manifest);
+  supplierFailures=supplier.variants.filter(v=>!v.pass && v.errorCode && manifest.variants.some(owned=>owned.id===v.variantId)).slice(0,30).map(v=>({variantId:v.variantId,errorCode:safeLivePriceError(Error(v.errorCode))}));
+  const fresh=withLivePrintfulQuotes(manifest,supplier);
   const selected={...fresh,variants:fresh.variants.filter(v=>input.prices.some(p=>p.variantId===v.id))};
   if(!evaluateCommerceGates(selected).margin.pass)throw Error("live_price_margin_below_floor");
   const configurations=new Map<string,string>();
@@ -119,6 +122,6 @@ export async function updateLiveVariantPrices(raw:unknown,shopId:number,deps:Liv
   return {productId:input.productId,etsyListingId:listingId,state:"LIVE_PRICES_VERIFIED",checkedAt:new Date().toISOString(),etsyWriteAttempted,etsyPricesVerified,printfulWriteAttemptedVariantIds,printfulVerifiedVariantIds,
    prices:input.prices.map(p=>({variantId:p.variantId,retailPriceCents:p.retailPriceCents,currency:"USD"})),nextAction:"Selected Etsy and Printful retail prices match the canonical targets. Review the live listing. Publication, files, mappings and order handling remain under the existing workflow."};
  }catch(error){return {productId:input.productId,state:etsyWriteAttempted || etsyPricesVerified || printfulWriteAttemptedVariantIds.length ? "VERIFY_OR_RETRY_REQUIRED" : "BLOCKED",
-   checkedAt:new Date().toISOString(),stage,errorCode:safeLivePriceError(error),etsyWriteAttempted,etsyPricesVerified:stage==="FINAL_VERIFY"?false:etsyPricesVerified,printfulWriteAttemptedVariantIds,printfulVerifiedVariantIds,
+   checkedAt:new Date().toISOString(),stage,errorCode:safeLivePriceError(error),supplierFailures,etsyWriteAttempted,etsyPricesVerified:stage==="FINAL_VERIFY"?false:etsyPricesVerified,printfulWriteAttemptedVariantIds,printfulVerifiedVariantIds,
    nextAction:"Inspect live prices before retrying. External changes may have partially completed; no rollback, re-draft or publication is attempted. Retry the same approved targets with current expected prices and inventory fingerprint."};}
 }
