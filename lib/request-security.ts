@@ -10,12 +10,14 @@ export function isSameOrigin(request: NextRequest) {
 
   try {
     const supplied = new URL(origin);
-    const expectedHost = firstHeaderValue(request.headers.get("x-forwarded-host"))
-      || request.headers.get("host")
-      || request.nextUrl.host;
+    const directHost = request.headers.get("host") || request.nextUrl.host;
+    const forwardedHost = firstHeaderValue(request.headers.get("x-forwarded-host"));
     const forwardedProtocol = firstHeaderValue(request.headers.get("x-forwarded-proto"));
-    const expectedProtocol = forwardedProtocol ? `${forwardedProtocol}:` : request.nextUrl.protocol;
-    return supplied.host === expectedHost && supplied.protocol === expectedProtocol;
+    const directMatch = supplied.host === directHost && supplied.protocol === request.nextUrl.protocol;
+    const forwardedMatch = Boolean(forwardedHost && forwardedProtocol)
+      && supplied.host === forwardedHost
+      && supplied.protocol === `${forwardedProtocol}:`;
+    return directMatch || forwardedMatch;
   } catch {
     return false;
   }
