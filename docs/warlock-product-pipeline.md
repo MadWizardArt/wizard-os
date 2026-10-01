@@ -356,3 +356,9 @@ Configured standard DTG variants may carry inactive Printful embroidery defaults
 Unknown options, nonempty editing notes, active full-color embroidery, malformed/duplicate options and unsupported techniques remain blocked. Live-price preflight failures include bounded per-variant error codes identifying the unsupported option ID, without option values or file URLs. Reference: https://developers.printful.com/docs/#tag/Common/Options.
 
 The DTG inactive-palette exception covers both complete documented thread-color tables, including `text_thread_colors_chest_left`. Unknown palette IDs still block; palette syntax and configuration drift checks remain enforced.
+
+## Configured option classification
+
+Fresh quote provenance separates `metadataOptionIds`, `inactiveOptionIds`, and `disabledOptionIds`. Product metadata supports `license_type` arrays containing only the documented licensing-program IDs (including an empty array), boolean `lifelike`, and empty `notes`. Standard DTG additionally supports disabled `inside_pocket`; disabled file `full_color` is recorded separately from inactive thread selection. Licensing metadata is preserved without selecting or rewriting any print files. Reference: https://developers.printful.com/docs/#tag/Common/License-type.
+
+Nonempty editing notes, enabled pocket/full-color features, unknown option IDs, malformed metadata and unsupported production options still block. A pricing-option error now reports all detected product/file issues together (up to 64 per variant) through supplier preflight and live-price `supplierFailures`. Diagnostics contain only scope, option ID, reason and value kind, never raw option values or source URLs. The complete configuration fingerprint still includes original option values, so any metadata or production change requires reconciliation before writing prices. All production costs continue to use fresh API quotes.

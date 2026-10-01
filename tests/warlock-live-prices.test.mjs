@@ -81,7 +81,7 @@ test('Printful nullable SKU is accepted with exact saved sync, parent listing, c
 test('real configured supplier preflight permits DTG defaults and preserves them through verified live price writes',async()=>{
  const f=fixture();
  for(const payload of f.printful.values()){
-  payload.result.sync_variant.options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]},{id:'text_thread_colors_chest_left',value:[]}];
+  payload.result.sync_variant.options=[{id:'embroidery_type',value:'flat'},{id:'thread_colors',value:[]},{id:'text_thread_colors_chest_left',value:[]},{id:'license_type',value:[]},{id:'lifelike',value:true},{id:'inside_pocket',value:false}];
   payload.result.sync_variant.files[0].options=[{id:'auto_thread_color',value:true}];
  }
  const supplierGet=async(path)=>{
@@ -97,8 +97,8 @@ test('real configured supplier preflight permits DTG defaults and preserves them
  const original=structuredClone(f.printful.get(302).result.sync_variant),raw=await request(f);
  const result=await updateLiveVariantPrices(raw,123,f.deps);assert.equal(result.state,'LIVE_PRICES_VERIFIED');
  const after=f.printful.get(302).result.sync_variant;assert.equal(after.retail_price,'57.44');assert.deepEqual(after.files,original.files);assert.deepEqual(after.options,original.options);
- const blocked=fixture();blocked.printful.get(302).result.sync_variant.options=[{id:'inside_pocket',value:true}];
+ const blocked=fixture();blocked.printful.get(302).result.sync_variant.options=[{id:'inside_pocket',value:true},{id:'unknown_fee',value:'private-secret'}];
  // Use the real quote path with the changed payload, rather than a canned pass result.
  f.printful.set(302,blocked.printful.get(302));f.calls.length=0;
- const retry=await request(f),failure=await updateLiveVariantPrices(retry,123,f.deps);assert.equal(failure.state,'BLOCKED');assert.equal(failure.stage,'SUPPLIER_PREFLIGHT');assert.equal(writes(f).length,0);assert.ok(JSON.stringify(failure).includes('inside_pocket'));
+ const retry=await request(f),failure=await updateLiveVariantPrices(retry,123,f.deps);assert.equal(failure.state,'BLOCKED');assert.equal(failure.stage,'SUPPLIER_PREFLIGHT');assert.equal(writes(f).length,0);assert.deepEqual(failure.supplierFailures[0].optionIssues.map(i=>i.optionId),['inside_pocket','unknown_fee']);assert.ok(!JSON.stringify(failure).includes('private-secret'));
 });
