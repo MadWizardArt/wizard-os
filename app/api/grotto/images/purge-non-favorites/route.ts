@@ -5,6 +5,7 @@ import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+export const maxDuration = 60;
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -25,8 +26,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Review the counts and complete both confirmations." }, { status: 400 });
   }
   try {
-    const deleted = await purgeNonFavoriteGrottoImages(expectedCount);
-    return NextResponse.json({ deleted, favoriteCount: (await grottoPurgeCounts()).favoriteCount });
+    const result = await purgeNonFavoriteGrottoImages(expectedCount, 100);
+    return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Non-favorites could not be deleted." }, { status: 409 });
   }
