@@ -12,6 +12,7 @@ export type ListingManifestInput = {
   quantity: number;
   whoMade: "i_did" | "collective" | "someone_else";
   whenMade: string;
+  digitalDelivery: "INSTANT_DOWNLOAD" | "MADE_TO_ORDER";
   isSupply: boolean;
   shouldAutoRenew: boolean;
   status: ListingStatus;
@@ -59,7 +60,11 @@ export function readListingManifest(raw: unknown): ListingManifestInput | null {
 
   const title = textField(value.title, 140);
   const description = textField(value.description ?? "", 12000);
-  const whenMade = textField(value.whenMade ?? "2020_2026", 50);
+  const digitalDelivery = value.digitalDelivery ?? (fulfillment === "DIGITAL" && value.whenMade === "made_to_order" ? "MADE_TO_ORDER" : "INSTANT_DOWNLOAD");
+  if (digitalDelivery !== "INSTANT_DOWNLOAD" && digitalDelivery !== "MADE_TO_ORDER") return null;
+  if (fulfillment === "PHYSICAL" && digitalDelivery !== "INSTANT_DOWNLOAD") return null;
+  const whenMade = textField(value.whenMade ?? (digitalDelivery === "MADE_TO_ORDER" ? "made_to_order" : "2020_2026"), 50);
+  if (fulfillment === "DIGITAL" && (whenMade === "made_to_order") !== (digitalDelivery === "MADE_TO_ORDER")) return null;
   const whoMade = value.whoMade ?? "i_did";
   const status = value.status ?? "CONFIG";
   const quantity = Number(value.quantity ?? 999);
@@ -99,6 +104,7 @@ export function readListingManifest(raw: unknown): ListingManifestInput | null {
     quantity,
     whoMade: whoMade as ListingManifestInput["whoMade"],
     whenMade,
+    digitalDelivery,
     isSupply: value.isSupply === true,
     shouldAutoRenew: value.shouldAutoRenew !== false,
     status: status as ListingStatus,

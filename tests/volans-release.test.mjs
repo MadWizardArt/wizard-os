@@ -12,7 +12,7 @@ test("legacy one-off Volans Etsy release route is retired", () => {
   );
 
   const execution = source("lib/warlock-commerce/draft-execution.ts");
-  const etsy = source("lib/warlock-commerce/etsy-draft-executor.ts");
+  const etsy = (source("lib/warlock-commerce/etsy-draft-executor.ts") + source("lib/warlock-commerce/digital-delivery.ts"));
   const console = source("app/etsy/EtsyConsole.tsx");
   assert.match(execution, /executeEtsyDrafts/);
   assert.match(etsy, /buildPhysicalInventoryBody/);

@@ -11,7 +11,7 @@ function database() {
   const tx = { $queryRaw: async () => [] };
   for (const [name, key] of Object.entries(tables)) {
     tx[name] = {
-      findMany: async ({where, include, take}={}) => state[key].filter(r=>match(r,where)).slice(0,take ?? Infinity).map(r=>include ? {...r, variants:state.variants.filter(v=>v.productId===r.id),listings:state.listings.filter(l=>l.productId===r.id)} : {...r}),
+      findMany: async ({where, include, take}={}) => state[key].filter(r=>match(r,where)).slice(0,take ?? Infinity).map(r=>include ? {...r, variants:state.variants.filter(v=>v.productId===r.id),listings:state.listings.filter(l=>l.productId===r.id),assets:state.links.filter(l=>l.listingId===r.id)} : {...r}),
       findFirst: async args => (await tx[name].findMany(args))[0] ?? null,
       create: async ({data}) => { const row = {id:'test'+ ++seq,...data}; state[key].push(row); return {...row}; },
       update: async ({where,data}) => { const row=state[key].find(r=>match(r,where)); if(!row) throw Error('missing'); Object.assign(row,data); return {...row}; },
@@ -95,4 +95,16 @@ test('single-file attachment completes an existing product without altering veri
   assert.throws(()=>attachmentIntake({productId:product.id,file:'file_master',role:'master',confirmAttachment:true},product));
   assert.throws(()=>attachmentIntake({productId:'foreign',file:{file_id:'file_x',download_url:'https://files.oaiusercontent.com/a'},role:'master',confirmAttachment:true},product),/attachment_product_mismatch/);
  } finally {globalThis.fetch=originalFetch;}
+});
+
+test('made-to-order intake prepares custom digital work without an unfinished customer file and preserves delivery mode on retry',async()=>{
+ const db=database(),custom={...input,listing:{...input.listing,digitalDelivery:'MADE_TO_ORDER'},assets:[asset('hero','hero.png')]};
+ const accepted=await intakeProduct(custom,db,files);assert.equal(db.state().listings[0].whenMade,'made_to_order');assert.equal(db.state().listings[0].digitalDelivery,'MADE_TO_ORDER');assert.equal(validateWarlockManifest(manifest(db)).ready,true);
+ await intakeProduct({confirmIntake:true,productId:accepted.productId,product:input.product,assets:[]},db,files);assert.equal(db.state().listings[0].digitalDelivery,'MADE_TO_ORDER');
+ await assert.rejects(intakeProduct({...custom,productId:accepted.productId,assets:[asset('customer_file','placeholder.png')]},db,files),/cannot_have_listing_downloads/);
+ assert.equal(db.state().assets.length,1);
+});
+test('delivery-mode switch with existing instant file links is rejected atomically',async()=>{
+ const db=database();await intakeProduct(input,db,files);const before=structuredClone(db.state());
+ await assert.rejects(intakeProduct({...input,listing:{...input.listing,digitalDelivery:'MADE_TO_ORDER'},assets:[]},db,files),/cannot_have_listing_downloads/);assert.deepEqual(db.state(),before);
 });

@@ -53,7 +53,7 @@ test('API failure details are sanitized and no Etsy mutation transport or draft 
  const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');const transport=source('lib/warlock-commerce/etsy-reconciliation-read.ts');assert.match(transport,/method: "GET"/);assert.match(transport,/redirect: "error"/);
  const executor=source('lib/warlock-commerce/printful-reconciliation-executor.ts');assert.doesNotMatch(executor,/executeEtsyDrafts|etsy-draft-executor/);assert.match(executor,/assertCommerceDraftWritesEnabled/);
  const server=source('lib/warlock-mcp/server.ts');assert.match(server,/confirmReconciliation: z.literal\(true\)/);
- assert.match(source('lib/warlock-commerce/etsy-draft-executor.ts'),/etsy_listing_not_draft/);
+ assert.match((source('lib/warlock-commerce/etsy-draft-executor.ts') + source('lib/warlock-commerce/digital-delivery.ts')),/etsy_listing_not_draft/);
 });
 
 test('quote expiry during import lookup retains IDs but prevents subsequent supplier writes',async()=>{

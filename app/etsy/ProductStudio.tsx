@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ProductBookkeeping from "./ProductBookkeeping";
 
 type Variant = { id: string; fulfillment: "DIGITAL" | "PHYSICAL"; label: string; printfulVariantId: number | null; printfulProductId: number | null; etsyListingId: string | null };
 type Product = { id: string; title: string; collection: string; description: string; artworkReference: string; notes: string; status: string; variants: Variant[] };
@@ -92,7 +93,7 @@ export default function ProductStudio() {
       <form onSubmit={save} style={{ display: "grid", gap: 13 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <strong>{editId ? "Edit master product" : "Create master product"}</strong>
-          <button type="button" style={{ ...btn, background: "#29343b", color: "#d3dbd6" }} onClick={() => { setEditId(""); setForm(blank); setNotice(""); }}>+ New product</button>
+          <button type="button" style={{ ...btn, background: "#29343b", color: "#d3dbd6" }} onClick={() => { setEditId(""); setSelectedId(""); setForm(blank); setNotice(""); }}>+ New product</button>
         </div>
         <label>Artwork / product title<input style={input} required maxLength={140} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Volans Aethereus — The Owl" /></label>
         <label>Collection<input style={input} maxLength={100} value={form.collection} onChange={e => setForm(p => ({ ...p, collection: e.target.value }))} placeholder="Cabinet of Curiosities" /></label>
@@ -124,5 +125,6 @@ export default function ProductStudio() {
         <button type="button" style={{ ...btn, marginTop: 12 }} disabled={busy || !variantLabel.trim()} onClick={() => void addDigital()}>Add digital edition</button>
       </div>}
     </div>
+    {selectedId ? <ProductBookkeeping key={selectedId} productId={selectedId} /> : null}
   </section>;
 }

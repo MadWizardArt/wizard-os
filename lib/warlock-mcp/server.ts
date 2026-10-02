@@ -24,6 +24,8 @@ import { updateProductPrices, productPricesShape, safeProductPriceError } from "
 import { configurePrintfulVariant } from "../warlock-commerce/printful-configuration";
 import { attachProductFileShape, attachmentIntake } from "../warlock-attachment";
 
+import { getProductBookkeeping, recordProductNote, reconcileEtsyListing, bookkeepingReadShape, productNoteShape, listingReconciliationShape, safeBookkeepingError } from "../warlock-commerce/bookkeeping";
+
 const selectorShape = {
   productId: z.string().trim().min(1).max(100).optional(),
   title: z.string().trim().min(1).max(140).optional(),
@@ -136,14 +138,33 @@ async function loadProduct(selector: ProductSelector): Promise<LoadedProduct> {
 export function createWarlockCommerceMcpServer() {
   const server = new McpServer({
     name: "warlock-commerce",
-    version: "0.7.0",
+    version: "0.8.0",
   });
+
+  server.registerTool(
+    "get_product_bookkeeping",
+    { title: "Read Stored Product Ledger", description: "Read stored catalog state, latest verified Etsy observations, discrepancies and paginated notes/history. Omit productId for the catalog overview. Evidence includes timestamps; do not reconstruct mutable state from chat memory. Does not contact Etsy.", inputSchema: bookkeepingReadShape, annotations: annotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+    async input => { try { return success(await getProductBookkeeping(input)); } catch(error) { return failure("bookkeeping_failed", safeBookkeepingError(error)); } },
+  );
+  server.registerTool(
+    "record_product_note",
+    { title: "Record Product Production Note", description: "Append a durable production or clerical note without replacing existing notes or asserting live facts. Use a stable requestId for safe retries; reusing it with different content fails. Does not change listings, prices, workflow stages or orders.", inputSchema: productNoteShape, annotations: { ...annotations, readOnlyHint: false },
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+    async input => { try { return success(await recordProductNote(input)); } catch(error) { return failure("bookkeeping_failed", safeBookkeepingError(error)); } },
+  );
+  server.registerTool(
+    "reconcile_etsy_listing",
+    { title: "Verify Existing Etsy Listing Records", description: "Read an already-saved Etsy listing, including active digital listings, and store observed state, prices, images/files and discrepancies in Warlock. Requires the expected saved Etsy listing ID. Optional assetMappings explicitly associates reviewed canonical links with observed remote IDs; never guess artwork identity from rank or filename. Preserves draft workflow status and canonical pricing; no Etsy mutations, recreation, redrafting, publishing or orders. Physical supplier verification remains separate.", inputSchema: listingReconciliationShape, annotations: draftWriteAnnotations,
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+    async input => { try { return success(await reconcileEtsyListing(input)); } catch(error) { return failure("bookkeeping_failed", safeBookkeepingError(error)); } },
+  );
 
   server.registerTool(
     "intake_product",
     {
       title: "Create or Complete Spellmark Product",
-      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned Warlock assetId, native ChatGPT files (files plus assets.fileId), approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Use listings for both fulfillment types and retailPriceCents per edition. Intake locks after draft execution; use update_product_prices for later canonical retail-price edits. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
+      description: "Create or complete a canonical product by productId or unambiguous title. Persist listings, per-variant USD prices, production quotes, and real private assets from owned Warlock assetId, native ChatGPT files (files plus assets.fileId), approved HTTPS downloads, or small base64 files. Retries preserve IDs and avoid duplicates. Set digitalDelivery to MADE_TO_ORDER for custom digital work delivered after purchase, or INSTANT_DOWNLOAD for ready downloads. Use listings for both fulfillment types and retailPriceCents per edition. Intake locks after draft execution; use update_product_prices for later canonical retail-price edits. Intake remains CONFIG until live Etsy configuration verification. Does not write Etsy, publish, or place orders.",
       inputSchema: intakeProductShape,
       annotations: intakeAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES, "openai/fileParams": ["files"] },
@@ -506,7 +527,7 @@ export function createWarlockCommerceMcpServer() {
         console.error("Warlock MCP draft execution failed", error);
         return failure(
           "draft_execution_failed",
-          error instanceof Error && error.message === "etsy_listing_not_draft" ? "etsy_listing_not_draft: If the physical Etsy listing is already active, use reconcile_printful_product with confirmReconciliation=true to finish supplier mapping without Etsy writes." : error instanceof Error ? error.message : "Draft execution failed.",
+          error instanceof Error && error.message === "etsy_listing_not_draft" ? "etsy_listing_not_draft: If an Etsy listing is already active, use reconcile_etsy_listing to verify stored Etsy records; use reconcile_printful_product for physical supplier mapping. Both preserve the active listing." : error instanceof Error ? error.message : "Draft execution failed.",
         );
       }
     },
@@ -516,7 +537,7 @@ export function createWarlockCommerceMcpServer() {
     "get_production_status",
     {
       title: "Get Product Production Status",
-      description: "Summarize canonical fulfillment mappings and readiness without contacting or modifying Etsy or Printful.",
+      description: "Summarize canonical fulfillment mappings, delivery mode and latest timestamped Etsy observations without contacting or modifying Etsy or Printful. Workflow status is separate from observed live state. Use get_product_bookkeeping for discrepancies and history.",
       inputSchema: selectorShape,
       annotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
@@ -543,6 +564,8 @@ export function createWarlockCommerceMcpServer() {
             id: physicalListing.id,
             title: physicalListing.title,
             status: physicalListing.status,
+            lastVerifiedAt: physicalListing.lastVerifiedAt ?? null,
+            observation: physicalListing.observationJson ? JSON.parse(physicalListing.observationJson) : null,
             etsyListingId: physicalListing.etsyListingId,
             imageCount: physicalListing.assets.filter((asset) => asset.kind === "image").length,
           } : null,
@@ -553,6 +576,9 @@ export function createWarlockCommerceMcpServer() {
             id: digitalListing.id,
             title: digitalListing.title,
             status: digitalListing.status,
+            digitalDelivery: digitalListing.digitalDelivery ?? "INSTANT_DOWNLOAD",
+            lastVerifiedAt: digitalListing.lastVerifiedAt ?? null,
+            observation: digitalListing.observationJson ? JSON.parse(digitalListing.observationJson) : null,
             etsyListingId: digitalListing.etsyListingId,
             imageCount: digitalListing.assets.filter((asset) => asset.kind === "image").length,
             customerFileCount: digitalListing.assets.filter((asset) => asset.kind === "customer_file").length,

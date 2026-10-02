@@ -99,7 +99,7 @@ test("draft writes remain fail-closed and publishing remains impossible", () => 
 });
 
 test("Etsy executor is create-or-update draft only and tracks remote asset IDs", () => {
-  const etsy = source("lib/warlock-commerce/etsy-draft-executor.ts");
+  const etsy = (source("lib/warlock-commerce/etsy-draft-executor.ts") + source("lib/warlock-commerce/digital-delivery.ts"));
   assert.match(etsy, /etsy_listing_not_draft/);
   assert.match(etsy, /method:\s*"PATCH"/);
   assert.match(etsy, /method:\s*"POST"/);

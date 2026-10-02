@@ -19,6 +19,7 @@ export async function updateProductPrices(raw:unknown, db:PrismaClient){
   if(new Set(input.prices.map(p=>p.variantId)).size!==input.prices.length) throw new Error("duplicate_price_variant");
   const prices=await db.$transaction(async tx=>{
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"warlock-product-prices:"+input.productId}))::text`;
+    await tx.$queryRaw`SELECT id FROM "SpellmarkProduct" WHERE id = ${input.productId} FOR UPDATE`;
     const variants=await tx.spellmarkVariant.findMany({where:{productId:input.productId,id:{in:input.prices.map(p=>p.variantId)}}});
     if(variants.length!==input.prices.length) throw new Error("price_variant_not_owned_by_product");
     // Validate the whole batch before writing. A replay of the same target is a no-op.
@@ -38,6 +39,7 @@ export async function updateProductPrices(raw:unknown, db:PrismaClient){
       }
       result.push({variantId:before.id,label:before.label,previousRetailPriceCents:before.retailPriceCents,retailPriceCents:change.retailPriceCents,currency:"USD",changed,etsyListingId:before.etsyListingId});
     }
+    if(result.some(p=>p.changed))await tx.spellmarkJournal.create({data:{productId:input.productId,requestId:crypto.randomUUID(),kind:"CANONICAL_PRICES",bodyJson:JSON.stringify({prices:result.filter(p=>p.changed),etsyMutated:false,printfulMutated:false})}});
     return result;
   },{isolationLevel:"Serializable"});
   return {productId:input.productId,state:"CANONICAL_PRICES_SAVED",prices,etsyMutated:false,printfulMutated:false,

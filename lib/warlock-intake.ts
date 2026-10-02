@@ -94,6 +94,7 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
       listingFulfillments.add(fulfillment);
       const old = existing?.listings.find(l => l.fulfillment === fulfillment);
       const parsed = readListingManifest({ ...old, ...draft, fulfillment, title: draft.title ?? old?.title ?? product.title,
+        whenMade: draft.digitalDelivery !== undefined ? (draft.digitalDelivery === "MADE_TO_ORDER" ? "made_to_order" : "2020_2026") : old?.whenMade,
         tags: draft.tags ?? (old ? JSON.parse(old.tagsJson) : []),
         description: ensureEtsyAiDisclosure(draft.description ?? old?.description ?? product.description), status: "CONFIG" });
       if (!parsed) throw new Error("invalid_listing_manifest");
@@ -111,7 +112,8 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
         }
       }
     }
-    const listings = await tx.spellmarkListing.findMany({ where: { productId } });
+    const listings = await tx.spellmarkListing.findMany({ where: { productId }, include: { assets: true } });
+    if (listings.some(l => l.digitalDelivery === "MADE_TO_ORDER" && l.assets.some(a => a.kind === "customer_file"))) throw new Error("made_to_order_cannot_have_listing_downloads");
     for (let index = 0; index < assetInputs.length; index++) {
       const inputAsset = assetInputs[index];
       let asset;
@@ -136,6 +138,7 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
       const targets = listings.filter(l => (!inputAsset.fulfillment || l.fulfillment === inputAsset.fulfillment) && (kind !== "customer_file" || l.fulfillment === "DIGITAL"));
       if (!targets.length) throw new Error("asset_listing_missing");
       for (const listing of targets) {
+        if (kind === "customer_file" && listing.digitalDelivery === "MADE_TO_ORDER") throw new Error("made_to_order_cannot_have_listing_downloads");
         const links = await tx.spellmarkListingAsset.findMany({ where: { listingId: listing.id, kind } });
         const already = links.find(l => l.assetId === asset.id);
         const position = inputAsset.position ?? already?.position ?? (Math.max(0, ...links.map(l => l.position)) + 1);
