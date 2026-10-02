@@ -87,6 +87,35 @@ test("verified listing configuration becomes READY only when listing essentials 
   assert.equal(configuredListingStatus(withoutImages, blocked), "CONFIG");
 });
 
+test("made-to-order digital configuration does not require an instant-download customer file", () => {
+  const customDigitalListing = {
+    ...listing,
+    fulfillment: "DIGITAL",
+    digitalDelivery: "MADE_TO_ORDER",
+    whenMade: "made_to_order",
+  };
+  const selection = { fulfillment: "DIGITAL", taxonomyId: 123 };
+
+  const blockers = listingConfigurationBlockers(customDigitalListing, selection);
+  assert.deepEqual(blockers, []);
+  assert.equal(configuredListingStatus(customDigitalListing, blockers), "READY");
+});
+
+test("instant-download digital configuration still requires a customer file", () => {
+  const instantDigitalListing = {
+    ...listing,
+    fulfillment: "DIGITAL",
+    digitalDelivery: "INSTANT_DOWNLOAD",
+    whenMade: "2020_2026",
+  };
+  const blockers = listingConfigurationBlockers(instantDigitalListing, {
+    fulfillment: "DIGITAL",
+    taxonomyId: 123,
+  });
+  assert.deepEqual(blockers, ["digital_customer_files_missing"]);
+  assert.equal(configuredListingStatus(instantDigitalListing, blockers), "CONFIG");
+});
+
 test("existing Etsy draft identity is preserved when canonical configuration is saved", () => {
   const existing = { ...listing, etsyListingId: "123456789", status: "DRAFT_CREATED" };
   assert.equal(configuredListingStatus(existing, []), "DRAFT_CREATED");
