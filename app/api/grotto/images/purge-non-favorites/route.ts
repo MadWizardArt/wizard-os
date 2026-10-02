@@ -5,6 +5,7 @@ import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+// Purge endpoint is intentionally resumable; each request deletes at most one safe batch.
 export const maxDuration = 60;
 
 function sameOrigin(request: NextRequest) {
