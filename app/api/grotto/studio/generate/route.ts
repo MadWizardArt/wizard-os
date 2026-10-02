@@ -19,6 +19,8 @@ import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
 import { referenceUrl } from "../../../../../lib/grotto-reference";
 import { prisma } from "../../../../../lib/prisma";
 import { deleteGrottoImages, storeGrottoImage } from "../../../../../lib/grotto-blob";
+import { assertGrottoCapacity, MAX_GROTTO_IMAGES } from "../../../../../lib/grotto-capacity";
+import { Prisma } from "../../../../generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,10 +91,15 @@ async function persistWorkflowImages(workflowId: string, input: StudioGeneration
     const blob = await storeGrottoImage("studio", bytes, contentType);
     let image;
     try {
-      image = await prisma.grottoImage.create({
-        data: { museId: "studio", contentType, blobUrl: blob.url, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, embeddings, workflow: body }) },
-        select: { id: true, favorite: true, canonical: true, createdAt: true },
-      });
+      image = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)`);
+        const count = await tx.grottoImage.count({ where: { deletedAt: null } });
+        if (count >= MAX_GROTTO_IMAGES) throw new Error(`The Grotto is limited to ${MAX_GROTTO_IMAGES} images. Delete images before creating more.`);
+        return tx.grottoImage.create({
+          data: { museId: "studio", contentType, blobUrl: blob.url, byteSize: bytes.byteLength, provider: "civitai", providerWorkflowId: workflowId, providerImageId, prompt, recipeJson: JSON.stringify({ studio: input, environment, loras, embeddings, workflow: body }) },
+          select: { id: true, favorite: true, canonical: true, createdAt: true },
+        });
+      }, { maxWait: 10_000, timeout: 20_000 });
     } catch (error) {
       await deleteGrottoImages([blob.url]).catch(() => undefined);
       throw error;
@@ -131,6 +138,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ costBuzz: estimate.cost?.total ?? null });
     }
     const workflowId = typeof body.workflowId === "string" ? body.workflowId.trim() : "";
+    if (!workflowId && body.estimate !== true) await assertGrottoCapacity(input.quantity);
     if (workflowId) {
       const workflow = await getGeneration(workflowId);
       if (!isTerminalWorkflow(workflow.status)) return NextResponse.json({ workflowId, status: workflow.status, images: [] });
