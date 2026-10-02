@@ -1,10 +1,8 @@
-import type { NextRequest } from "next/server";
-
 function firstHeaderValue(value: string | null) {
   return value?.split(",", 1)[0]?.trim() || "";
 }
 
-export function isSameOrigin(request: NextRequest) {
+export function isSameOrigin(request: { headers: { get(name: string): string | null }; nextUrl: { host: string } }) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
 

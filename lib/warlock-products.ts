@@ -44,8 +44,4 @@ export function readVariant(raw: unknown): VariantInput | null {
       (v.printfulVariantId !== undefined && v.printfulVariantId !== null && printfulVariantId === null)) return null;
   return { fulfillment: v.fulfillment, label, printfulProductId, printfulVariantId, printfulStoreId };
 }
-export function sameOrigin(request: { headers: { get(name: string): string | null }; nextUrl: URL }) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
-}
+export { isSameOrigin as sameOrigin } from "./request-security.ts";

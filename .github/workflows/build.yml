@@ -68,6 +68,7 @@ jobs:
           node tests/warlock-intake-integration.mjs
           node tests/warlock-product-prices-integration.mjs
           node tests/warlock-bookkeeping-integration.mjs
+          node tests/warlock-products-browser.mjs
           node tests/campaign-integration.mjs
           node tests/campaign-lifecycle-integration.mjs
           node tests/artwork-integration.mjs
@@ -75,5 +76,4 @@ jobs:
           node tests/museum-knowledge-intake.mjs
           node tests/campaign-browser.mjs
           node tests/mobile-navigation.mjs
-          node tests/warlock-products-browser.mjs
           node tests/printful-store-browser.mjs
