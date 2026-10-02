@@ -45,5 +45,21 @@ export async function inspectGrottoImage(blobUrl: string) {
 export async function deleteGrottoImages(blobUrls: Array<string | null | undefined>) {
   const urls = [...new Set(blobUrls.filter((url): url is string => Boolean(url)))];
   if (!urls.length || !grottoBlobConfigured()) return;
-  await del(urls);
+
+  const batchSize = 100;
+  for (let offset = 0; offset < urls.length; offset += batchSize) {
+    const batch = urls.slice(offset, offset + batchSize);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        await del(batch);
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+      }
+    }
+    if (lastError) throw lastError;
+  }
 }
