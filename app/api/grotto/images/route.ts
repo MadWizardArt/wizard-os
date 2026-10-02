@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../lib/prisma";
 import { deleteGrottoImages, storeGrottoImage } from "../../../../lib/grotto-blob";
+import { MAX_GROTTO_IMAGES } from "../../../../lib/grotto-capacity";
+import { Prisma } from "../../../generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,11 +81,16 @@ export async function POST(request: NextRequest) {
     const blob = await storeGrottoImage(museId, bytes, contentType);
     let image;
     try {
-      image = await prisma.grottoImage.create({ data: { museId, provider: "reference", contentType, blobUrl: blob.url, byteSize: bytes.length }, select: { id: true, museId: true } });
+      image = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)`);
+        const count = await tx.grottoImage.count({ where: { deletedAt: null } });
+        if (count >= MAX_GROTTO_IMAGES) throw new Error(`The Grotto is limited to ${MAX_GROTTO_IMAGES} images. Delete images before uploading more.`);
+        return tx.grottoImage.create({ data: { museId, provider: "reference", contentType, blobUrl: blob.url, byteSize: bytes.length }, select: { id: true, museId: true } });
+      }, { maxWait: 10_000, timeout: 20_000 });
     } catch (error) {
       await deleteGrottoImages([blob.url]).catch(() => undefined);
       throw error;
     }
     return NextResponse.json({ id: image.id, museId: image.museId, src: `/api/grotto/images/${image.id}/file`, favorite: false, canonical: false, provider: "reference" }, { status: 201 });
-  } catch { return NextResponse.json({ error: "Reference could not be uploaded." }, { status: 400 }); }
+  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Reference could not be uploaded." }, { status: 400 }); }
 }
