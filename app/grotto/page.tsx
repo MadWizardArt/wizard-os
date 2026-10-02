@@ -170,11 +170,37 @@ export default function GrottoPage() {
     if (!purgePreview || managing) return;
     setManaging(true); setNote("");
     try {
-      const payload = await readJson(await fetch("/api/grotto/images/purge-non-favorites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedCount: purgePreview.nonFavoriteCount, confirmation: "DELETE NON-FAVORITES" }) }));
-      setPurgePreview(null); setReferences((existing) => existing.filter((item) => item.canonical || item.favorite)); setActiveReferenceId((active) => active && references.some((item) => item.id === active && !item.canonical && !item.favorite) ? null : active); await loadGallery(space);
-      setNote(`Deleted ${payload.deleted} non-favorite image${payload.deleted === 1 ? "" : "s"}. Your ${payload.favoriteCount} favorites were preserved.`);
-    } catch (error) { setPurgePreview(null); setNote(error instanceof Error ? error.message : "Non-favorites could not be deleted."); }
-    finally { setManaging(false); }
+      let expectedCount = purgePreview.nonFavoriteCount;
+      let deletedTotal = 0;
+      let releasedBytes = 0;
+      let favoriteCount = purgePreview.favoriteCount;
+      while (expectedCount > 0) {
+        const payload = await readJson(await fetch("/api/grotto/images/purge-non-favorites", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ expectedCount, confirmation: "DELETE NON-FAVORITES" }),
+        }));
+        const deleted = Number(payload.deleted) || 0;
+        const remaining = Number(payload.remaining);
+        if (!deleted || !Number.isSafeInteger(remaining) || remaining < 0 || remaining >= expectedCount) {
+          throw new Error("Cleanup stopped because the server did not make forward progress.");
+        }
+        deletedTotal += deleted;
+        releasedBytes += Number(payload.releasedBytes) || 0;
+        favoriteCount = Number(payload.favoriteCount) || favoriteCount;
+        expectedCount = remaining;
+        setNote(`Permanent cleanup in progress · ${deletedTotal} deleted · ${expectedCount} remaining…`);
+      }
+      setPurgePreview(null);
+      setReferences((existing) => existing.filter((item) => item.canonical || item.favorite));
+      setActiveReferenceId((active) => active && references.some((item) => item.id === active && !item.canonical && !item.favorite) ? null : active);
+      await loadGallery(space);
+      setNote(`Deleted ${deletedTotal} non-favorite image${deletedTotal === 1 ? "" : "s"} and released about ${(releasedBytes / 1024 / 1024).toFixed(1)} MB. Your ${favoriteCount} favorites were preserved.`);
+    } catch (error) {
+      setPurgePreview(null);
+      await loadGallery(space).catch(() => undefined);
+      setNote(error instanceof Error ? `${error.message} Any completed batches remain permanently deleted; run cleanup again to resume.` : "Non-favorites could not be deleted.");
+    } finally { setManaging(false); }
   };
   const copyPrompt = async () => { if (!current?.prompt) return; try { await navigator.clipboard.writeText(current.prompt); setNote("Prompt copied."); } catch { setNote("Prompt could not be copied."); } };
   const migrateStorage = async () => { if (!status?.storage.configured || migratingStorage) return; setMigratingStorage(true); setNote("Verifying Blob copies and releasing legacy Neon storage…"); try { let statusPayload = await readJson(await fetch("/api/grotto/storage/migrate", { cache: "no-store" })); let migrated = 0; while (Number(statusPayload.pending) > 0) { const payload = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "migrate" }) })); migrated += Number(payload.migrated) || 0; statusPayload = payload; setNote(`Copied and verified ${migrated} images · ${Number(payload.pending) || 0} remaining…`); } let cleaned = 0; let releasedBytes = 0; while (Number(statusPayload.activeLegacy) > 0) { const payload = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cleanup" }) })); cleaned += Number(payload.cleaned) || 0; releasedBytes += Number(payload.releasedBytes) || 0; statusPayload = payload; setNote(`Verified and released ${cleaned} Neon duplicates…`); } const purged = await readJson(await fetch("/api/grotto/storage/migrate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "purge-deleted" }) })); setNote(`Blob cleanup complete · ${cleaned} binaries verified · ${(releasedBytes / 1024 / 1024).toFixed(1)} MB released · ${Number(purged.purged) || 0} deleted records purged.`); } catch (error) { setNote(error instanceof Error ? error.message : "Storage cleanup stopped safely; it can be resumed."); } finally { setMigratingStorage(false); } };
