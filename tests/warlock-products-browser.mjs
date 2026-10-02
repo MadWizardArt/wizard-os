@@ -15,10 +15,16 @@ try {
   await page.getByText("One artwork, many editions.").waitFor();
   assert.equal(await page.getByText("Volans Aethereus", { exact: true }).count(), 0, "do not seed demo products");
   const title = `CI Ledger UI ${Date.now()}`;
-  const created = await page.request.post(`${base}/api/warlock/products`, {headers:{origin:base},data:{title}});
-  assert.equal(created.status(),200,await created.text());productId=(await created.json()).product.id;
-  const configured = await page.request.put(`${base}/api/warlock/products/${productId}/listings`, {headers:{origin:base},data:{listing:{title,fulfillment:"DIGITAL",digitalDelivery:"MADE_TO_ORDER"}}});
-  assert.equal(configured.status(),200,await configured.text());
+  const created = await page.evaluate(async title => {
+    const response=await fetch("/api/warlock/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title})});
+    return {status:response.status,body:await response.json()};
+  },title);
+  assert.equal(created.status,201,JSON.stringify(created.body));productId=created.body.product.id;
+  const configured = await page.evaluate(async ({productId,title}) => {
+    const response=await fetch(`/api/warlock/products/${productId}/listings`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({listing:{title,fulfillment:"DIGITAL",digitalDelivery:"MADE_TO_ORDER"}})});
+    return {status:response.status,body:await response.json()};
+  },{productId,title});
+  assert.equal(configured.status,200,JSON.stringify(configured.body));
   await page.reload();
   await page.getByRole("button", {name:new RegExp(title)}).click();
   await page.getByRole("heading", {name:"Product ledger",exact:true}).waitFor();
