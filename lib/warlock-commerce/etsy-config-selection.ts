@@ -45,7 +45,10 @@ export function listingConfigurationBlockers(
     if (!selection.readinessStateId) blockers.push("readiness_state_missing");
   } else {
     const customerFiles = listing.assets.filter((link) => link.kind === "customer_file");
-    if (customerFiles.length === 0) blockers.push("digital_customer_files_missing");
+    const madeToOrder = listing.digitalDelivery === "MADE_TO_ORDER";
+    if (customerFiles.length === 0 && !madeToOrder) {
+      blockers.push("digital_customer_files_missing");
+    }
   }
 
   return blockers;
