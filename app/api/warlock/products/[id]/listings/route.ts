@@ -89,7 +89,7 @@ export async function PUT(request: NextRequest, context: Context) {
     return NextResponse.json({ error: "invalid_listing_assets" }, { status: 400, headers });
   }
   if (
-    listingInput.fulfillment === "PHYSICAL" &&
+    (listingInput.fulfillment === "PHYSICAL" || listingInput.digitalDelivery === "MADE_TO_ORDER") &&
     assetInputs?.some((asset) => asset.kind === "customer_file")
   ) {
     return NextResponse.json({ error: "physical_listing_cannot_have_customer_files" }, { status: 400, headers });
@@ -116,6 +116,9 @@ export async function PUT(request: NextRequest, context: Context) {
 
     const fulfillment = fulfillmentEnum(listingInput.fulfillment);
     const listing = await prisma.$transaction(async (tx) => {
+      const old = await tx.spellmarkListing.findUnique({ where: { productId_fulfillment: { productId, fulfillment } }, include: { assets: true } });
+      if (old?.etsyListingId && old.digitalDelivery !== listingInput.digitalDelivery) throw new Error("delivery_mode_locked_after_draft_execution");
+      if (listingInput.digitalDelivery === "MADE_TO_ORDER" && !shouldReplaceAssets && old?.assets.some(a => a.kind === "customer_file")) throw new Error("made_to_order_cannot_have_listing_downloads");
       const saved = await tx.spellmarkListing.upsert({
         where: { productId_fulfillment: { productId, fulfillment } },
         create: {
@@ -130,6 +133,7 @@ export async function PUT(request: NextRequest, context: Context) {
           quantity: listingInput.quantity,
           whoMade: listingInput.whoMade,
           whenMade: listingInput.whenMade,
+          digitalDelivery: listingInput.digitalDelivery,
           isSupply: listingInput.isSupply,
           shouldAutoRenew: listingInput.shouldAutoRenew,
           status: listingInput.status,
@@ -144,6 +148,7 @@ export async function PUT(request: NextRequest, context: Context) {
           quantity: listingInput.quantity,
           whoMade: listingInput.whoMade,
           whenMade: listingInput.whenMade,
+          digitalDelivery: listingInput.digitalDelivery,
           isSupply: listingInput.isSupply,
           shouldAutoRenew: listingInput.shouldAutoRenew,
           status: listingInput.status,

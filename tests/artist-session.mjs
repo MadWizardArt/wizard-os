@@ -28,9 +28,19 @@ export function withArtist(base, cookie, init = {}) {
 }
 
 export async function unlockBrowser(page, base) {
+  const stateResponse = await page.request.get(`${base}/api/museum/artist-session`);
+  assert.equal(stateResponse.status(),200);
+  const state = await stateResponse.json();
+  const body = { accessKey: artistKey() };
+  if (!state.passwordConfigured) {
+    // Only disposable local browser fixtures may initialize a password.
+    // Never configure a production/deployed Artist account from a test helper.
+    assert.ok(["127.0.0.1", "localhost"].includes(new URL(base).hostname), "Password setup fixture requires a local test server.");
+    Object.assign(body, { setupPassword:true, password:`CI-local-browser-${crypto.randomUUID()}` });
+  }
   const response = await page.request.post(`${base}/api/museum/artist-session`, {
     headers: { origin: base },
-    data: { accessKey: artistKey() },
+    data: body,
   });
   assert.equal(response.status(), 200, `Browser Artist login failed: ${await response.text()}`);
 }

@@ -9,6 +9,7 @@ const listing = z.object({
   launchPrice: z.number().positive().max(21474836).optional(),
   tags: z.array(z.string().trim().min(1).max(20)).max(13).optional(),
   categorySearch: z.string().trim().max(200).optional(),
+  digitalDelivery: z.enum(["INSTANT_DOWNLOAD", "MADE_TO_ORDER"]).optional().describe("MADE_TO_ORDER for personalized digital work delivered after purchase; no instant-download file is required or uploaded."),
   listingType: z.enum(["download", "physical"]).optional(),
   taxonomyId: z.number().int().positive().max(2147483647).optional(),
   shippingProfileId: profile.optional(), readinessStateId: profile.optional(),

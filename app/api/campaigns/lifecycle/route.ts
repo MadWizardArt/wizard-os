@@ -10,15 +10,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === request.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
+import { isSameOrigin as sameOrigin } from "../../../../lib/request-security";
 
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) {

@@ -12,6 +12,8 @@ import { ensureEtsyAiDisclosure } from "./policy.ts";
 import { buildPhysicalInventoryBody, etsySkuForVariant, moneyFromCents, serializePhysicalInventoryBody } from "./etsy-inventory.ts";
 import { assertCommerceDraftWritesEnabled } from "./write-guard.ts";
 
+import { digitalWhenMade, assertEditableDraft } from "./digital-delivery.ts";
+
 const ETSY_API = "https://api.etsy.com/v3/application";
 type Json = Record<string, unknown>;
 
@@ -66,7 +68,7 @@ function listingForm(
     description: ensureEtsyAiDisclosure(listing.description),
     price: moneyFromCents(lowestPriceCents(variants)),
     who_made: listing.whoMade,
-    when_made: listing.whenMade,
+    when_made: digitalWhenMade(listing),
     taxonomy_id: String(listing.taxonomyId),
     is_supply: String(listing.isSupply),
     should_auto_renew: String(listing.shouldAutoRenew),
@@ -120,9 +122,7 @@ async function ensureDraftListing(
       accessToken,
       "/listings/" + listing.etsyListingId,
     );
-    if (String(existing.state ?? "") !== "draft") {
-      throw new Error("etsy_listing_not_draft");
-    }
+    assertEditableDraft(listing, existing, shopId);
 
     const updateForm = new URLSearchParams(form);
     updateForm.delete("type");
@@ -318,6 +318,13 @@ export async function executeEtsyDrafts(
         lastDraftSyncAt: new Date(),
       },
     });
+
+    if (ensured.created || assetsUploaded > 0 || inventoryUpdated) await prisma.spellmarkJournal.create({ data: {
+      productId: manifest.id, requestId: crypto.randomUUID(), kind: "DRAFT_EXECUTION",
+      bodyJson: JSON.stringify({ fulfillment: listing.fulfillment, etsyListingId: ensured.listingId, created: ensured.created,
+        digitalDelivery: listing.fulfillment === "DIGITAL" ? listing.digitalDelivery ?? "INSTANT_DOWNLOAD" : null,
+        assetsUploaded, inventoryUpdated, published: false }),
+    } });
 
     results.push({
       fulfillment: listing.fulfillment,

@@ -197,7 +197,16 @@ export function evaluateCommerceGates(
       }
     } else {
       const customerFiles = listing.assets.filter((link) => link.kind === "customer_file");
-      if (customerFileCount === 0) {
+      const madeToOrder = listing.digitalDelivery === "MADE_TO_ORDER";
+      if ((listing.whenMade === "made_to_order") !== madeToOrder) {
+        pass = false;
+        errors.push(issue("COMPLIANCE", "error", "digital_delivery_mode_mismatch", "Digital delivery mode and whenMade disagree.", { listingId: listing.id }));
+      }
+      if (madeToOrder && customerFileCount > 0) {
+        pass = false;
+        errors.push(issue("COMPLIANCE", "error", "made_to_order_cannot_have_listing_downloads", "Made-to-order digital work must not upload instant-download files.", { listingId: listing.id }));
+      }
+      if (customerFileCount === 0 && !madeToOrder) {
         pass = false;
         errors.push(issue(
           "COMPLIANCE",

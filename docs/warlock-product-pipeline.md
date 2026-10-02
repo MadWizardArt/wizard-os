@@ -2,9 +2,9 @@
 
 The Warlock workspace at `/etsy` now contains Products, Production and Listings. The standalone `/printful` URL remains an alias for the same read-only Production desk so old bookmarks still work.
 
-## Current canonical state — 2026-10-01
+## Current canonical state — 2026-10-02
 
-Warlock MCP v0.7.0 advertises **20 tools**. The canonical product executor supports separately configured physical and digital Etsy drafts, exact variant inventory, private assets, live Printful catalog/quote/preflight checks, import reconciliation, and confirmed price updates. It remains draft-only and fail-closed: Brandon reviews and publishes, and Warlock does not place orders. Any lower tool count or statement later in this document that physical draft execution is still future work is a dated implementation note, not the current operating contract.
+Warlock MCP v0.8.0 advertises **23 tools**. The canonical product executor supports separately configured physical and digital Etsy drafts, exact variant inventory, private assets, live Printful catalog/quote/preflight checks, import reconciliation, and confirmed price updates. It remains draft-only and fail-closed: Brandon reviews and publishes, and Warlock does not place orders. Any lower tool count or statement later in this document that physical draft execution is still future work is a dated implementation note, not the current operating contract.
 
 ## Product authority and fulfillment boundaries
 
@@ -86,7 +86,7 @@ When a temporary URL expires, pass a fresh native file object and retry; canonic
 assets and listing links remain deduplicated by product, role and content hash.
 
 Refresh the Business app's tool list after deployment so it can negotiate the new
-native file parameter. At that release point the tool count was fifteen; the current count is twenty. On hosts that do not provide
+native file parameter. At that release point the tool count was fifteen; the current count is twenty-three. On hosts that do not provide
 file params, use an authorized downloadable URL or owned canonical Warlock asset.
 
 Draft execution also requires production `WARLOCK_COMMERCE_WRITE_MODE=draft`.
@@ -123,7 +123,7 @@ in Etsy. Attachment retries preserve listings, configuration, prices and variant
 
 The catalog lives in Printful. Wizard OS provides the shared server service and
 MCP exposes it to Aurelia; no separate catalog database, proxy service or browser
-scraper is needed. At that release point the MCP had **17 tools**; the current count is twenty:
+scraper is needed. At that release point the MCP had **17 tools**; the current count is twenty-three:
 
 1. `search_printful_catalog(query)` without a store ID lists accessible stores.
    Select Spellmark's Etsy store explicitly. Repeat with `storeId` to search by
@@ -364,3 +364,52 @@ The DTG inactive-palette exception covers both complete documented thread-color 
 Fresh quote provenance separates `metadataOptionIds`, `inactiveOptionIds`, and `disabledOptionIds`. Product metadata supports `license_type` arrays containing only the documented licensing-program IDs (including an empty array), boolean `lifelike`, and empty `notes`. Standard DTG additionally supports disabled `inside_pocket`; disabled file `full_color` is recorded separately from inactive thread selection. Licensing metadata is preserved without selecting or rewriting any print files. Reference: https://developers.printful.com/docs/#tag/Common/License-type.
 
 Nonempty editing notes, enabled pocket/full-color features, unknown option IDs, malformed metadata and unsupported production options still block. A pricing-option error now reports all detected product/file issues together (up to 64 per variant) through supplier preflight and live-price `supplierFailures`. Diagnostics contain only scope, option ID, reason and value kind, never raw option values or source URLs. The complete configuration fingerprint still includes original option values, so any metadata or production change requires reconciliation before writing prices. All production costs continue to use fresh API quotes.
+
+
+## Digital delivery and durable bookkeeping (v0.8.0)
+
+Set `listing.digitalDelivery` (or each entry in `listings`) to `MADE_TO_ORDER`
+for personalized digital work. Warlock saves `whenMade=made_to_order`, sends Etsy
+`type=download`, and requires hero/listing imagery but no finished production master
+or customer download for a digital-only commission. Do not attach placeholder
+customer files. Order-specific delivery remains a human fulfillment action.
+`INSTANT_DOWNLOAD` remains the default and retains finished master/customer-file
+readiness checks. Physical editions still require production artwork. Delivery mode
+cannot be changed through the manifest editor after Etsy execution.
+
+Use `get_product_bookkeeping` without a product ID for a paginated catalog overview;
+with a product ID it returns the current canonical records, latest stored Etsy
+observations, discrepancies, and paginated journal history. `get_production_status`
+also includes delivery mode and latest observations. Timestamps are mandatory context:
+stored observations are not a guarantee that Etsy has stayed unchanged.
+`verificationCurrent` becomes false if canonical prices, listing copy, delivery mode
+or asset associations no longer match the evidence snapshot.
+
+Use `reconcile_etsy_listing` with `productId`, `fulfillment`,
+`expectedEtsyListingId`, and `confirmReconciliation:true` for existing saved listings,
+including already-active digital listings. It reads the owned Etsy listing, imagery
+and digital files twice, checks canonical records again under database locks, and
+stores evidence without creating, editing, redrafting or publishing on Etsy.
+Observed Etsy state is deliberately separate from draft workflow state.
+It records price/copy/asset discrepancies rather than overwriting approved targets.
+Physical inventory and supplier verification use the existing dedicated tools.
+
+To repair a known asset association, first read observed remote IDs and canonical
+link IDs from the ledger, explicitly review the artwork association, then supply
+`assetMappings:[{linkId,expectedRemoteId:null,remoteId}]` (or the previous saved ID).
+Only owned links and observed remote IDs of the same kind can be saved. Retries
+are safe; stale or duplicate associations fail. Rank and filename alone never prove
+artwork identity and are not used for automatic association.
+
+`record_product_note` accepts a stable `requestId`, a note, and `confirmRecord:true`.
+It appends rather than replacing history, rejects conflicting reuse, and does not
+assert live facts or change prices/stages. Draft execution and actual canonical
+price changes append journal entries automatically. An unchanged reconciliation
+refreshes its verification timestamp without adding duplicate observation events.
+Product Studio exposes verified observations, discrepancy lists and note/history
+controls through the existing private Artist Gate. Routine clerical maintenance
+now uses these tools, not data-specific migrations or chat memory. This is a
+production/catalog ledger, not a revenue or tax accounting system.
+
+No new environment variable or credential is needed. Refresh the Business connector
+and verify the 23-tool descriptor set before Aurelia resumes the custom portrait.

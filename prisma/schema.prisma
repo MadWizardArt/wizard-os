@@ -458,6 +458,7 @@ model SpellmarkProduct {
   listings         SpellmarkListing[]
 
   @@index([collection, status])
+  journal SpellmarkJournal[]
 }
 
 model SpellmarkAsset {
@@ -533,6 +534,9 @@ model SpellmarkListing {
   @@index([etsyListingId])
   @@index([printfulSyncProductId])
   @@index([status])
+  digitalDelivery String @default("INSTANT_DOWNLOAD")
+  lastVerifiedAt DateTime?
+  observationJson String?
 }
 
 model SpellmarkListingAsset {
@@ -550,4 +554,17 @@ model SpellmarkListingAsset {
   @@unique([listingId, assetId])
   @@unique([listingId, kind, position])
   @@index([assetId])
+}
+
+
+model SpellmarkJournal {
+  id String @id @default(cuid())
+  productId String
+  product SpellmarkProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  requestId String
+  kind String
+  bodyJson String
+  createdAt DateTime @default(now())
+  @@unique([productId, requestId])
+  @@index([productId, createdAt])
 }

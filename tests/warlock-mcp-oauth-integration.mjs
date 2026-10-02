@@ -136,9 +136,9 @@ let tokens;
   assert.equal(listed.status, 200, "initialized OAuth session should list tools");
   const listPayload = await rpcPayload(listed);
   const tools = listPayload.result?.tools;
-  assert.equal(tools?.length, 20, "all twenty Warlock tools should be returned");
+  assert.equal(tools?.length, 23, "all twenty-three Warlock tools should be returned");
   assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
-  for (const name of ["inspect_etsy_variant_prices", "update_etsy_variant_prices", "update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
+  for (const name of ["get_product_bookkeeping", "record_product_note", "reconcile_etsy_listing", "inspect_etsy_variant_prices", "update_etsy_variant_prices", "update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
   const intakeTool = tools.find(tool => tool.name === "intake_product");
   assert.deepEqual(intakeTool._meta["openai/fileParams"], ["files"]);
   const fileSchema = intakeTool.inputSchema.properties.files.items;
@@ -187,4 +187,4 @@ let tokens;
     }),
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
-  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all twenty tools/list descriptors including intake_product passed.");
+  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all twenty-three tools/list descriptors including intake_product passed.");

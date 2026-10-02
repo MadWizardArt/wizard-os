@@ -69,7 +69,7 @@ test('Printful file drift after Etsy write blocks retail mirror and unsupported 
 test('active price capability is separately confirmed and publishing/draft guards stay intact',()=>{
  const old=process.env.WARLOCK_COMMERCE_WRITE_MODE;
  try{delete process.env.WARLOCK_COMMERCE_WRITE_MODE;assert.throws(assertCommercePriceWritesEnabled);process.env.WARLOCK_COMMERCE_WRITE_MODE='draft';assert.doesNotThrow(assertCommercePriceWritesEnabled);assert.equal(publishingEnabled(),false);}finally{if(old===undefined)delete process.env.WARLOCK_COMMERCE_WRITE_MODE;else process.env.WARLOCK_COMMERCE_WRITE_MODE=old;}
- const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8'),transport=source('lib/warlock-commerce/etsy-price-transport.ts');assert.match(transport,/method:"PUT"/);assert.match(transport,/inventory\?legacy=false/);assert.match(transport,/redirect:"error"/);assert.doesNotMatch(transport,/method:"PATCH"|state:"active"|createDraft/);assert.match(source('lib/warlock-commerce/etsy-draft-executor.ts'),/etsy_listing_not_draft/);
+ const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8'),transport=source('lib/warlock-commerce/etsy-price-transport.ts');assert.match(transport,/method:"PUT"/);assert.match(transport,/inventory\?legacy=false/);assert.match(transport,/redirect:"error"/);assert.doesNotMatch(transport,/method:"PATCH"|state:"active"|createDraft/);assert.match((source('lib/warlock-commerce/etsy-draft-executor.ts') + source('lib/warlock-commerce/digital-delivery.ts')),/etsy_listing_not_draft/);
  assert.equal(safeLivePriceError(Error('postgresql://secret')),'live_price_request_failed');
 });
 

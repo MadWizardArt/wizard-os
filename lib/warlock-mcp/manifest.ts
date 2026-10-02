@@ -47,6 +47,9 @@ export type WarlockManifestListing = {
   quantity: number;
   whoMade: string;
   whenMade: string;
+  digitalDelivery?: string;
+  lastVerifiedAt?: string | Date | null;
+  observationJson?: string | null;
   isSupply: boolean;
   shouldAutoRenew: boolean;
   etsyListingId: string | null;
@@ -107,7 +110,8 @@ export function validateWarlockManifest(manifest: WarlockProductManifest): Warlo
   const customerFiles = assetsByRole("customer_file");
 
   if (!manifest.title.trim()) errors.push(issue("error", "title_missing", "The canonical product title is missing."));
-  if (masters.length === 0) errors.push(issue("error", "master_missing", "No master production asset is attached."));
+  const madeToOrder = (manifest.listings ?? []).some(l => l.fulfillment === "DIGITAL" && l.digitalDelivery === "MADE_TO_ORDER");
+  if (masters.length === 0 && (physical.length > 0 || !madeToOrder)) errors.push(issue("error", "master_missing", "No master production asset is attached."));
   if (heroes.length === 0) errors.push(issue("error", "hero_missing", "No Etsy hero image is attached."));
   if (mockups.length === 0) warnings.push(issue("warning", "mockups_missing", "No listing mockups are attached."));
 
@@ -136,7 +140,7 @@ export function validateWarlockManifest(manifest: WarlockProductManifest): Warlo
   }
 
   if (digital.length > 0) {
-    if (customerFiles.length === 0) {
+    if (customerFiles.length === 0 && !madeToOrder) {
       errors.push(issue("error", "customer_files_missing", "Digital fulfillment exists but no customer download file is attached."));
     }
     for (const variant of digital) {
@@ -197,7 +201,8 @@ export function buildWarlockDryRun(manifest: WarlockProductManifest) {
 
   if (digital.length > 0) {
     add("Etsy", "Create or update the digital-version draft listing.", "PLANNED_WRITE");
-    add("Etsy", "Upload approved listing imagery and customer download files.", "PLANNED_WRITE");
+    const madeToOrder = (manifest.listings ?? []).some(l => l.fulfillment === "DIGITAL" && l.digitalDelivery === "MADE_TO_ORDER");
+    add("Etsy", madeToOrder ? "Upload approved listing imagery; custom digital files are delivered after purchase." : "Upload approved listing imagery and customer download files.", "PLANNED_WRITE");
   }
 
   add("Warlock", "Persist external IDs and return final production status to WizardOS.", "PLANNED_WRITE");

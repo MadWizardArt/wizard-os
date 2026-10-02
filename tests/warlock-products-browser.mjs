@@ -1,8 +1,11 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+import pg from "pg";
 import { unlockBrowser } from "./artist-session.mjs";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 const browser = await chromium.launch({ headless: true });
+const pool = new pg.Pool({connectionString:process.env.DATABASE_URL});
+let productId;
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await unlockBrowser(page, base);
@@ -11,6 +14,29 @@ try {
   await page.getByRole("navigation", { name: "Warlock workspace" }).getByRole("button", { name: /Products/ }).click();
   await page.getByText("One artwork, many editions.").waitFor();
   assert.equal(await page.getByText("Volans Aethereus", { exact: true }).count(), 0, "do not seed demo products");
+  const title = `CI Ledger UI ${Date.now()}`;
+  const created = await page.evaluate(async title => {
+    const response=await fetch("/api/warlock/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title})});
+    return {status:response.status,body:await response.json()};
+  },title);
+  assert.equal(created.status,201,JSON.stringify(created.body));productId=created.body.product.id;
+  const configured = await page.evaluate(async ({productId,title}) => {
+    const response=await fetch(`/api/warlock/products/${productId}/listings`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({listing:{title,fulfillment:"DIGITAL",digitalDelivery:"MADE_TO_ORDER"}})});
+    return {status:response.status,body:await response.json()};
+  },{productId,title});
+  assert.equal(configured.status,200,JSON.stringify(configured.body));
+  await page.reload();
+  await page.getByRole("button", {name:new RegExp(title)}).click();
+  await page.getByRole("heading", {name:"Product ledger",exact:true}).waitFor();
+  await page.getByText("DIGITAL · made to order",{exact:true}).waitFor();
+  assert.equal(await page.getByRole("button",{name:"Verify Etsy and save observation",exact:true}).isDisabled(),true);
+  const note=`Ledger note ${Date.now()}`;
+  await page.getByLabel("Production note",{exact:true}).fill(note);
+  await page.getByRole("button",{name:"Record note",exact:true}).click();
+  await page.getByText(note,{exact:false}).waitFor();
+  await page.reload();await page.getByRole("button",{name:new RegExp(title)}).click();
+  await page.getByText(note,{exact:false}).waitFor();
+  assert.equal((await pool.query('SELECT count(*) FROM "SpellmarkJournal" WHERE "productId"=$1',[productId])).rows[0].count,"1");
   await page.getByRole("navigation", { name: "Warlock workspace" }).getByRole("button", { name: /Production/ }).click();
   await page.getByRole("heading", { name: "Printful Cost Desk" }).waitFor();
   assert.ok(page.url().includes("tab=production"));
@@ -20,5 +46,5 @@ try {
   assert.equal(unauth.status, 401, "private product data requires Artist Gate");
   const write = await fetch(`${base}/api/warlock/products`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Unauthorized" }) });
   assert.equal(write.status, 401, "product writes require Artist Gate");
-  console.log("PASS: unified Warlock tabs, existing Etsy tools, no demo records, artist-gated product API.");
-} finally { await browser.close(); }
+  console.log("PASS: unified Warlock tabs, existing Etsy tools, no demo records, artist-gated product API, made-to-order listing display and durable ledger notes after reload.");
+} finally { await browser.close();if(productId)await pool.query('DELETE FROM "SpellmarkProduct" WHERE id=$1',[productId]);await pool.end(); }
