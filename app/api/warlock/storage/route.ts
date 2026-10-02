@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyArtistSession } from "../../../../../lib/museum-artist-auth";
-import { prisma } from "../../../../../lib/prisma";
-import { sameOrigin } from "../../../../../lib/warlock-products";
-import { auditWarlockBlobStorage, deleteVerifiedWarlockOrphans } from "../../../../../lib/warlock-storage";
+import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
+import { prisma } from "../../../../lib/prisma";
+import { sameOrigin } from "../../../../lib/warlock-products";
+import { auditWarlockBlobStorage, deleteVerifiedWarlockOrphans } from "../../../../lib/warlock-storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
