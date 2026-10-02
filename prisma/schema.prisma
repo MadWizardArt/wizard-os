@@ -451,6 +451,8 @@ model SpellmarkProduct {
   artworkReference String             @default("")
   status           String             @default("DESIGN")
   notes            String             @default("")
+  keepInWarlock    Boolean            @default(false)
+  assetsPurgedAt   DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   variants         SpellmarkVariant[]

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyArtistSession } from "../../../../lib/museum-artist-auth";
 import { prisma } from "../../../../lib/prisma";
 import { readProduct, sameOrigin } from "../../../../lib/warlock-products";
+import { purgeExpiredWarlockAssets } from "../../../../lib/warlock-retention";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,12 +12,14 @@ const unauth = () => NextResponse.json({ error: "artist_session_required" }, { s
 export async function GET(request: NextRequest) {
   if (!verifyArtistSession(request)) return unauth();
   try {
+    await purgeExpiredWarlockAssets().catch((error) => console.error("[warlock/retention] cleanup failed", error));
     const products = await prisma.spellmarkProduct.findMany({
       orderBy: { updatedAt: "desc" },
       take: 150,
       include: {
       variants: { orderBy: { createdAt: "asc" } },
       listings: { orderBy: { fulfillment: "asc" } },
+      _count: { select: { assets: true } },
     },
     });
     return NextResponse.json({ products }, { headers });

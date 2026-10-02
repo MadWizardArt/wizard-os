@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import ProductBookkeeping from "./ProductBookkeeping";
 
 type Variant = { id: string; fulfillment: "DIGITAL" | "PHYSICAL"; label: string; printfulVariantId: number | null; printfulProductId: number | null; etsyListingId: string | null };
-type Product = { id: string; title: string; collection: string; description: string; artworkReference: string; notes: string; status: string; variants: Variant[] };
-type Form = Pick<Product, "title" | "collection" | "description" | "artworkReference" | "notes" | "status">;
-const blank: Form = { title: "", collection: "", description: "", artworkReference: "", notes: "", status: "DESIGN" };
+type Product = { id: string; title: string; collection: string; description: string; artworkReference: string; notes: string; status: string; keepInWarlock: boolean; assetsPurgedAt: string | null; _count?: { assets: number }; variants: Variant[] };
+type Form = Pick<Product, "title" | "collection" | "description" | "artworkReference" | "notes" | "status" | "keepInWarlock">;
+const blank: Form = { title: "", collection: "", description: "", artworkReference: "", notes: "", status: "DESIGN", keepInWarlock: false };
 const statuses = ["DESIGN", "PRODUCTION", "PRICING", "LISTING", "READY"];
 const surface: React.CSSProperties = { border: "1px solid #33414a", background: "#141d25", padding: 18, borderRadius: 13 };
 const input: React.CSSProperties = { boxSizing: "border-box", background: "#10171e", color: "#f1ecde", border: "1px solid #53616a", borderRadius: 8, padding: "10px 12px", width: "100%" };
@@ -46,7 +46,7 @@ export default function ProductStudio() {
   function edit(product: Product) {
     setEditId(product.id);
     setSelectedId(product.id);
-    setForm({ title: product.title, collection: product.collection, description: product.description, artworkReference: product.artworkReference, notes: product.notes, status: product.status });
+    setForm({ title: product.title, collection: product.collection, description: product.description, artworkReference: product.artworkReference, notes: product.notes, status: product.status, keepInWarlock: product.keepInWarlock });
     setNotice(""); setError("");
   }
   async function save(event: React.FormEvent) {
@@ -101,6 +101,7 @@ export default function ProductStudio() {
         <label>Artwork reference / asset location<input style={input} maxLength={500} value={form.artworkReference} onChange={e => setForm(p => ({ ...p, artworkReference: e.target.value }))} placeholder="Reference ID, asset path, or creative file label" /></label>
         <label>Production notes<textarea style={{ ...input, minHeight: 55 }} maxLength={4000} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></label>
         <label>Workflow stage<select style={input} value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>{statuses.map(s => <option key={s} value={s}>{s.toLowerCase().replace(/^./, c => c.toUpperCase())}</option>)}</select></label>
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0" }}><input type="checkbox" checked={form.keepInWarlock} onChange={e => setForm(p => ({ ...p, keepInWarlock: e.target.checked }))} style={{ marginTop: 3 }} /><span><strong>Keep in Warlock</strong><small style={{ display: "block", color: "#adb7b5", marginTop: 3 }}>Off by default. After a confirmed Etsy transfer, stored Warlock files become eligible for permanent cleanup after 7 days. Turn this on to retain the files indefinitely.</small></span></label>
         <button type="submit" style={btn} disabled={busy || !form.title.trim()}>{busy ? "Saving…" : editId ? "Save changes" : "Create product"}</button>
       </form>
     </div>
@@ -114,6 +115,7 @@ export default function ProductStudio() {
             <span style={{ fontSize: 11, letterSpacing: 1.4, color: "#cbb487" }}>{p.collection || "Unassigned"} · {p.status}</span>
             <h3 style={{ margin: "7px 0", fontFamily: "Georgia, serif", fontSize: 22 }}>{p.title}</h3>
             <small style={{ color: "#adb7b5" }}>Edit product and formats →</small>
+            <small style={{ display: "block", marginTop: 5, color: p.keepInWarlock ? "#cdb687" : "#8fa69e" }}>{p.keepInWarlock ? "Keep in Warlock · retained" : p.assetsPurgedAt ? "Transfer payload purged · ledger retained" : `${p._count?.assets ?? 0} stored asset${(p._count?.assets ?? 0) === 1 ? "" : "s"} · 7-day retention`}</small>
           </button>
           {p.variants.length ? <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>{p.variants.map(v => <span key={v.id} style={{ border: "1px solid #435450", borderRadius: 7, padding: "6px 8px", fontSize: 12 }}>{v.fulfillment === "PHYSICAL" ? "Printful" : "Digital"} · {v.label}{v.printfulVariantId ? ` · #${v.printfulVariantId}` : ""}</span>)}</div> : <p style={{ color: "#8caaa1", fontSize: 12 }}>No editions linked yet.</p>}
         </article>)}

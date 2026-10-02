@@ -1,6 +1,6 @@
 export const PRODUCT_STATUSES = ["DESIGN", "PRODUCTION", "PRICING", "LISTING", "READY"] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
-export type ProductInput = { title: string; collection: string; description: string; artworkReference: string; notes: string; status: ProductStatus };
+export type ProductInput = { title: string; collection: string; description: string; artworkReference: string; notes: string; status: ProductStatus; keepInWarlock: boolean };
 export type VariantInput = { fulfillment: "DIGITAL" | "PHYSICAL"; label: string; printfulProductId: number | null; printfulVariantId: number | null; printfulStoreId: number | null };
 
 function record(raw: unknown): Record<string, unknown> | null {
@@ -23,9 +23,10 @@ export function readProduct(raw: unknown): ProductInput | null {
   const artworkReference = field(v.artworkReference ?? "", 500);
   const notes = field(v.notes ?? "", 4000);
   const status = v.status ?? "DESIGN";
+  const keepInWarlock = v.keepInWarlock ?? false;
   if (!title || collection === null || description === null || artworkReference === null || notes === null ||
-      typeof status !== "string" || !PRODUCT_STATUSES.includes(status as ProductStatus)) return null;
-  return { title, collection, description, artworkReference, notes, status: status as ProductStatus };
+      typeof status !== "string" || !PRODUCT_STATUSES.includes(status as ProductStatus) || typeof keepInWarlock !== "boolean") return null;
+  return { title, collection, description, artworkReference, notes, status: status as ProductStatus, keepInWarlock };
 }
 export function readVariant(raw: unknown): VariantInput | null {
   const v = record(raw);
