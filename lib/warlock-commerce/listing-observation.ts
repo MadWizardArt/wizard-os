@@ -1,3 +1,4 @@
+import { etsyListingType } from "./etsy-listing-type.ts";
 import { createHash } from "node:crypto";
 import type { WarlockProductManifest, WarlockManifestListing } from "../warlock-mcp/manifest.ts";
 import { hasRequiredEtsyAiDisclosure } from "./policy.ts";
@@ -49,7 +50,7 @@ export function observeEtsyListing(product: WarlockProductManifest, listing: War
   const listingId = listing.etsyListingId;
   if (!listingId || id(remote.listing_id) !== listingId || id(remote.shop_id) !== String(shopId)) throw Error("bookkeeping_listing_ownership_mismatch");
   if (!["active", "draft", "inactive", "sold_out", "expired"].includes(String(remote.state))) throw Error("bookkeeping_unknown_listing_state");
-  if (remote.type !== (listing.fulfillment === "DIGITAL" ? "download" : "physical")) throw Error("bookkeeping_listing_type_mismatch");
+  if (etsyListingType(remote) !== (listing.fulfillment === "DIGITAL" ? "download" : "physical")) throw Error("bookkeeping_listing_type_mismatch");
   const remoteAssets = [...collection(images,"image",listingId), ...collection(files,"customer_file",listingId)];
   if (new Set(mappings.map(m => m.linkId)).size !== mappings.length) throw Error("bookkeeping_duplicate_mapping");
   const links = listing.assets.map(link => {

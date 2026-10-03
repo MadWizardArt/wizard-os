@@ -1,3 +1,4 @@
+import { etsyListingType } from "./etsy-listing-type.ts";
 import type { WarlockManifestListing } from "../warlock-mcp/manifest.ts";
 
 export function digitalWhenMade(listing: WarlockManifestListing) {
@@ -11,6 +12,6 @@ export function digitalWhenMade(listing: WarlockManifestListing) {
 export function assertEditableDraft(listing: WarlockManifestListing, remote: Record<string, unknown>, shopId: number) {
   if (String(remote.listing_id) !== listing.etsyListingId || String(remote.shop_id) !== String(shopId)) throw Error("etsy_listing_ownership_mismatch");
   if (remote.state !== "draft") throw Error("etsy_listing_not_draft");
-  if (remote.type !== (listing.fulfillment === "DIGITAL" ? "download" : "physical")) throw Error("etsy_listing_type_mismatch");
+  if (etsyListingType(remote) !== (listing.fulfillment === "DIGITAL" ? "download" : "physical")) throw Error("etsy_listing_type_mismatch");
   if (listing.fulfillment === "DIGITAL" && (remote.when_made === "made_to_order") !== (listing.digitalDelivery === "MADE_TO_ORDER")) throw Error("delivery_mode_locked_after_draft_execution");
 }

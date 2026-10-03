@@ -6,8 +6,8 @@ const variants = [1,2].map(n=>({id:'v'+n,fulfillment:'PHYSICAL',printfulStoreId:
 const manifest = {id:'p1',variants,listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819'}],assets:[{id:'a1',role:'master',fileName:'design.png'}]};
 const imported=()=>({result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:variants.map((v,n)=>({id:301+n,external_id:v.etsyProductId,sku:v.etsySku}))}});
 function dependencies(payload=imported()) {
- const calls=[];
- const deps={request:async(path,store,init={},allow404)=>{calls.push({kind:'request',path,store,init,allow404});return init.method==='PUT'?{result:{}}:path.startsWith('/sync/variant/')?{result:{sync_variant:{id:Number(path.split('/').at(-1)),sync_product_id:101,synced:false,files:[]}}}:payload;},
+ const calls=[]; const saved=new Map();
+ const deps={request:async(path,store,init={},allow404)=>{calls.push({kind:'request',path,store,init,allow404});if(init.method==='PUT'){const body=JSON.parse(init.body);saved.set(path,{id:Number(path.split('/').at(-1)),sync_product_id:101,synced:true,variant_id:body.variant_id,files:body.files.map((f,i)=>({...f,id:i+1,status:'ok'}))});return {result:{}};} return path.startsWith('/sync/variant/')?{result:{sync_variant:saved.get(path) ?? {id:Number(path.split('/').at(-1)),sync_product_id:101,synced:false,files:[]}}}:payload;},
  temporaryAsset:async()=>{calls.push({kind:'asset'});return {url:'https://signed.example/design.png'};},
  saveListing:async(id,data)=>calls.push({kind:'listing',id,data}),saveVariant:async(id,data)=>calls.push({kind:'variant',id,data})};
  return {deps,calls};
@@ -78,4 +78,9 @@ test('sync retry preserves existing configured files, options and prices and rej
  const result=await configureImportedPrintful(m,deps,{preserveStoreInventory:true});assert.equal(result.state,'SYNCED');assert.ok(!calls.some(c=>c.kind==='asset'||c.init?.method==='PUT'));assert.ok(!JSON.stringify(result).includes('private.example'));
  snapshots.get(301).result.sync_variant.files[0].id=999;assert.equal((await configureImportedPrintful(m,deps)).errorCode,'printful_saved_configuration_changed');
  m.variants[0].productionQuoteJson=null;assert.equal((await configureImportedPrintful(m,deps)).state,'BLOCKED');
+});
+test('multiple masters require an explicit placement plan instead of selecting the first file',async()=>{
+ const m=structuredClone(manifest);m.assets.push({...m.assets[0],id:'a2',fileName:'sleeve.png'});
+ const {deps,calls}=dependencies();const result=await configureImportedPrintful(m,deps);
+ assert.equal(result.errorCode,'printful_explicit_placement_plan_required');assert.ok(!calls.some(c=>c.init?.method==='PUT'));
 });
