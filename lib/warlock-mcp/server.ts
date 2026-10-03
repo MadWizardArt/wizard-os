@@ -15,6 +15,7 @@ import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { reconcilePrintfulProduct } from "../warlock-commerce/printful-reconciliation-executor";
 import { inspectPrintfulProduction } from "../warlock-commerce/printful-inspection";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
+import { executeEtsyDraftOnlyProduct } from "../warlock-commerce/etsy-draft-only-executor";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
 import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
 import { inspectEtsyConfiguration } from "../warlock-commerce/etsy-config-inspector";
@@ -526,11 +527,25 @@ export function createWarlockCommerceMcpServer() {
     },
   );
 
+  server.registerTool("execute_etsy_draft_only", {
+    title: "Create Etsy Draft Without Supplier Configuration",
+    description: "Create or update confirmed Etsy drafts, inventory and assigned images without writing Printful files or configuring a default/front master. Use for apparel before explicit placement review. Checks package, compliance, live supplier availability, private storage and provisional preflight margin. A default single-placement quote is not a final combined apparel quote. Returns DRAFT_CREATED_AWAITING_PLACEMENTS, never production ready. Current assigned images are uploaded to the draft; verify final matching supplier mockups separately. Existing active listings are rejected by the draft writer. Never publishes, orders or changes supplier configuration. Requires commerce draft write mode and explicit draft confirmation.",
+    inputSchema: draftExecutionShape,
+    annotations: draftWriteAnnotations,
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => {
+    if (commerceWriteMode() !== "draft") return failure("warlock_commerce_writes_disabled", "Draft execution requires WARLOCK_COMMERCE_WRITE_MODE=draft.");
+    const loaded = await loadProduct(input);
+    if (!loaded.ok) return loaded.error;
+    try { return success(await executeEtsyDraftOnlyProduct(loaded.product.id)); }
+    catch (error) { return failure("etsy_draft_only_failed", error instanceof Error ? error.message : "Draft creation failed."); }
+  });
+
   server.registerTool(
     "execute_draft_product",
     {
       title: "Execute Draft Product",
-      description: "Create or update Etsy drafts and configure imported Printful sync variants after all Warlock gates pass. Never publishes listings or places orders.",
+      description: "Legacy single-master workflow: create or update Etsy drafts and configure imported Printful sync variants after all Warlock gates pass. For apparel with explicit placements, use execute_etsy_draft_only followed by the approved placement tools instead. Never publishes listings or places orders.",
       inputSchema: draftExecutionShape,
       annotations: draftWriteAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
