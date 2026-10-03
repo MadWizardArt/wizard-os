@@ -14,16 +14,51 @@ function stable(value: unknown): unknown {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,stable(item)]));
   return value;
 }
+export type SyncConfigurationIssue = { field: string; reason: string; actual?: string | number | boolean | null };
+export class PrintfulSyncConfigurationError extends Error {
+  readonly configurationIssues: SyncConfigurationIssue[];
+  constructor(code: string, issues: SyncConfigurationIssue[]) {
+    super(code);
+    this.configurationIssues = issues;
+  }
+}
+/** Allowlisted diagnostics: never return provider URLs, filenames, options or credentials. */
+export function syncConfigurationIssues(remote: Json, catalogVariantId: number): SyncConfigurationIssue[] {
+  const issues: SyncConfigurationIssue[] = [];
+  if (remote.synced !== true) issues.push({field:"synced", reason:"not_synced", actual:remote.synced === false ? false : null});
+  if (remote.is_ignored === true) issues.push({field:"is_ignored", reason:"ignored", actual:true});
+  if (Number(remote.variant_id) !== catalogVariantId) issues.push({field:"variant_id", reason:"catalog_mapping_missing_or_different", actual: Number.isSafeInteger(Number(remote.variant_id)) ? Number(remote.variant_id) : null});
+  if (!Array.isArray(remote.files)) return [...issues, {field:"files", reason:"missing_array"}];
+  const seen = new Set<string>();
+  let productionFiles = 0;
+  remote.files.forEach((raw, index) => {
+    const file = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Json : {};
+    if (file.type === "preview") return;
+    productionFiles++;
+    const path = `files[${index}]`;
+    if (typeof file.type !== "string" || !/^[a-z][a-z0-9_]{0,63}$/.test(file.type)) issues.push({field:path+".type",reason:"invalid_placement"});
+    else { if (seen.has(file.type)) issues.push({field:path+".type",reason:"duplicate_placement",actual:file.type}); seen.add(file.type); }
+    if (!Number.isSafeInteger(Number(file.id)) || Number(file.id) <= 0) issues.push({field:path+".id",reason:"missing_file_id"});
+    if (file.status !== "ok") issues.push({field:path+".status",reason:file.status === "waiting" ? "processing" : file.status === "failed" ? "processing_failed" : "unknown_status",actual:["waiting","failed"].includes(String(file.status)) ? String(file.status) : null});
+  });
+  if (!productionFiles) issues.push({field:"files",reason:"no_production_files"});
+  return issues;
+}
 /** Exposes identities and a fingerprint, never source URLs or signed file credentials. */
 export function readSyncConfiguration(payload: unknown, syncVariantId: number, catalogVariantId: number, syncProductId?: number) {
   const remote=object(object(object(payload).result).sync_variant);
   if(id(remote.id)!==syncVariantId || (syncProductId !== undefined && id(remote.sync_product_id)!==syncProductId)) throw new Error("printful_sync_identity_mismatch");
   if(!Array.isArray(remote.files) || typeof remote.synced!=="boolean") throw new Error("printful_invalid_response");
   const files=remote.files.map(object).filter(file=>file.type!=="preview");
-  if(!files.length && remote.synced===false) return { configured:false as const };
-  if(remote.synced!==true || remote.is_ignored===true || id(remote.variant_id)!==catalogVariantId || !files.length) throw new Error("printful_existing_configuration_incomplete");
+  const issues=syncConfigurationIssues(remote,catalogVariantId);
+  // Imported shells may report synced=true even though no production file exists.
+  // Ignore preview images, but never silently unignore or remap a selected catalog item.
+  if(!files.length && remote.is_ignored!==true && (remote.variant_id == null || Number(remote.variant_id)===0 || Number(remote.variant_id)===catalogVariantId)) return { configured:false as const, configurationIssues:issues };
+  if(issues.length) {
+    const pending=issues.every(issue=>["not_synced","processing"].includes(issue.reason)) && issues.some(issue=>issue.reason==="processing");
+    throw new PrintfulSyncConfigurationError(pending ? "printful_file_processing_pending" : "printful_existing_configuration_incomplete",issues);
+  }
   const types=files.map(file=>String(file.type));
-  if(new Set(types).size!==types.length || files.some(file=>typeof file.type!=="string" || file.status!=="ok")) throw new Error("printful_existing_configuration_incomplete");
   const signature={catalogVariantId,files:files.map(file=>({id:id(file.id),type:file.type,options:file.options ?? [],position:file.position ?? null})).sort((a,b)=>String(a.type).localeCompare(String(b.type))),options:remote.options ?? []};
   const fingerprint=createHash("sha256").update(JSON.stringify(stable(signature))).digest("hex");
   const hasOptions=[signature.options,...signature.files.map(file=>file.options)].some(options=>!Array.isArray(options)||options.length>0);

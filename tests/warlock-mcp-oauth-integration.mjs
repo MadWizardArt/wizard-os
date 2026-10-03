@@ -174,6 +174,23 @@ let tokens;
   assert.equal(priceResult.isError,true);
   assert.match(priceResult.content[0].text,/warlock_commerce_writes_disabled/);
 
+  // Exercise the authenticated HTTP route, not only the schema helper. Invalid
+  // coordinates must return actionable fields without loading products or suppliers.
+  const invalidPlacement=await callMcp({jsonrpc:"2.0",id:31,method:"tools/call",params:{name:"preview_printful_placements",arguments:{
+    productId:"ci-missing-placement-product",variants:[{variantId:"ci-variant",files:[{assetId:"ci-master",type:"right sleeve",position:{area_width:900,area_height:3600,width:"3 inches",height:3600,top:0,left:0}}]}],
+  }}},sessionId);
+  assert.equal(invalidPlacement.status,200);
+  const invalidPlacementResult=(await rpcPayload(invalidPlacement)).result;
+  assert.equal(invalidPlacementResult.isError,true);
+  assert.equal(invalidPlacementResult.structuredContent.error,"printful_placement_arguments_invalid");
+  assert.deepEqual(invalidPlacementResult.structuredContent.fields.map(field=>field.field),["variants.0.files.0.type","variants.0.files.0.position.width"]);
+  const validPlacement=await callMcp({jsonrpc:"2.0",id:32,method:"tools/call",params:{name:"preview_printful_placements",arguments:{
+    productId:"ci-missing-placement-product",variants:[{variantId:"ci-variant",files:[{assetId:"ci-master",type:"sleeve_right",position:{area_width:900,area_height:3600,width:900,height:3600,top:0,left:0}}]}],
+  }}},sessionId);
+  const validPlacementResult=(await rpcPayload(validPlacement)).result;
+  assert.equal(validPlacementResult.isError,true);
+  assert.match(validPlacementResult.content[0].text,/printful_placement_product_missing/);
+
   const replay = await fetch("http://127.0.0.1:3000/api/warlock/oauth/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },

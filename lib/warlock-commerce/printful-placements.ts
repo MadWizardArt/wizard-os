@@ -4,18 +4,20 @@ import type { WarlockProductManifest, WarlockManifestAsset } from "../warlock-mc
 import { inspectPrintfulImport, type SyncRequest } from "./printful-import.ts";
 import { quotePrintfulVariant, type Get, type PrintfulQuote, record, rows } from "./printful-catalog.ts";
 import { etsyListingType } from "./etsy-listing-type.ts";
+import { PrintfulSyncConfigurationError, syncConfigurationIssues } from "./printful-sync-configuration.ts";
+import { readProcessedConfiguration } from "./printful-readback.ts";
 
-const integer = z.number().int().min(1).max(10000);
+const integer = z.number().int().min(1).max(10000).describe("Integer pixels at 300 DPI, not inches. Use the approved catalog print area.");
 export const positionSchema = z.strictObject({ area_width: integer, area_height: integer, width: integer, height: integer,
-  top: z.number().int().min(0).max(30000), left: z.number().int().min(0).max(30000), limit_to_print_area: z.literal(true) });
-export const placementShape = { productId: z.string().min(1).max(100), variants: z.array(z.strictObject({
-  variantId: z.string().min(1).max(100), files: z.array(z.strictObject({ assetId: z.string().min(1).max(100),
-    type: z.enum(["default", "front", "back", "sleeve_left", "sleeve_right"]), position: positionSchema })).min(1).max(4),
+  top: z.number().int().min(0).max(30000).describe("Top offset in pixels; zero is allowed."), left: z.number().int().min(0).max(30000).describe("Left offset in pixels; zero is allowed."), limit_to_print_area: z.literal(true).default(true) });
+export const placementShape = { productId: z.string().min(1).max(100).describe("Canonical Warlock product ID from get_product."), variants: z.array(z.strictObject({
+  variantId: z.string().min(1).max(100).describe("Canonical Warlock variant ID, not size label or Printful catalog ID."), files: z.array(z.strictObject({ assetId: z.string().min(1).max(100).describe("Existing approved Warlock master asset ID. No reupload required."),
+    type: z.enum(["default", "front", "back", "sleeve_left", "sleeve_right"]).describe("Printful placement identifier; right sleeve is sleeve_right, left sleeve is sleeve_left."), position: positionSchema })).min(1).max(4),
 })).min(1).max(30) };
 export type PreparedCanvas = { asset:WarlockManifestAsset; md5:string; width:number; height:number; dpi:number };
 export function placementFingerprint(value: unknown): string {
   const stable = (v: unknown): unknown => Array.isArray(v) ? v.map(stable) : v && typeof v === "object"
-    ? Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,stable(v)])) : v;
+    ? v instanceof Date ? v.toISOString() : Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,stable(v)])) : v;
   return createHash("sha256").update(JSON.stringify(stable(value))).digest("hex");
 }
 function canonicalPlacementFingerprint(manifest:WarlockProductManifest) {
@@ -32,10 +34,14 @@ export function verifyPlacementReadback(payload: unknown, syncId: number, produc
   const remote=record(record(record(payload).result).sync_variant);
   remotePlacementSnapshot(payload,syncId,productId);
   const files=rows(remote.files).filter(f=>f.type!=="preview");
+  const issues=syncConfigurationIssues(remote,catalogId);
+  if (files.length===expected.length && issues.length && issues.every(i=>["not_synced","processing"].includes(i.reason)) && issues.some(i=>i.reason==="processing") && expected.every(want=>files.some(file=>file.type===want.type))) {
+    throw new PrintfulSyncConfigurationError("printful_file_processing_pending",issues);
+  }
   if(remote.synced!==true || remote.is_ignored===true || Number(remote.variant_id)!==catalogId || files.length!==expected.length) throw Error("printful_placement_verification_failed");
   for(const want of expected){
     const found=files.filter(f=>f.type===want.type);
-    if(found.length!==1 || found[0].status!=="ok" || found[0].hash!==want.canvas.md5 || found[0].width!==want.canvas.width || found[0].height!==want.canvas.height || found[0].dpi!==want.canvas.dpi) throw Error("printful_placement_verification_failed");
+    if(found.length!==1 || found[0].status!=="ok" || found[0].hash!==want.canvas.md5 || found[0].width!==want.canvas.width || found[0].height!==want.canvas.height || found[0].dpi!==want.canvas.dpi || (found[0].options != null && (!Array.isArray(found[0].options) || found[0].options.length!==0))) throw Error("printful_placement_verification_failed");
 
   }
   return remotePlacementSnapshot(payload,syncId,productId);
@@ -70,6 +76,7 @@ export async function buildPlacementPreview(manifest:WarlockProductManifest, raw
       plannedFiles.push({...file,canvas:await deps.prepareCanvas(asset,file.position)});
     }
     const before=remotePlacementSnapshot(await deps.request("/sync/variant/"+mapped.printfulSyncVariantId,imported.storeId!),mapped.printfulSyncVariantId,imported.printfulSyncProductId!);
+    if(before.files.some(file=>file.status==="waiting")) throw new PrintfulSyncConfigurationError("printful_file_processing_pending",before.files.flatMap((file,index)=>file.status==="waiting" ? [{field:`files[${index}].status`,reason:"processing",actual:"waiting"}] : []));
     // Quote the proposed placement set with provider catalog prices, including preserved options.
     const proposed={result:{sync_variant:{id:mapped.printfulSyncVariantId,sync_product_id:imported.printfulSyncProductId,variant_id:variant.printfulVariantId,synced:true,is_ignored:false,options:before.options,
       files:plan.files.map((f,i)=>({id:i+1,type:f.type,status:"ok",options:[]}))}}};
@@ -95,12 +102,19 @@ export async function applyPlacementPreview(manifest:WarlockProductManifest, pre
     prepared.push({variant,files});
   }
   const verifiedVariantIds:string[]=[];
+  let currentVariantId:string | undefined;
   try {
     for(const {variant,files} of prepared){
-      const current=remotePlacementSnapshot(await deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId),variant.syncVariantId,preview.syncProductId);
+      currentVariantId=variant.variantId;
+      const currentPayload=await deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId);
+      const current=remotePlacementSnapshot(currentPayload,variant.syncVariantId,preview.syncProductId);
       if(placementFingerprint(current)!==placementFingerprint(variant.before)) throw Error("printful_placement_remote_changed");
-      await deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({variant_id:variant.catalogVariantId,is_ignored:false,files:files.map(({type,url,filename})=>({type,url,filename,options:[]}))})});
-      const observed=verifyPlacementReadback(await deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId),variant.syncVariantId,preview.syncProductId,variant.catalogVariantId,files);
+      // A fresh preview after partial success may already match the approved bytes.
+      // Verify and reuse those files; do not send another expiring upload URL.
+      let alreadyMatches=false;
+      try { verifyPlacementReadback(currentPayload,variant.syncVariantId,preview.syncProductId,variant.catalogVariantId,files); alreadyMatches=true; } catch { /* A changed configuration still requires this approved preview. */ }
+      if(!alreadyMatches) await deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({variant_id:variant.catalogVariantId,is_ignored:false,files:files.map(({type,url,filename})=>({type,url,filename,options:[]}))})});
+      const observed=await readProcessedConfiguration(()=>deps.request("/sync/variant/"+variant.syncVariantId,preview.storeId),payload=>verifyPlacementReadback(payload,variant.syncVariantId,preview.syncProductId,variant.catalogVariantId,files));
       const quote=await quotePrintfulVariant({productId:variant.catalogProductId,catalogVariantId:variant.catalogVariantId,storeId:preview.storeId,syncVariantId:variant.syncVariantId},deps.get);
       if(quote.configurationKind!=="CONFIGURED_SYNC" || quote.availability!=="in_stock" || quote.productionBaseCents!==variant.quote.productionBaseCents) throw Error("printful_placement_quote_changed");
       // A second read rejects a configuration change during the quote fetch.
@@ -110,5 +124,7 @@ export async function applyPlacementPreview(manifest:WarlockProductManifest, pre
       verifiedVariantIds.push(variant.variantId);
     }
     return {state:"PLACEMENT_FILES_VERIFIED",physicalPlacementVerification:"MANUAL_REVIEW_REQUIRED",verifiedVariantIds,etsyMutated:false,checkedAt:new Date().toISOString()};
-  } catch(error){return {state:"NEEDS_REVIEW",verifiedVariantIds,etsyMutated:false,errorCode:error instanceof Error && /^printful_[a-z0-9_]+$/.test(error.message)?error.message:"printful_placement_apply_failed",nextAction:"Some supplier writes may have completed. Inspect and create a fresh placement preview before retrying. No automatic rollback or listing publication occurred."};}
+  } catch(error){return {state:"NEEDS_REVIEW",verifiedVariantIds,variantId:currentVariantId,etsyMutated:false,errorCode:error instanceof Error && /^printful_[a-z0-9_]+$/.test(error.message)?error.message:"printful_placement_apply_failed",
+    ...(error instanceof PrintfulSyncConfigurationError ? {configurationIssues:error.configurationIssues} : {}),
+    nextAction:error instanceof Error && error.message==="printful_file_processing_pending" ? "Printful is processing the saved files. Inspect with check_printful_import until processing finishes, then create a fresh preview. An approved retry reuses matching files without another supplier upload." : "Some supplier writes may have completed. Inspect and create a fresh placement preview before retrying. Matching verified files are reused; no automatic rollback or listing publication occurred."};}
 }

@@ -22,3 +22,20 @@ Previews expire after 15 minutes. Changed source content, prices, options, ident
 Provider references:
 - https://developers.etsy.com/documentation/reference/
 - https://developers.printful.com/docs/#tag/Ecommerce-Platform-Sync-API
+
+## Recovering imports and uploads
+
+`check_printful_import` now reads every mapped sync variant and returns a `configurations` array. The top-level `IMPORTED` state only establishes identities; `productionVerified` remains false.
+
+- `EMPTY_IMPORT`: no production files (preview images do not count). Confirmed single-master execution may configure it, provided it is not ignored and has no conflicting catalog mapping.
+- `PROCESSING`: Printful reports a file as `waiting`. Keep the existing upload and inspect later. Writes are not repeated automatically.
+- `NEEDS_REVIEW`: inspect `configurationIssues` for exact fields, such as `files[0].status`, `variant_id`, or `is_ignored`. Existing files, ignored variants and conflicting catalog mappings require an approved placement preview instead of a blind overwrite.
+- `CONFIGURED`: valid supplier configuration. This is not proof of approved artwork or physical placement.
+
+After a PUT, verification performs at most three GETs with one-second intervals when files are processing. A persistent pending state remains unverified. A fresh approved preview reuses supplier files only when checksums, dimensions, DPI, catalog mapping, placements and file options match. Derived canvases are reused from canonical storage rather than uploaded again on every preview.
+
+Placement coordinates are **integer pixels at 300 DPI**, not inches. `variantId` and `assetId` are canonical Warlock IDs from `get_product`; sleeve names are `sleeve_right` and `sleeve_left`. Supply every physical variant, each with `files: [{assetId, type, position: {area_width, area_height, width, height, top, left}}]`. `limit_to_print_area` defaults to true and cannot be disabled. The source artwork size alone does not establish a garment's print-area dimensions.
+
+Invalid placement arguments return `printful_placement_arguments_invalid` with field paths before SDK validation. No request values, source URLs or credentials are logged. A rejection on the ChatGPT side before an HTTP request reaches Warlock cannot be diagnosed by server logs; refresh connector tools and use the advertised schema.
+
+Validation covers empty imports, ignored/conflicting/failed configurations, asynchronous file processing, partial-success retries, six-size back-and-sleeve MCP requests, and invalid-field feedback. These fixtures do not substitute for live supplier readback and visual approval.
