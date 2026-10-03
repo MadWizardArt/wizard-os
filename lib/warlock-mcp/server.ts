@@ -1,3 +1,5 @@
+import { placementShape } from "../warlock-commerce/printful-placements";
+import { previewPrintfulPlacements, applyPrintfulPlacements } from "../warlock-commerce/printful-placement-executor";
 import { inspectEtsyVariantPrices, updateEtsyVariantPrices } from "../warlock-commerce/live-price-executor";
 import { livePriceInspectionShape, livePriceUpdateShape } from "../warlock-commerce/live-price-schema";
 import { safeLivePriceError } from "../warlock-commerce/live-prices";
@@ -482,6 +484,25 @@ export function createWarlockCommerceMcpServer() {
       return success(await inspectPrintfulImport(loaded.product));
     },
   );
+
+  server.registerTool("preview_printful_placements", {
+    title: "Preview Printful Placement Changes",
+    description: "Save a reviewable placement preview for every physical variant using existing approved master asset IDs and explicit pixel dimensions/positions. Reads Etsy ownership/type, imported IDs, supported placements, stock and combined production costs. Bakes the approved position into a transparent PNG at 300 DPI, preserves original assets, and stores the preview in bookkeeping without changing Printful or Etsy. Pixel coordinates must come from approved product print areas; never guess dimensions. Show the complete preview to the owner before applying.",
+    inputSchema: placementShape, annotations: configurationWriteAnnotations,
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => {
+    try { return success(await previewPrintfulPlacements(input)); }
+    catch (error) { return failure("printful_placement_preview_failed", safePrintfulError(error)); }
+  });
+  server.registerTool("apply_printful_placements", {
+    title: "Apply Approved Printful Placements",
+    description: "Apply an explicitly approved saved placement preview, preserving Etsy inventory and Printful product options. Reject expired or changed previews before writes. Read back file checksums, canvas dimensions, DPI and catalog mapping for every variant, refresh combined costs, and persist verification evidence. Partial failures return NEEDS_REVIEW, never ready. Requires commerce write mode and owner approval of this exact preview. Printful sync does not expose physical offsets: visual mockup review is still required before calling a product ready. Never publishes or orders.",
+    inputSchema: { productId: z.string().min(1).max(100), previewId: z.string().min(1).max(100), confirmPlacementWrite: z.literal(true) },
+    annotations: draftWriteAnnotations, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => {
+    try { return success(await applyPrintfulPlacements(input)); }
+    catch (error) { return failure("printful_placement_apply_failed", safePrintfulError(error)); }
+  });
 
   server.registerTool(
     "reconcile_printful_product",

@@ -8,7 +8,7 @@ test("canonical product metadata requires a real title and bounded fields", () =
   assert.equal(readProduct({ title: "Owl", status: "PUBLISHED" }), null);
   assert.deepEqual(readProduct({ title: " Volans Aethereus ", collection: " Cabinet of Curiosities " }), {
     title: "Volans Aethereus", collection: "Cabinet of Curiosities",
-    description: "", artworkReference: "", notes: "", status: "DESIGN",
+    description: "", artworkReference: "", notes: "", status: "DESIGN", keepInWarlock: false,
   });
 });
 

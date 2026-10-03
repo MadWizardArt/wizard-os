@@ -7,14 +7,14 @@ const manifest={id:'p1',title:'Night Herbarium',description:ETSY_AI_DISCLOSURE,a
  variants:[{id:'v1',fulfillment:'PHYSICAL',label:'Print',printfulProductId:71,printfulVariantId:4011,printfulStoreId:99,etsyListingId:'4586039819',etsySku:'SM-1',etsyProductId:'2001',printfulSyncVariantId:null,retailPriceCents:3000,productionBaseCents:500,productionQuotedAt:new Date(),currency:'USD'}],
  listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819',title:'Night Herbarium',description:ETSY_AI_DISCLOSURE,taxonomyId:1,shippingProfileId:'2',readinessStateId:'3',assets:[{kind:'image'}],status:'WAITING_PRINTFUL'}]};
 function fixture(){
- const calls=[];
- const listing={listing_id:4586039819,shop_id:123,state:'active',description:ETSY_AI_DISCLOSURE};
+ const calls=[]; let saved;
+ const listing={listing_id:4586039819,shop_id:123,state:'active',listing_type:'physical',description:ETSY_AI_DISCLOSURE};
  const inventory={products:[{product_id:2001,sku:'SM-1',is_deleted:false,offerings:[{is_deleted:false,is_enabled:true,price:{amount:3000,divisor:100,currency_code:'USD'}}]}]};
  const quote={catalogProductId:71,catalogVariantId:4011,storeId:99,currency:'USD',availability:'in_stock',productionBaseCents:500,quotedAt:new Date().toISOString()};
  const deps={etsyRead:async path=>{calls.push({kind:'etsy-get',path});return structuredClone(path.includes('inventory')?inventory:listing);},
  supplier:async m=>{calls.push({kind:'supplier',m});return {pass:true,errors:[],variants:[{variantId:'v1',pass:true,quote}]};},
  verifyMaster:async()=>calls.push({kind:'verify'}),
- sync:{request:async(path,store,init={})=>{calls.push({kind:'printful',path,store,init});return init.method==='PUT'?{result:{}}:path.startsWith('/sync/variant/')?{result:{sync_variant:{id:301,sync_product_id:101,synced:false,files:[]}}}:{result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:[{id:301,external_id:'2001',sku:'SM-1'}]}};},
+ sync:{request:async(path,store,init={})=>{calls.push({kind:'printful',path,store,init});if(init.method==='PUT'){const body=JSON.parse(init.body);saved={id:301,sync_product_id:101,synced:true,variant_id:body.variant_id,files:body.files.map((f,i)=>({...f,id:i+1,status:'ok'}))};return {result:{}};} return path.startsWith('/sync/variant/')?{result:{sync_variant:saved ?? {id:301,sync_product_id:101,synced:false,files:[]}}}:{result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:[{id:301,external_id:'2001',sku:'SM-1'}]}};},
  temporaryAsset:async()=>({url:'https://signed.example/art.png'}),saveListing:async(id,data)=>calls.push({kind:'listing-save',id,data}),saveVariant:async(id,data)=>calls.push({kind:'variant-save',id,data})}};
  return {deps,calls,listing,inventory,quote};
 }

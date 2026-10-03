@@ -42,7 +42,7 @@ test("Delete All Non-Favorites is counted, double-confirmed and fail-closed", ()
   assert.match(deletion, /FOR UPDATE/);
   assert.match(deletion, /TransactionIsolationLevel\.Serializable/);
   assert.match(deletion, /deleteGrottoImages\(blobUrls\)/);
-  assert.match(deletion, /deleted\.count !== rows\.length/);
+  assert.match(deletion, /deleted\.count !== ids\.length/);
 });
 
 test("Muse identity remains provenance while the Atelier uses ten real interchangeable references", () => {

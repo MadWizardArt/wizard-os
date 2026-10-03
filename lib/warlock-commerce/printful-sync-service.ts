@@ -34,7 +34,9 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
       await deps.saveVariant(variant.id, { printfulSyncVariantId: mapped.printfulSyncVariantId, etsySku: etsySkuForVariant(variant) });
     }
     if (imported.state === "VARIANT_MAPPING_FAILED") return imported;
-    const master = manifest.assets.find(a => a.role === "master");
+    const masters = manifest.assets.filter(a => a.role === "master");
+    if (masters.length > 1) return { ...imported, state: "BLOCKED", errorCode: "printful_explicit_placement_plan_required", nextAction: "Multiple approved masters require preview_printful_placements and an approved apply_printful_placements call. No master or placement is selected automatically." };
+    const master = masters[0];
     if (!master) return { ...imported, state: "BLOCKED", errorCode: "master_missing", nextAction: "Attach the approved master file before configuration." };
     // Validate the complete set before configuring any remote edition.
     if (imported.variants.some(mapped => {
@@ -67,6 +69,11 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
             is_ignored: false,
             files: [{ type: "default", url: temporary.url, filename: master.fileName, visible: true }] }),
         });
+      stage = "VERIFY_SYNC_CONFIGURATION";
+      const savedPayload=await deps.request("/sync/variant/"+mapped.printfulSyncVariantId,imported.storeId!);
+      const saved=readSyncConfiguration(savedPayload,mapped.printfulSyncVariantId,variant.printfulVariantId!,imported.printfulSyncProductId);
+      const savedFiles=(savedPayload?.result as {sync_variant?:{files?:Array<{type?:string;url?:string;position?:unknown}>}})?.sync_variant?.files?.filter(f=>f.type!=="preview") ?? [];
+      if(!saved.configured || savedFiles.length!==1 || savedFiles[0].type!=="default" || savedFiles[0].url!==temporary.url || savedFiles[0].position!=null) throw new Error("printful_placement_verification_failed");
       configuredVariantIds.push(variant.id);
     }
     stage = "SAVE_SYNC_COMPLETION"; variantId = undefined;

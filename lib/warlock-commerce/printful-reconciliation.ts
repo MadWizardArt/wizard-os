@@ -1,3 +1,4 @@
+import { etsyListingType } from "./etsy-listing-type.ts";
 import type { WarlockProductManifest, WarlockManifestAsset } from "../warlock-mcp/manifest.ts";
 import type { SupplierPreflight } from "./printful-preflight.ts";
 import type { SyncDependencies } from "./printful-sync-service.ts";
@@ -24,6 +25,7 @@ function priceCents(value: unknown) {
 function verifyActiveInventory(manifest: WarlockProductManifest, shopId: number, listing: Json, inventory: Json) {
   const id = manifest.listings[0].etsyListingId;
   if (String(listing.listing_id ?? "") !== id || String(listing.shop_id ?? "") !== String(shopId)) throw new Error("etsy_listing_ownership_mismatch");
+  if (etsyListingType(listing) !== "physical") throw new Error("etsy_listing_type_mismatch");
   if (listing.state !== "active") throw new Error("etsy_listing_not_active");
   if (!hasRequiredEtsyAiDisclosure(String(listing.description ?? ""))) throw new Error("etsy_active_disclosure_missing");
   const products = rows(inventory.products).filter(p => p.is_deleted !== true);
@@ -43,7 +45,7 @@ function verifyActiveInventory(manifest: WarlockProductManifest, shopId: number,
 }
 function safeError(error: unknown) {
   const code = error instanceof Error ? error.message : "";
-  return /^(etsy_(http_\d{3}|listing_ownership_mismatch|listing_not_active|active_disclosure_missing|inventory_(variant_set_changed|variant_identity_mismatch|price_invalid|price_changed)|invalid_response)|live_production_quote_(missing_or_mismatched|expired)|supplier_preflight_failed|canonical_asset_storage_unavailable)$/.test(code) ? code : "printful_reconciliation_failed";
+  return /^(etsy_(http_\d{3}|listing_ownership_mismatch|listing_type_mismatch|listing_type_conflict|listing_type_unknown|listing_not_active|active_disclosure_missing|inventory_(variant_set_changed|variant_identity_mismatch|price_invalid|price_changed)|invalid_response)|live_production_quote_(missing_or_mismatched|expired)|supplier_preflight_failed|canonical_asset_storage_unavailable)$/.test(code) ? code : "printful_reconciliation_failed";
 }
 
 /** Only the physical listing is reconciled. Etsy remains read-only throughout. */

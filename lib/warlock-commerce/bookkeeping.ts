@@ -57,7 +57,7 @@ export async function reconcileEtsyListing(raw: unknown) {
   const [images,files]=await Promise.all([read(path+"/images"),input.fulfillment==="DIGITAL"?read("/shops/"+shopId+path+"/files"):Promise.resolve({count:0,results:[]})]);
   const [rechecked, recheckedImages, recheckedFiles]=await Promise.all([read(path),read(path+"/images"),input.fulfillment==="DIGITAL"?read("/shops/"+shopId+path+"/files"):Promise.resolve({count:0,results:[]})]);
   if(bookkeepingFingerprint(images)!==bookkeepingFingerprint(recheckedImages) || bookkeepingFingerprint(files)!==bookkeepingFingerprint(recheckedFiles))throw Error("bookkeeping_etsy_assets_changed_retry");
-  const relevant=(r:Record<string,unknown>)=>[r.listing_id,r.shop_id,r.state,r.type,r.when_made,r.title,r.description,r.price,r.updated_timestamp];
+  const relevant=(r:Record<string,unknown>)=>[r.listing_id,r.shop_id,r.state,r.listing_type,r.type,r.when_made,r.title,r.description,r.price,r.updated_timestamp];
   if(bookkeepingFingerprint(relevant(remote))!==bookkeepingFingerprint(relevant(rechecked)))throw Error("bookkeeping_etsy_changed_retry");
   const observation=observeEtsyListing(product,listing,shopId,rechecked,images,files,input.assetMappings),checkedAt=new Date();
   await prisma.$transaction(async tx=>{
