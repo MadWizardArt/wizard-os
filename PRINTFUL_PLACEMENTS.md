@@ -39,3 +39,11 @@ Placement coordinates are **integer pixels at 300 DPI**, not inches. `variantId`
 Invalid placement arguments return `printful_placement_arguments_invalid` with field paths before SDK validation. No request values, source URLs or credentials are logged. A rejection on the ChatGPT side before an HTTP request reaches Warlock cannot be diagnosed by server logs; refresh connector tools and use the advertised schema.
 
 Validation covers empty imports, ignored/conflicting/failed configurations, asynchronous file processing, partial-success retries, six-size back-and-sleeve MCP requests, and invalid-field feedback. These fixtures do not substitute for live supplier readback and visual approval.
+
+## Lossless placement-canvas encoding
+
+The final RGBA PNG uses DEFLATE compression level 9 and adaptive filtering, with palette conversion disabled. This changes encoded bytes and checksums, not decoded pixels, alpha, approved dimensions or 300 DPI metadata. Existing source assets remain untouched. Create a fresh preview after this renderer update; previously saved previews may have different canvas checksums.
+
+Limits remain 40,000,000 output pixels and 20 MiB of encoded PNG data. Failures distinguish `printful_placement_canvas_pixel_limit`, `printful_placement_canvas_byte_limit`, and `printful_placement_out_of_bounds`. Compression cannot guarantee that every image fits; an image still above the byte cap is rejected without resizing or lossy quantization.
+
+Herbarium's approved back is 3600×4800, and wearer-right sleeve is 900×3600, both at zero offsets and 300 DPI. The fresh plan must contain only `back` and `sleeve_right`, with no front artwork, across all six variants. Preview approval is still required before any supplier write; verify every supplier file and combined quote afterward and keep visual garment/mockup verification pending.
