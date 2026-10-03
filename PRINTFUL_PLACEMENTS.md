@@ -5,7 +5,7 @@ Warlock validates the response field for draft setup, bookkeeping, and active su
 
 For imported physical products requiring multiple print placements:
 
-1. Attach each approved production image to the canonical product as a `master` asset. Use existing imported Etsy/Printful identifiers; do not recreate listings.
+1. Use approved production images attached to the canonical product with role `master` or `other`. Select each export explicitly by asset ID in the placement preview; existing `other` back/sleeve exports do not need reuploading or relabeling. Hero images, mockups, customer files and generated canvases cannot be selected as source artwork. The exact saved preview still requires owner approval before supplier writes. Use existing imported Etsy/Printful identifiers; do not recreate listings.
 2. Call `preview_printful_placements` with the product ID and the complete physical variant set. Each variant specifies exact asset IDs, supported file types, and explicit canvas/image pixel dimensions and offsets. Use the correct supplier print area for each size and placement; never infer it from a promotional mockup. At 300 DPI, 300 pixels correspond to one inch.
 3. Show the saved preview and combined production costs to the owner. Approve that exact preview before calling `apply_printful_placements` with its preview ID and `confirmPlacementWrite: true`.
 4. Apply rechecks canonical records, Etsy ownership/type, imported identities, current supplier configuration, stock, and combined pricing. It then updates Printful files only and verifies every variant's file MD5, canvas dimensions, DPI, and catalog mapping from provider readbacks. Quotes and verification evidence are retained in product bookkeeping.
@@ -34,7 +34,7 @@ Provider references:
 
 After a PUT, verification performs at most three GETs with one-second intervals when files are processing. A persistent pending state remains unverified. A fresh approved preview reuses supplier files only when checksums, dimensions, DPI, catalog mapping, placements and file options match. Derived canvases are reused from canonical storage rather than uploaded again on every preview.
 
-Placement coordinates are **integer pixels at 300 DPI**, not inches. `variantId` and `assetId` are canonical Warlock IDs from `get_product`; sleeve names are `sleeve_right` and `sleeve_left`. Supply every physical variant, each with `files: [{assetId, type, position: {area_width, area_height, width, height, top, left}}]`. `limit_to_print_area` defaults to true and cannot be disabled. The source artwork size alone does not establish a garment's print-area dimensions.
+Placement coordinates are **integer pixels at 300 DPI**, not inches. `variantId` and `assetId` are canonical Warlock IDs from `get_product` (source assets may be `master` or `other`); sleeve names are `sleeve_right` and `sleeve_left`. Supply every physical variant, each with `files: [{assetId, type, position: {area_width, area_height, width, height, top, left}}]`. `limit_to_print_area` defaults to true and cannot be disabled. The source artwork size alone does not establish a garment's print-area dimensions.
 
 Invalid placement arguments return `printful_placement_arguments_invalid` with field paths before SDK validation. No request values, source URLs or credentials are logged. A rejection on the ChatGPT side before an HTTP request reaches Warlock cannot be diagnosed by server logs; refresh connector tools and use the advertised schema.
 
