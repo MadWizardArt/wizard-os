@@ -1,11 +1,12 @@
-import { readSyncConfiguration } from "./printful-sync-configuration.ts";
+import { readSyncConfiguration, PrintfulSyncConfigurationError, type SyncConfigurationIssue } from "./printful-sync-configuration.ts";
+import { readProcessedConfiguration } from "./printful-readback.ts";
 import type { PrintfulQuote } from "./printful-catalog.ts";
 import type { WarlockProductManifest, WarlockManifestAsset } from "../warlock-mcp/manifest.ts";
 import { inspectPrintfulImport, syncErrorCode } from "./printful-import.ts";
 import type { PrintfulImportStatus, SyncRequest } from "./printful-import.ts";
 import { etsySkuForVariant } from "./etsy-inventory.ts";
 
-export type PrintfulSyncResult = Omit<PrintfulImportStatus, "state"> & { state: PrintfulImportStatus["state"] | "SYNCED"; configuredVariantIds?: string[]; diagnostic?: { stage: string; variantId?: string; causeCode: string; providerMessage?: string } };
+export type PrintfulSyncResult = Omit<PrintfulImportStatus, "state"> & { state: PrintfulImportStatus["state"] | "SYNCED"; configuredVariantIds?: string[]; diagnostic?: { stage: string; variantId?: string; causeCode: string; providerMessage?: string; configurationIssues?: SyncConfigurationIssue[] } };
 export type SyncDependencies = {
   request: SyncRequest;
   temporaryAsset: (asset: WarlockManifestAsset) => Promise<{ url: string }>;
@@ -70,7 +71,10 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
             files: [{ type: "default", url: temporary.url, filename: master.fileName, visible: true }] }),
         });
       stage = "VERIFY_SYNC_CONFIGURATION";
-      const savedPayload=await deps.request("/sync/variant/"+mapped.printfulSyncVariantId,imported.storeId!);
+      const savedPayload=await readProcessedConfiguration(()=>deps.request("/sync/variant/"+mapped.printfulSyncVariantId,imported.storeId!), payload=>{
+        readSyncConfiguration(payload,mapped.printfulSyncVariantId,variant.printfulVariantId!,imported.printfulSyncProductId);
+        return payload as Record<string,unknown>;
+      });
       const saved=readSyncConfiguration(savedPayload,mapped.printfulSyncVariantId,variant.printfulVariantId!,imported.printfulSyncProductId);
       const savedFiles=(savedPayload?.result as {sync_variant?:{files?:Array<{type?:string;url?:string;position?:unknown}>}})?.sync_variant?.files?.filter(f=>f.type!=="preview") ?? [];
       if(!saved.configured || savedFiles.length!==1 || savedFiles[0].type!=="default" || savedFiles[0].url!==temporary.url || savedFiles[0].position!=null) throw new Error("printful_placement_verification_failed");
@@ -92,7 +96,9 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
       : stage === "VERIFY_LIVE_QUOTE" || stage === "VERIFY_SYNC_CONFIGURATION" ? causeCode : syncErrorCode(error);
     return { ...imported, state: stage === "CONFIGURE_SYNC_VARIANT" ? "PRINTFUL_API_ERROR" : "BLOCKED",
       checkedAt: new Date().toISOString(), errorCode: code, configuredVariantIds,
-      diagnostic: { stage, variantId, causeCode, ...(stage === "CONFIGURE_SYNC_VARIANT" && typeof row.providerMessage === "string" ? { providerMessage: row.providerMessage } : {}) },
-      nextAction: options.preserveStoreInventory ? "The active Etsy listing is preserved. Resolve the reported stage/cause and retry reconcile_printful_product." : "The Etsy draft is preserved. Resolve the reported stage/cause and retry confirmed execution." };
+      diagnostic: { stage, variantId, causeCode, ...(error instanceof PrintfulSyncConfigurationError ? {configurationIssues:error.configurationIssues} : {}), ...(stage === "CONFIGURE_SYNC_VARIANT" && typeof row.providerMessage === "string" ? { providerMessage: row.providerMessage } : {}) },
+      nextAction: causeCode === "printful_file_processing_pending" ? "Printful is still processing the existing upload. Use check_printful_import to inspect every variant, then retry once processing finishes. Do not upload the artwork again."
+        : causeCode === "printful_existing_configuration_incomplete" ? "Use check_printful_import for all variant field diagnostics. Existing production files or conflicting mappings are preserved; repair them through an explicitly approved placement preview."
+        : options.preserveStoreInventory ? "The active Etsy listing is preserved. Resolve the reported stage/cause and retry reconcile_printful_product." : "The Etsy draft is preserved. Resolve the reported stage/cause and retry confirmed execution." };
   }
 }

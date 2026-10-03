@@ -46,11 +46,11 @@ test('missing variants, wrong assets, duplicate placements and out of bounds dim
  }
 });
 test('successful PUT with wrong artwork or unfinished files is not verified',async()=>{
- for(const change of [r=>r.files[0].hash='wrong',r=>r.files[0].width=0,r=>r.files[0].status='waiting']){
+ for(const [change,expectedError] of [[r=>r.files[0].hash='wrong','printful_placement_verification_failed'],[r=>r.files[0].width=0,'printful_placement_verification_failed'],[r=>r.files[0].status='waiting','printful_file_processing_pending']]){
  const f=fixture(),p=await buildPlacementPreview(f.manifest,f.input,f.deps),request=f.deps.request;
  f.deps.request=async(...args)=>{const r=await request(...args);if(args[2]?.method==='PUT')f.change(change);return r;};
  const result=await applyPlacementPreview(f.manifest,p,f.deps,async()=>assert.fail('must not save evidence'));
- assert.equal(result.state,'NEEDS_REVIEW');assert.deepEqual(result.verifiedVariantIds,[]);assert.equal(result.errorCode,'printful_placement_verification_failed');
+ assert.equal(result.state,'NEEDS_REVIEW');assert.deepEqual(result.verifiedVariantIds,[]);assert.equal(result.errorCode,expectedError);
  }
 });
 test('sync request uses documented file fields and never sends position offsets',async()=>{
@@ -76,4 +76,18 @@ test('a later variant failure retains only verified progress and never reports t
  const p=await buildPlacementPreview(f.manifest,f.input,f.deps),saved=[];
  const result=await applyPlacementPreview(f.manifest,p,f.deps,async id=>saved.push(id));
  assert.equal(result.state,'NEEDS_REVIEW');assert.equal(result.errorCode,'printful_http_429');assert.deepEqual(saved,['v']);assert.deepEqual(result.verifiedVariantIds,['v']);
+});
+
+test('approved retry after partial success reuses verified supplier files',async()=>{
+ const f=fixture(),first=await buildPlacementPreview(f.manifest,f.input,f.deps);
+ assert.equal((await applyPlacementPreview(f.manifest,first,f.deps,async()=>{})).state,'PLACEMENT_FILES_VERIFIED');
+ const writes=f.calls.filter(c=>c.init.method==='PUT').length;
+ const retry=await buildPlacementPreview(f.manifest,f.input,f.deps);
+ assert.equal((await applyPlacementPreview(f.manifest,retry,f.deps,async()=>{})).state,'PLACEMENT_FILES_VERIFIED');
+ assert.equal(f.calls.filter(c=>c.init.method==='PUT').length,writes);
+});
+test('a processing upload blocks new placement previews until it finishes',async()=>{
+ const f=fixture();f.change(r=>Object.assign(r,{variant_id:4011,files:[{id:81,type:'back',status:'waiting'}]}));
+ await assert.rejects(buildPlacementPreview(f.manifest,f.input,f.deps),/printful_file_processing_pending/);
+ assert.ok(!f.calls.some(c=>c.init.method==='PUT'));
 });

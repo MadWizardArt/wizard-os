@@ -1,4 +1,5 @@
 import { placementShape } from "../warlock-commerce/printful-placements";
+import { PrintfulSyncConfigurationError } from "../warlock-commerce/printful-sync-configuration";
 import { previewPrintfulPlacements, applyPrintfulPlacements } from "../warlock-commerce/printful-placement-executor";
 import { inspectEtsyVariantPrices, updateEtsyVariantPrices } from "../warlock-commerce/live-price-executor";
 import { livePriceInspectionShape, livePriceUpdateShape } from "../warlock-commerce/live-price-schema";
@@ -12,7 +13,7 @@ import { evaluateCommerceGates } from "../warlock-commerce/gates";
 import { runPrintfulSupplierPreflight } from "../warlock-commerce/printful-preflight";
 import { buildCommerceExecutionPlan } from "../warlock-commerce/execution-plan";
 import { reconcilePrintfulProduct } from "../warlock-commerce/printful-reconciliation-executor";
-import { inspectPrintfulImport } from "../warlock-commerce/printful-import";
+import { inspectPrintfulProduction } from "../warlock-commerce/printful-inspection";
 import { executeDraftProduct } from "../warlock-commerce/draft-execution";
 import { commerceWriteMode } from "../warlock-commerce/write-guard";
 import { WARLOCK_TOOL_SECURITY_SCHEMES } from "../warlock-mcp-oauth";
@@ -98,10 +99,13 @@ function success(payload: Record<string, unknown>) {
   };
 }
 
-function failure(code: string, message: string) {
+function failure(code: string, message: string, details: Record<string,unknown> = {}) {
+  console.warn("Warlock tool failed", {code});
+  const payload = {error:code,message,...details};
   return {
     isError: true as const,
-    content: [{ type: "text" as const, text: JSON.stringify({ error: code, message }) }],
+    content: [{ type: "text" as const, text: JSON.stringify(payload) }],
+    structuredContent: payload,
   };
 }
 
@@ -473,7 +477,7 @@ export function createWarlockCommerceMcpServer() {
     "check_printful_import",
     {
       title: "Check Printful Etsy Import",
-      description: "Read the live Printful ecommerce sync feed by canonical Etsy listing ID. Distinguish a missing import, variant mapping failure, and API error; return timestamp and recovery instructions. Does not modify Etsy, configure variants, or trigger a store refresh. Import not synced products is a manually verified store prerequisite.",
+      description: "Read the live Printful ecommerce sync feed and inspect every imported variant. Return EMPTY_IMPORT, PROCESSING, CONFIGURED or NEEDS_REVIEW with exact missing or invalid fields, even if other variants fail. Imported IDs alone never prove production readiness. Use this to diagnose incomplete configurations and pending uploads before retrying. Does not modify Etsy or Printful or trigger a store refresh.",
       inputSchema: selectorShape,
       annotations: liveReadAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
@@ -481,7 +485,7 @@ export function createWarlockCommerceMcpServer() {
     async (selector) => {
       const loaded = await loadProduct(selector);
       if (!loaded.ok) return loaded.error;
-      return success(await inspectPrintfulImport(loaded.product));
+      return success(await inspectPrintfulProduction(loaded.product));
     },
   );
 
@@ -492,7 +496,7 @@ export function createWarlockCommerceMcpServer() {
     _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
   }, async input => {
     try { return success(await previewPrintfulPlacements(input)); }
-    catch (error) { return failure("printful_placement_preview_failed", safePrintfulError(error)); }
+    catch (error) { return failure("printful_placement_preview_failed", safePrintfulError(error), error instanceof PrintfulSyncConfigurationError ? {configurationIssues:error.configurationIssues,nextAction:"Inspect every variant with check_printful_import. Wait for processing to finish before creating another preview; no supplier write occurred."} : {}); }
   });
   server.registerTool("apply_printful_placements", {
     title: "Apply Approved Printful Placements",

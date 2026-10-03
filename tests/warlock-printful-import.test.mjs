@@ -84,3 +84,50 @@ test('multiple masters require an explicit placement plan instead of selecting t
  const {deps,calls}=dependencies();const result=await configureImportedPrintful(m,deps);
  assert.equal(result.errorCode,'printful_explicit_placement_plan_required');assert.ok(!calls.some(c=>c.init?.method==='PUT'));
 });
+
+test('imported shells with synced=true but only previews can finish setup',async()=>{
+ const {deps,calls}=dependencies(), request=deps.request;
+ deps.request=async(...args)=>{const r=await request(...args);if(args[0].startsWith('/sync/variant/') && !args[2]?.method && r.result.sync_variant.synced===false)Object.assign(r.result.sync_variant,{synced:true,variant_id:0,files:[{type:'preview',status:'ok',id:999}]});return r;};
+ assert.equal((await configureImportedPrintful(manifest,deps)).state,'SYNCED');
+ assert.equal(calls.filter(c=>c.init?.method==='PUT').length,2);
+});
+test('ignored and conflicting imports are preserved with precise safe field diagnostics',async()=>{
+ for(const patch of [{is_ignored:true},{variant_id:999},{variant_id:4001,files:[{id:81,type:'default',status:'failed',url:'https://private.example/token-secret'}]}]){
+ const {deps,calls}=dependencies(),request=deps.request;
+ deps.request=async(...args)=>{const r=await request(...args);if(args[0].startsWith('/sync/variant/'))Object.assign(r.result.sync_variant,patch);return r;};
+ const result=await configureImportedPrintful(manifest,deps);
+ assert.equal(result.errorCode,'printful_existing_configuration_incomplete');assert.ok(result.diagnostic.configurationIssues.length);
+ assert.ok(!calls.some(c=>c.init?.method==='PUT'));assert.ok(!JSON.stringify(result).includes('token-secret'));
+ }
+});
+test('inspection reports every variant without uploads when one imported file failed',async()=>{
+ const {inspectPrintfulProduction}=await import('../lib/warlock-commerce/printful-inspection.ts');
+ const {deps,calls}=dependencies(),request=deps.request;
+ deps.request=async(...args)=>{const r=await request(...args);if(args[0]==='/sync/variant/301')Object.assign(r.result.sync_variant,{variant_id:4001,files:[{id:81,type:'default',status:'failed'}]});return r;};
+ const report=await inspectPrintfulProduction(manifest,deps.request);
+ assert.deepEqual(report.configurations.map(c=>c.state),['NEEDS_REVIEW','EMPTY_IMPORT']);
+ assert.ok(report.configurations[0].configurationIssues.some(i=>i.field==='files[0].status'&&i.reason==='processing_failed'));
+ assert.equal(report.productionVerified,false);assert.ok(calls.every(c=>c.kind==='request'&&!c.init.method));
+});
+test('file processing retries reads only and remains distinguishable from an invalid configuration',async()=>{
+ const {readProcessedConfiguration}=await import('../lib/warlock-commerce/printful-readback.ts');
+ const {readSyncConfiguration,PrintfulSyncConfigurationError}=await import('../lib/warlock-commerce/printful-sync-configuration.ts');
+ let reads=0,waits=0;
+ const payload=status=>({result:{sync_variant:{id:301,sync_product_id:101,variant_id:4001,synced:true,files:[{id:81,type:'default',status}]}}});
+ const verify=p=>readSyncConfiguration(p,301,4001,101);
+ const result=await readProcessedConfiguration(async()=>payload(++reads<3?'waiting':'ok'),verify,async()=>{waits++;});
+ assert.equal(result.configured,true);assert.equal(reads,3);assert.equal(waits,2);
+ reads=0;
+ await assert.rejects(readProcessedConfiguration(async()=>{reads++;return payload('waiting');},verify,async()=>{}),e=>e instanceof PrintfulSyncConfigurationError&&e.message==='printful_file_processing_pending');
+ assert.equal(reads,3);
+ reads=0;
+ await assert.rejects(readProcessedConfiguration(async()=>{reads++;return payload('failed');},verify,async()=>{}),/printful_existing_configuration_incomplete/);
+ assert.equal(reads,1);
+});
+
+test('post-upload processing completes with read-only retries and one PUT per variant',async()=>{
+ const {deps,calls}=dependencies(),request=deps.request,pending=new Set();
+ deps.request=async(...args)=>{const r=await request(...args);if(args[2]?.method==='PUT')pending.add(args[0]);else if(pending.delete(args[0]))return {result:{sync_variant:{...r.result.sync_variant,files:r.result.sync_variant.files.map(f=>({...f,status:'waiting'}))}}};return r;};
+ const result=await configureImportedPrintful(manifest,deps);
+ assert.equal(result.state,'SYNCED');assert.equal(calls.filter(c=>c.init?.method==='PUT').length,2);
+});

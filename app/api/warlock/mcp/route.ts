@@ -8,6 +8,7 @@ import {
 import { isValidWarlockOAuthAccessToken } from "../../../../lib/warlock-mcp-oauth-store";
 import { createWarlockCommerceMcpServer } from "../../../../lib/warlock-mcp/server";
 import { withWarlockOpenAiToolSecuritySchemes } from "../../../../lib/warlock-mcp/openai-compat";
+import { placementValidationResponse } from "../../../../lib/warlock-mcp/placement-validation";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -53,6 +54,10 @@ async function serve(request: NextRequest) {
         },
       },
     );
+  }
+  if (request.method === "POST") {
+    const validation = placementValidationResponse(await request.clone().json().catch(() => null));
+    if (validation) return NextResponse.json(validation, {headers:{"Cache-Control":"no-store"}});
   }
   const response = await handler.fetch(request);
   return request.method === "POST"

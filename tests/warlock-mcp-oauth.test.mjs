@@ -198,3 +198,25 @@ test('required single-file descriptor survives serialized MCP transport and acce
   assert.ok(broken.error || broken.result?.isError);assert.equal(accepted,1);
  } finally {if(typeof handler.close==='function')await handler.close();}
 });
+
+test('placement calls return field-level validation before the SDK and valid six-size plans reach the handler',async()=>{
+ const {placementShape}=await import('../lib/warlock-commerce/printful-placements.ts');
+ const {placementValidationResponse}=await import('../lib/warlock-mcp/placement-validation.ts');
+ let accepted=0;
+ const handler=createMcpHandler(()=>{const server=new McpServer({name:'placement-probe',version:'1'});server.registerTool('preview_printful_placements',{inputSchema:placementShape},async input=>{accepted++;return {content:[{type:'text',text:JSON.stringify(input)}]};});return server;});
+ const args={productId:'p',variants:Array.from({length:6},(_,i)=>({variantId:'v'+i,files:[{assetId:'back',type:'back',position:{area_width:3600,area_height:4800,width:3600,height:4800,top:0,left:0}},{assetId:'sleeve',type:'sleeve_right',position:{area_width:900,area_height:3600,width:900,height:3600,top:0,left:0}}]}))};
+ const rpc={jsonrpc:'2.0',id:8,method:'tools/call',params:{name:'preview_printful_placements',arguments:args}};
+ try {
+  assert.equal(placementValidationResponse(rpc),null);
+  const response=await handler.fetch(new Request('https://example.test/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify(rpc)}));
+  const body=await response.text(),line=body.split('\n').find(l=>l.startsWith('data: ')),result=JSON.parse(line?line.slice(6):body);
+  assert.equal(result.result.isError,undefined);assert.equal(accepted,1);
+  assert.equal(JSON.parse(result.result.content[0].text).variants[0].files[0].position.limit_to_print_area,true);
+  args.variants[0].files[1].type='right sleeve';args.variants[2].files[0].position.width='12 inches';
+  const invalid=placementValidationResponse(rpc);
+  assert.equal(invalid.result.isError,true);assert.equal(invalid.id,8);
+  assert.deepEqual(invalid.result.structuredContent.fields.map(f=>f.field),['variants.0.files.1.type','variants.2.files.0.position.width']);
+  assert.equal(accepted,1);
+  assert.equal(placementValidationResponse({...rpc,params:{name:'apply_printful_placements',arguments:{}}}),null);
+ }finally{await handler.close();}
+});

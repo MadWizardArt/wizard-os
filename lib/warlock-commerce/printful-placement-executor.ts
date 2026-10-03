@@ -25,7 +25,14 @@ async function dependencies(productId:string,db:Pick<PrismaClient,"spellmarkAsse
       if(size!==asset.byteSize)throw Error("printful_placement_asset_changed");
       const canvas=await renderPrintfulCanvas(Buffer.concat(chunks),position);
       const fileName="placement-"+canvas.sha256+".png";
-      const stored=await put("warlock/"+productId+"/placements/"+fileName,canvas.bytes,{access:"private",addRandomSuffix:false,allowOverwrite:true,contentType:"image/png"});
+      const pathname="warlock/"+productId+"/placements/"+fileName;
+      const existing=await db.spellmarkAsset.findFirst({where:{productId,pathname,role:"production_canvas"}});
+      if(existing){
+        await verifyIntakeAsset(existing);
+        if(existing.byteSize!==canvas.bytes.length)throw Error("printful_placement_asset_changed");
+        return {md5:canvas.md5,width:canvas.width,height:canvas.height,dpi:canvas.dpi,asset:existing};
+      }
+      const stored=await put(pathname,canvas.bytes,{access:"private",addRandomSuffix:false,allowOverwrite:true,contentType:"image/png"});
       const assetRow=await db.spellmarkAsset.upsert({where:{blobUrl:stored.url},update:{},create:{productId,role:"production_canvas",fileName,blobUrl:stored.url,pathname:stored.pathname,contentType:"image/png",byteSize:canvas.bytes.length}});
       if(assetRow.productId!==productId)throw Error("printful_placement_asset_not_owned");
       return {md5:canvas.md5,width:canvas.width,height:canvas.height,dpi:canvas.dpi,asset:assetRow};
