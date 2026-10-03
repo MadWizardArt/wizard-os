@@ -491,7 +491,7 @@ export function createWarlockCommerceMcpServer() {
 
   server.registerTool("preview_printful_placements", {
     title: "Preview Printful Placement Changes",
-    description: "Save a reviewable placement preview for every physical variant using existing approved master asset IDs and explicit pixel dimensions/positions. Reads Etsy ownership/type, imported IDs, supported placements, stock and combined production costs. Bakes the approved position into a transparent PNG at 300 DPI, preserves original assets, and stores the preview in bookkeeping without changing Printful or Etsy. Pixel coordinates must come from approved product print areas; never guess dimensions. Show the complete preview to the owner before applying.",
+    description: "Save a reviewable placement preview for every physical variant using explicitly selected, product-owned PNG/JPEG production exports with role master or other and explicit pixel dimensions/positions. Hero, mockup, customer_file and generated production_canvas assets are excluded. Selection does not change an asset role or authorize supplier writes; the exact saved preview still requires owner approval. Reads Etsy ownership/type, imported IDs, supported placements, stock and combined production costs. Bakes the approved position into a transparent PNG at 300 DPI, preserves original assets, and stores the preview in bookkeeping without changing Printful or Etsy. Pixel coordinates must come from approved product print areas; never guess dimensions. Show the complete preview to the owner before applying.",
     inputSchema: placementShape, annotations: configurationWriteAnnotations,
     _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
   }, async input => {

@@ -11,7 +11,7 @@ const integer = z.number().int().min(1).max(10000).describe("Integer pixels at 3
 export const positionSchema = z.strictObject({ area_width: integer, area_height: integer, width: integer, height: integer,
   top: z.number().int().min(0).max(30000).describe("Top offset in pixels; zero is allowed."), left: z.number().int().min(0).max(30000).describe("Left offset in pixels; zero is allowed."), limit_to_print_area: z.literal(true).default(true) });
 export const placementShape = { productId: z.string().min(1).max(100).describe("Canonical Warlock product ID from get_product."), variants: z.array(z.strictObject({
-  variantId: z.string().min(1).max(100).describe("Canonical Warlock variant ID, not size label or Printful catalog ID."), files: z.array(z.strictObject({ assetId: z.string().min(1).max(100).describe("Existing approved Warlock master asset ID. No reupload required."),
+  variantId: z.string().min(1).max(100).describe("Canonical Warlock variant ID, not size label or Printful catalog ID."), files: z.array(z.strictObject({ assetId: z.string().min(1).max(100).describe("Existing product-owned PNG/JPEG production export with role master or other, explicitly selected for this approved placement. Excludes hero, mockup and customer_file assets. No reupload required."),
     type: z.enum(["default", "front", "back", "sleeve_left", "sleeve_right"]).describe("Printful placement identifier; right sleeve is sleeve_right, left sleeve is sleeve_left."), position: positionSchema })).min(1).max(4),
 })).min(1).max(30) };
 export type PreparedCanvas = { asset:WarlockManifestAsset; md5:string; width:number; height:number; dpi:number };
@@ -70,7 +70,11 @@ export async function buildPlacementPreview(manifest:WarlockProductManifest, raw
     for(const file of plan.files){
       if(!definitions.some(d=>d.id===file.type)) throw Error("printful_placement_unsupported");
       const asset=manifest.assets.find(a=>a.id===file.assetId);
-      if(!asset || asset.role!=="master" || !["image/png","image/jpeg"].includes(asset.contentType)) throw Error("printful_placement_asset_not_owned");
+      if(!asset) throw Error("printful_placement_asset_not_owned");
+      // Explicit selection plus saved-preview approval authorizes this export for
+      // this placement only. Do not reclassify assets or auto-select "other" files.
+      if(!["master","other"].includes(asset.role)) throw Error("printful_placement_asset_role_not_allowed");
+      if(!["image/png","image/jpeg"].includes(asset.contentType)) throw Error("printful_placement_asset_type_not_supported");
       if(file.position.left+file.position.width>file.position.area_width || file.position.top+file.position.height>file.position.area_height) throw Error("printful_placement_out_of_bounds");
       await deps.verifyAsset(asset);
       plannedFiles.push({...file,canvas:await deps.prepareCanvas(asset,file.position)});

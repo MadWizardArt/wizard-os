@@ -91,3 +91,30 @@ test('a processing upload blocks new placement previews until it finishes',async
  await assert.rejects(buildPlacementPreview(f.manifest,f.input,f.deps),/printful_file_processing_pending/);
  assert.ok(!f.calls.some(c=>c.init.method==='PUT'));
 });
+
+test('product-owned other back and sleeve exports preview and apply without reclassification',async()=>{
+ const f=fixture();f.manifest.assets.forEach(asset=>asset.role='other');
+ const preview=await buildPlacementPreview(f.manifest,f.input,f.deps);
+ assert.deepEqual(preview.variants[0].files.map(file=>file.assetId),['a','b']);
+ assert.ok(!f.calls.some(c=>c.init.method==='PUT'));
+ assert.equal((await applyPlacementPreview(f.manifest,preview,f.deps,async()=>{})).state,'PLACEMENT_FILES_VERIFIED');
+ assert.deepEqual(f.manifest.assets.map(asset=>asset.role),['other','other']);
+});
+test('placement exports reject foreign IDs, presentation roles and unsupported files before rendering or writing',async()=>{
+ for(const [patch,error] of [[{id:'foreign'},'asset_not_owned'],...['hero','mockup','customer_file','production_canvas','unknown'].map(role=>[{role},'asset_role_not_allowed']),[{role:'other',contentType:'application/pdf'},'asset_type_not_supported']]){
+  const f=fixture();Object.assign(f.manifest.assets[0],patch);
+  f.deps.prepareCanvas=async()=>assert.fail('ineligible asset must not render');
+  await assert.rejects(buildPlacementPreview(f.manifest,f.input,f.deps),new RegExp('printful_placement_'+error));
+  assert.ok(!f.calls.some(c=>c.init.method==='PUT'));
+ }
+});
+test('other exports still require storage ownership verification and unchanged preview approval',async()=>{
+ const f=fixture();f.manifest.assets[0].role='other';
+ f.deps.verifyAsset=async()=>{throw Error('asset_path_not_owned');};
+ await assert.rejects(buildPlacementPreview(f.manifest,f.input,f.deps),/asset_path_not_owned/);
+ assert.ok(!f.calls.some(c=>c.init.method==='PUT'));
+ const g=fixture();g.manifest.assets[0].role='other';
+ const p=await buildPlacementPreview(g.manifest,g.input,g.deps);g.manifest.assets[0].role='mockup';
+ await assert.rejects(applyPlacementPreview(g.manifest,p,g.deps,async()=>{}),/printful_placement_preview_stale/);
+ assert.ok(!g.calls.some(c=>c.init.method==='PUT'));
+});
