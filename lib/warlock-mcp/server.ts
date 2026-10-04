@@ -1,3 +1,6 @@
+import { attachPostDraftImage } from "../warlock-post-draft-images";
+import { inspectEtsyListingImages, updateEtsyListingImage } from "../warlock-commerce/listing-image-executor";
+import { imageInspectionShape, imageUpdateShape, safeImageError } from "../warlock-commerce/listing-images";
 import { placementShape } from "../warlock-commerce/printful-placements";
 import { PrintfulSyncConfigurationError } from "../warlock-commerce/printful-sync-configuration";
 import { previewPrintfulPlacements, applyPrintfulPlacements } from "../warlock-commerce/printful-placement-executor";
@@ -184,7 +187,7 @@ export function createWarlockCommerceMcpServer() {
           gates: canonical ? evaluateCommerceGates(canonical) : null });
       } catch (error) {
         // Do not expose/log signed asset URLs or input package bytes.
-        return failure("warlock_intake_failed", error instanceof Error && error.message === "intake_locked_after_draft_execution" ? "intake_locked_after_draft_execution: Use update_product_prices for confirmed canonical retail-price edits; existing Etsy prices are updated separately." : error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
+        return failure("warlock_intake_failed", error instanceof Error && error.message === "intake_locked_after_draft_execution" ? "intake_locked_after_draft_execution: Use update_product_prices for confirmed canonical retail-price edits; existing Etsy prices are updated separately. Use attach_product_file for post-draft hero/mockup images, then inspect_etsy_listing_images and update_etsy_listing_image." : error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
       }
     },
   );
@@ -193,7 +196,7 @@ export function createWarlockCommerceMcpServer() {
     "attach_product_file",
     {
       title: "Attach ChatGPT File to Spellmark Product",
-      description: "Attach one selected ChatGPT image or customer file to an existing canonical product. Prefer this tool for native attachments after intake_product creates the product. Supply the attachment through the native file parameter; ChatGPT resolves its ID to downloadable bytes. Specify master, hero, mockup, customer_file or other and optional fulfillment and rank. Repeat for each file. Retries reuse stored assets and links. Returns package validation. Preserves product, prices, variants and verified Etsy configuration. Does not create Etsy drafts, publish or order fulfillment.",
+      description: "Attach one selected ChatGPT image or customer file to an existing canonical product. Prefer this tool for native attachments after intake_product creates the product. Supply the attachment through the native file parameter; ChatGPT resolves its ID to downloadable bytes. Specify master, hero, mockup, customer_file or other and optional fulfillment and rank. After draft execution, only hero/mockup images with explicit fulfillment are accepted and staged without changing Etsy. Then inspect_etsy_listing_images and confirm update_etsy_listing_image. Repeat for each file. Retries reuse stored assets. Returns package validation. Preserves product, prices, variants and verified Etsy configuration. Does not create Etsy drafts, publish or order fulfillment.",
       inputSchema: attachProductFileShape,
       annotations: intakeAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES, "openai/fileParams": ["file"] },
@@ -202,7 +205,8 @@ export function createWarlockCommerceMcpServer() {
       const loaded = await loadProduct({ productId: input.productId });
       if (!loaded.ok) return loaded.error;
       try {
-        const result = await intakeProduct(attachmentIntake(input, loaded.product), prisma);
+        const executed = loaded.product.listings.some(listing => listing.etsyListingId || listing.printfulSyncProductId);
+        const result = executed ? await attachPostDraftImage(input, prisma) : await intakeProduct(attachmentIntake(input, loaded.product), prisma);
         const canonical = await findWarlockProduct({ productId: result.productId });
         return success({ ...result, validation: canonical ? validateWarlockManifest(canonical) : null,
           gates: canonical ? evaluateCommerceGates(canonical) : null });
@@ -211,6 +215,19 @@ export function createWarlockCommerceMcpServer() {
       }
     },
   );
+
+  server.registerTool("inspect_etsy_listing_images", {
+    title: "Inspect Etsy Listing Images",
+    description: "Read current photo IDs, ranks and snapshot fingerprint for an existing Etsy listing. Inspect before each image update. Does not mutate Etsy or Printful.",
+    inputSchema: imageInspectionShape, annotations: liveReadAnnotations,
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await inspectEtsyListingImages(input)); } catch(error) { return failure("etsy_image_inspection_failed", safeImageError(error)); } });
+  server.registerTool("update_etsy_listing_image", {
+    title: "Update One Etsy Listing Image",
+    description: "Explicitly confirmed photo-only update for a draft or active Etsy listing. Use a product-owned hero/mockup asset and fresh inspection. Replace the exact current image or append the next slot. Review image and rank with owner first. Reuse requestId on retries; uncertain uploads are never blindly repeated. Preserves prices, inventory, production files and Printful placements. Never publishes or orders.",
+    inputSchema: imageUpdateShape, annotations: { ...draftWriteAnnotations, destructiveHint: true },
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await updateEtsyListingImage(input)); } catch(error) { return failure("etsy_image_update_failed", safeImageError(error)); } });
 
   server.registerTool(
     "search_printful_catalog",
