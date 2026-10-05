@@ -38,6 +38,7 @@ export async function configureImportedPrintful(manifest: WarlockProductManifest
     const masters = manifest.assets.filter(a => a.role === "master");
     if (masters.length > 1) return { ...imported, state: "BLOCKED", errorCode: "printful_explicit_placement_plan_required", nextAction: "Multiple approved masters require preview_printful_placements and an approved apply_printful_placements call. No master or placement is selected automatically." };
     const master = masters[0];
+    if (master && !["image/png", "image/jpeg", "image/webp"].includes(master.contentType)) return { ...imported, state: "BLOCKED", errorCode: "printful_master_image_required", nextAction: "Select an approved image export for Printful; document masters cannot be printed directly." };
     if (!master) return { ...imported, state: "BLOCKED", errorCode: "master_missing", nextAction: "Attach the approved master file before configuration." };
     // Validate the complete set before configuring any remote edition.
     if (imported.variants.some(mapped => {

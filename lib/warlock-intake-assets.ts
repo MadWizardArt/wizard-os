@@ -45,7 +45,11 @@ export async function readIntakeBytes(asset: IntakeAsset) {
   else if (bytes.subarray(0,4).toString() === "%PDF") contentType = "application/pdf";
   else if (bytes[0] === 80 && bytes[1] === 75) contentType = "application/zip";
   else throw new Error("asset_file_type_unsupported");
-  if (["hero", "mockup", "master"].includes(asset.role) && !contentType.startsWith("image/")) throw new Error("asset_image_required");
+  if (asset.name?.toLowerCase().endsWith(".pptx")) {
+    if (contentType !== "application/zip" || !isPowerPointPackage(bytes)) throw new Error("asset_powerpoint_package_invalid");
+    contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  }
+  if (["hero", "mockup"].includes(asset.role) && !contentType.startsWith("image/")) throw new Error("asset_image_required");
   if (!asset.name || !/^[A-Za-z0-9._-]+$/.test(asset.name)) throw new Error("asset_name_required: Use a filename containing letters, numbers, periods, underscores, or hyphens.");
   return { bytes, contentType, digest: createHash("sha256").update(bytes).digest("hex") };
 }
@@ -64,3 +68,25 @@ export async function verifyIntakeAsset(asset: { blobUrl: string; pathname: stri
 }
 
 export async function discardIntakeBlob(url: string) { await del(url); }
+
+/** Read bounded ZIP directory metadata only; never extract or execute document content. */
+function isPowerPointPackage(bytes: Buffer) {
+  for (let end = bytes.length - 22; end >= Math.max(0, bytes.length - 65557); end--) {
+    if (bytes.readUInt32LE(end) !== 0x06054b50) continue;
+    if (end + 22 + bytes.readUInt16LE(end + 20) !== bytes.length) continue;
+    if (bytes.readUInt16LE(end + 4) || bytes.readUInt16LE(end + 6)) return false;
+    const count = bytes.readUInt16LE(end + 10), size = bytes.readUInt32LE(end + 12);
+    let offset = bytes.readUInt32LE(end + 16);
+    if (!count || count > 10000 || bytes.readUInt16LE(end + 8) !== count || offset + size !== end) return false;
+    const names = new Set<string>();
+    for (let i = 0; i < count; i++) {
+      if (offset + 46 > end || bytes.readUInt32LE(offset) !== 0x02014b50) return false;
+      const length = bytes.readUInt16LE(offset + 28), extra = bytes.readUInt16LE(offset + 30), comment = bytes.readUInt16LE(offset + 32);
+      if (offset + 46 + length + extra + comment > end || (bytes.readUInt16LE(offset + 8) & 1)) return false;
+      names.add(bytes.subarray(offset + 46, offset + 46 + length).toString("utf8"));
+      offset += 46 + length + extra + comment;
+    }
+    return offset === end && ["[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml"].every(name => names.has(name));
+  }
+  return false;
+}

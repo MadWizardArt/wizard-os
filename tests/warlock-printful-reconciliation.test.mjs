@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {reconcileActivePrintful} from '../lib/warlock-commerce/printful-reconciliation.ts';
 import {ETSY_AI_DISCLOSURE} from '../lib/warlock-commerce/policy.ts';
-const manifest={id:'p1',title:'Night Herbarium',description:ETSY_AI_DISCLOSURE,assets:[{id:'a1',role:'master',fileName:'art.png'}],
+const manifest={id:'p1',title:'Night Herbarium',description:ETSY_AI_DISCLOSURE,assets:[{id:'a1',role:'master',contentType:'image/png',fileName:'art.png'}],
  variants:[{id:'v1',fulfillment:'PHYSICAL',label:'Print',printfulProductId:71,printfulVariantId:4011,printfulStoreId:99,etsyListingId:'4586039819',etsySku:'SM-1',etsyProductId:'2001',printfulSyncVariantId:null,retailPriceCents:3000,productionBaseCents:500,productionQuotedAt:new Date(),currency:'USD'}],
  listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819',title:'Night Herbarium',description:ETSY_AI_DISCLOSURE,taxonomyId:1,shippingProfileId:'2',readinessStateId:'3',assets:[{kind:'image'}],status:'WAITING_PRINTFUL'}]};
 function fixture(){

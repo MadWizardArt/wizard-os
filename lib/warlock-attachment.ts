@@ -13,6 +13,8 @@ export const attachProductFileShape = {
   name: z.string().trim().min(1).max(240).optional(),
   fulfillment: z.enum(["DIGITAL", "PHYSICAL"]).optional(),
   position: z.number().int().min(1).max(20).optional(),
+  expectedAssetId: z.string().min(1).max(100).optional(),
+  confirmReplacement: z.literal(true).optional(),
   confirmAttachment: z.literal(true),
 };
 export const attachProductFileSchema = z.object(attachProductFileShape);
@@ -24,6 +26,6 @@ export function attachmentIntake(raw: unknown, product: { id: string; title: str
     productId: product.id, product: { title: product.title }, confirmIntake: true,
     files: [input.file],
     assets: [{ fileId: input.file.file_id, role: input.role, name: input.name,
-      fulfillment: input.fulfillment, position: input.position }],
+      fulfillment: input.fulfillment, position: input.position, expectedAssetId: input.expectedAssetId, confirmReplacement: input.confirmReplacement }],
   });
 }
