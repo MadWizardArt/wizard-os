@@ -43,11 +43,15 @@ export const intakeProductShape = {
   assets: z.array(z.object({
     name: z.string().trim().min(1).max(240).optional(),
     role: z.enum(["hero", "mockup", "customer_file", "master", "other"]),
+    expectedAssetId: z.string().min(1).max(100).optional().describe("Current canonical customer-file asset ID at the exact slot to replace. Pre-draft only."),
+    confirmReplacement: z.literal(true).optional(),
     assetId: z.string().min(1).max(100).optional().describe("Existing canonical Warlock asset ID; never a ChatGPT file ID."),
     fileId: z.string().min(1).max(200).optional().describe("ChatGPT file_id matching an entry in the top-level files parameter."), url: z.string().url().max(4000).optional(),
     base64: z.string().max(4 * 1024 * 1024).optional(), contentType: z.string().max(100).optional(),
     fulfillment: z.enum(["DIGITAL", "PHYSICAL"]).optional(), position: z.number().int().min(1).max(20).optional(),
-  }).refine(a => [a.assetId, a.fileId, a.url, a.base64].filter(x => x !== undefined).length === 1, "Provide exactly one of assetId, fileId, url, or base64.")).max(40).optional(),
+  }).refine(a => (a.expectedAssetId === undefined && a.confirmReplacement === undefined) ||
+    (a.role === "customer_file" && a.fulfillment === "DIGITAL" && a.position !== undefined && a.expectedAssetId !== undefined && a.confirmReplacement === true),
+    "Replacement requires customer_file, DIGITAL fulfillment, explicit position, expectedAssetId and confirmReplacement:true.").refine(a => [a.assetId, a.fileId, a.url, a.base64].filter(x => x !== undefined).length === 1, "Provide exactly one of assetId, fileId, url, or base64.")).max(40).optional(),
   confirmIntake: z.literal(true),
 };
 export const intakeProductSchema = z.object(intakeProductShape).refine(v => !(v.listing && v.listings), "Use listing or listings, not both.");

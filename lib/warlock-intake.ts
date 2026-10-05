@@ -147,7 +147,16 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
           if (already.position !== position) throw new Error("asset_position_change_requires_review");
           continue;
         }
-        if (links.some(l => l.position === position)) throw new Error("asset_position_conflict");
+        const occupied = links.find(l => l.position === position);
+        if (inputAsset.expectedAssetId !== undefined) {
+          if (!occupied || occupied.assetId !== inputAsset.expectedAssetId) throw new Error("customer_file_replacement_stale");
+          if (occupied.etsyRemoteId || occupied.etsySyncedAt) throw new Error("customer_file_replacement_requires_etsy_reconciliation");
+          await tx.spellmarkListingAsset.update({ where: { id: occupied.id }, data: { assetId: asset.id } });
+          await tx.spellmarkJournal.create({ data: { productId, requestId: `customer-file-replacement:${crypto.randomUUID()}`, kind: "CUSTOMER_FILE_REPLACEMENT",
+            bodyJson: JSON.stringify({ listingId: listing.id, position, previousAssetId: inputAsset.expectedAssetId, assetId: asset.id, etsyMutated: false }) } });
+          continue;
+        }
+        if (occupied) throw new Error("asset_position_conflict: For an approved pre-draft customer-file replacement, supply expectedAssetId, DIGITAL fulfillment, position and confirmReplacement:true.");
         await tx.spellmarkListingAsset.create({ data: { listingId: listing.id, assetId: asset.id, kind, position } });
       }
     }

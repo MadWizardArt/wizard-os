@@ -5,8 +5,8 @@ import { permittedIntakeUrl, readIntakeBytes } from '../lib/warlock-intake-asset
 import { evaluateCommerceGates } from '../lib/warlock-commerce/gates.ts';
 import { validateWarlockManifest } from '../lib/warlock-mcp/manifest.ts';
 function database() {
-  let state = { products: [], variants: [], listings: [], assets: [], links: [] }; let seq = 0;
-  const tables = { spellmarkProduct:'products', spellmarkVariant:'variants', spellmarkListing:'listings', spellmarkAsset:'assets', spellmarkListingAsset:'links' };
+  let state = { products: [], variants: [], listings: [], assets: [], links: [], journals: [] }; let seq = 0;
+  const tables = { spellmarkProduct:'products', spellmarkVariant:'variants', spellmarkListing:'listings', spellmarkAsset:'assets', spellmarkListingAsset:'links', spellmarkJournal:'journals' };
   function match(row, where = {}) { return Object.entries(where).every(([k,v]) => k === 'productId_fulfillment' ? match(row,v) : row[k] === v); }
   const tx = { $queryRaw: async () => [] };
   for (const [name, key] of Object.entries(tables)) {
@@ -107,4 +107,27 @@ test('made-to-order intake prepares custom digital work without an unfinished cu
 test('delivery-mode switch with existing instant file links is rejected atomically',async()=>{
  const db=database();await intakeProduct(input,db,files);const before=structuredClone(db.state());
  await assert.rejects(intakeProduct({...input,listing:{...input.listing,digitalDelivery:'MADE_TO_ORDER'},assets:[]},db,files),/cannot_have_listing_downloads/);assert.deepEqual(db.state(),before);
+});
+
+test('confirmed pre-draft customer file replacement retains original and is retry safe',async()=>{
+ const db=database();const created=await intakeProduct(input,db,files);
+ const old=db.state().links.find(l=>l.kind==='customer_file');const oldId=old.assetId;
+ const replacement={...asset('customer_file','revised.zip'),base64:Buffer.from('PK revised package').toString('base64'),fulfillment:'DIGITAL',position:old.position,expectedAssetId:oldId,confirmReplacement:true};
+ const request={productId:created.productId,product:{title:input.product.title},confirmIntake:true,assets:[replacement]};
+ await intakeProduct(request,db,files);const saved=structuredClone(db.state());
+ assert.notEqual(old.assetId,oldId);assert.ok(db.state().assets.some(a=>a.id===oldId));assert.equal(db.state().journals.length,1);
+ await intakeProduct(request,db,files);assert.deepEqual(db.state(),saved);
+ await assert.rejects(intakeProduct({...request,assets:[{...replacement,name:'newer.zip',base64:Buffer.from('PK newer package').toString('base64')}]},db,files),/replacement_stale/);
+ assert.deepEqual(db.state(),saved);
+ await assert.rejects(intakeProduct({...request,assets:[{...replacement,confirmReplacement:undefined}]},db,files),/Replacement requires/);
+ db.state().listings[0].etsyListingId='123';await assert.rejects(intakeProduct(request,db,files),/intake_locked/);
+});
+test('document masters are accepted while presentation images remain image-only',async()=>{
+ const pdf={role:'master',name:'source.pdf',base64:Buffer.from('%PDF-1.7 source').toString('base64')};
+ assert.equal((await readIntakeBytes(pdf)).contentType,'application/pdf');
+ await assert.rejects(readIntakeBytes({...pdf,role:'hero'}),/asset_image_required/);
+ await assert.rejects(readIntakeBytes({...pdf,name:'fake.pptx'}),/powerpoint_package_invalid/);
+});
+test('PPTX package masters retain their document MIME and reject damaged directories',async()=>{
+ const bytes=Buffer.from('UEsDBBQAAAAIAPV6RV0n9SRQCAAAAAYAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOpyM3RtwMAUEsDBBQAAAAIAPV6RV0n9SRQCAAAAAYAAAALAAAAX3JlbHMvLnJlbHOzqcjN0bcDAFBLAwQUAAAACAD1ekVdJ/UkUAgAAAAGAAAAFAAAAHBwdC9wcmVzZW50YXRpb24ueG1ss6nIzdG3AwBQSwECFAMUAAAACAD1ekVdJ/UkUAgAAAAGAAAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAxQAAAAIAPV6RV0n9SRQCAAAAAYAAAALAAAAAAAAAAAAAACAATkAAABfcmVscy8ucmVsc1BLAQIUAxQAAAAIAPV6RV0n9SRQCAAAAAYAAAAUAAAAAAAAAAAAAACAAWoAAABwcHQvcHJlc2VudGF0aW9uLnhtbFBLBQYAAAAAAwADALwAAACkAAAAAAA=','base64');const a={role:'master',name:'source.pptx',base64:bytes.toString('base64')};assert.equal((await readIntakeBytes(a)).contentType,'application/vnd.openxmlformats-officedocument.presentationml.presentation');await assert.rejects(readIntakeBytes({...a,role:'mockup'}),/asset_image_required/);await assert.rejects(readIntakeBytes({...a,base64:bytes.subarray(0,bytes.length-10).toString('base64')}),/powerpoint_package_invalid/);
 });

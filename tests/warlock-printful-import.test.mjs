@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inspectPrintfulImport, printfulSyncRequest } from '../lib/warlock-commerce/printful-import.ts';
 import { configureImportedPrintful } from '../lib/warlock-commerce/printful-sync-service.ts';
 const variants = [1,2].map(n=>({id:'v'+n,fulfillment:'PHYSICAL',printfulStoreId:99,printfulVariantId:4000+n,etsySku:'SM-'+n,etsyProductId:'200'+n,printfulSyncVariantId:null,retailPriceCents:3000}));
-const manifest = {id:'p1',variants,listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819'}],assets:[{id:'a1',role:'master',fileName:'design.png'}]};
+const manifest = {id:'p1',variants,listings:[{id:'l1',fulfillment:'PHYSICAL',etsyListingId:'4586039819'}],assets:[{id:'a1',role:'master',contentType:'image/png',fileName:'design.png'}]};
 const imported=()=>({result:{sync_product:{id:101,external_id:'4586039819'},sync_variants:variants.map((v,n)=>({id:301+n,external_id:v.etsyProductId,sku:v.etsySku}))}});
 function dependencies(payload=imported()) {
  const calls=[]; const saved=new Map();
@@ -130,4 +130,9 @@ test('post-upload processing completes with read-only retries and one PUT per va
  deps.request=async(...args)=>{const r=await request(...args);if(args[2]?.method==='PUT')pending.add(args[0]);else if(pending.delete(args[0]))return {result:{sync_variant:{...r.result.sync_variant,files:r.result.sync_variant.files.map(f=>({...f,status:'waiting'}))}}};return r;};
  const result=await configureImportedPrintful(manifest,deps);
  assert.equal(result.state,'SYNCED');assert.equal(calls.filter(c=>c.init?.method==='PUT').length,2);
+});
+
+test('document masters cannot reach Printful file upload',async()=>{
+ const {deps,calls}=dependencies();const document=structuredClone(manifest);document.assets[0].contentType='application/vnd.openxmlformats-officedocument.presentationml.presentation';
+ const result=await configureImportedPrintful(document,deps);assert.equal(result.errorCode,'printful_master_image_required');assert.ok(!calls.some(c=>c.init?.method==='PUT'||c.kind==='asset'));
 });
