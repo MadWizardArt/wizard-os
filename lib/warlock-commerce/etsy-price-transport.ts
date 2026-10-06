@@ -1,3 +1,4 @@
+import { etsyWriteError } from "./etsy-write-error.ts";
 import { etsyHeaders } from "../etsy-client";
 import { object, positiveId, type Json } from "./live-price-inventory.ts";
 /** Only inventory pricing. This transport cannot publish, edit metadata, or create listings. */
@@ -7,6 +8,6 @@ export async function writeEtsyPriceInventory(accessToken:string,listingId:strin
   method:"PUT",headers:{...etsyHeaders(accessToken),"Content-Type":"application/json"},body:JSON.stringify(body),
   cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000),
  });
- if(!response.ok)throw Error("etsy_http_"+response.status);
+ if(!response.ok)throw await etsyWriteError(response,"inventory",[accessToken,...Object.values(etsyHeaders(accessToken))]);
  return object(await response.json().catch(()=>null));
 }

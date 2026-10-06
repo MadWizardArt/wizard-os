@@ -139,3 +139,13 @@ export async function migrationMap<T,R>(values:T[],fn:(value:T,index:number)=>Pr
  await Promise.all(Array.from({length:Math.min(4,values.length)},async()=>{while(next<values.length){const index=next++;results[index]=await fn(values[index],index);}}));
  return results;
 }
+
+/** A fresh complete source match proves no migration is currently saved; it never authorizes a PUT. */
+export async function inspectUnchangedMigrationSource(m:WarlockProductManifest,p:GarmentPreview,read:MigrationRead){
+ if(migrationCanonical(m)!==p.canonicalFingerprint)throw Error("garment_migration_canonical_changed");
+ const source=await inspectMigration(m,p.shopId,read);
+ if(fingerprint(protectedListing(source.listing))!==fingerprint(p.protectedListing))throw Error("garment_migration_listing_changed");
+ if(String(source.listing.description??"")!==p.beforeDescription)throw Error("garment_migration_description_changed");
+ if(source.inventory.fingerprint!==p.beforeInventoryFingerprint)throw Error("garment_migration_inventory_changed");
+ return {state:"GARMENT_MIGRATION_SOURCE_UNCHANGED",inventoryFingerprint:source.inventory.fingerprint,editionsAvailable:source.inventory.body.products.every(v=>v.offerings[0].is_enabled)};
+}
