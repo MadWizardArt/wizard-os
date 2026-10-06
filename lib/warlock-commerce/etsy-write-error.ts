@@ -5,7 +5,7 @@ export class EtsyWriteError extends Error {
 }
 function redact(value:string,secrets:string[]){
  let clean=value;
- for(const secret of secrets.filter(Boolean))clean=clean.split(secret).join("[redacted]");
+ for(const secret of secrets.flatMap(value=>[value,...value.split(":")]).filter(Boolean))clean=clean.split(secret).join("[redacted]");
  return clean.replace(/https?:\/\/\S+/gi,"[url]").replace(/Bearer\s+\S+/gi,"Bearer [redacted]")
   .replace(/(?:access_token|refresh_token|authorization|x-api-key|api_key|secret)\s*[=:]\s*[^\s,;]+/gi,"[credential redacted]")
   .replace(/\b[A-Za-z0-9_.-]{48,}\b/g,"[redacted]").replace(/[\u0000-\u001f\u007f]/g," ").slice(0,700);
