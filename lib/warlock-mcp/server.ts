@@ -232,8 +232,8 @@ export function createWarlockCommerceMcpServer() {
   }, async input => { try { return success(await applyGarmentMigration(input)); } catch(error) { return failure("garment_migration_apply_failed", safeMigrationError(error)); } });
   server.registerTool("inspect_garment_migration", {
     title: "Inspect Migrated Garment Availability",
-    description: "Read target Etsy editions and description for a saved migration, returning a fresh inventory fingerprint. Does not mutate availability or production.",
-    inputSchema: {productId:z.string().min(1).max(100),previewId:z.string().min(1).max(100)}, annotations: liveReadAnnotations,
+    description: "Inspect saved migration target or exact unchanged source after a rejected/uncertain write. Returns sanitized Etsy rejection details when recorded. Optional confirmUnchangedSourceResolution:true records resolution ONLY after source inventory, ownership, canonical fields and description match the saved snapshot; then create a fresh approved preview. Never replays inventory, changes availability or mutates supplier production.",
+    inputSchema: {productId:z.string().min(1).max(100),previewId:z.string().min(1).max(100),confirmUnchangedSourceResolution:z.literal(true).optional()}, annotations: liveReadAnnotations,
     _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
   }, async input => { try { return success(await inspectGarmentMigration(input)); } catch(error) { return failure("garment_migration_inspection_failed", safeMigrationError(error)); } });
   server.registerTool("enable_migrated_garment", {

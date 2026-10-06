@@ -1,3 +1,4 @@
+import { etsyWriteError, etsyFailureDetails } from "./etsy-write-error";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../prisma";
 import { etsyHeaders } from "../etsy-client";
@@ -9,7 +10,7 @@ import { assertCommerceDraftWritesEnabled } from "./write-guard";
 import { printfulGet, quotePrintfulVariant } from "./printful-catalog";
 import { runPrintfulSupplierPreflight } from "./printful-preflight";
 
-import { buildGarmentPreview, applyGarmentPreview, readMigrationTarget, safeMigrationError, garmentPreviewSchema, migrationCanonical, migrationMap, validateMigrationAvailability, type GarmentPreview } from "./garment-migration";
+import { buildGarmentPreview, applyGarmentPreview, inspectUnchangedMigrationSource, readMigrationTarget, safeMigrationError, garmentPreviewSchema, migrationCanonical, migrationMap, validateMigrationAvailability, type GarmentPreview } from "./garment-migration";
 
 async function context(productId:string){
  const manifest=await findWarlockProduct({productId});if(!manifest)throw Error("garment_migration_product_missing");
@@ -28,7 +29,7 @@ async function savedPreview(productId:string,previewId:string){
 }
 async function writeDescription(token:string,shopId:number,listingId:string,description:string){
  const response=await fetch(`https://api.etsy.com/v3/application/shops/${shopId}/listings/${listingId}`,{method:"PATCH",headers:{...etsyHeaders(token),"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({description}),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(12000)});
- if(!response.ok)throw Error("etsy_http_"+response.status);
+ if(!response.ok)throw await etsyWriteError(response,"description",[token,...Object.values(etsyHeaders(token))]);
 }
 export async function applyGarmentMigration(input:{productId:string;previewId:string;confirmMigration:true;confirmTemporaryUnavailability:true}){
  assertCommerceDraftWritesEnabled();
@@ -39,6 +40,13 @@ export async function applyGarmentMigration(input:{productId:string;previewId:st
  const old=await prisma.spellmarkJournal.findUnique({where:{productId_requestId:key}});
  if(old){const result=JSON.parse(old.bodyJson);if(result.state==="GARMENT_MIGRATION_STAGED")return {...result,reused:true};}
  let started=false;
+ const writeWithDiagnostics=async<T>(operation:()=>Promise<T>)=>{
+  try{return await operation();}catch(error){
+   const supplierError=etsyFailureDetails(error);
+   if(supplierError){try{await prisma.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify({state:"RESPONSE_REJECTED_VERIFY_REQUIRED",previewId:input.previewId,supplierError,rejectedAt:new Date().toISOString()})}});}catch{ /* Preserve the original public rejection; durable STARTED still blocks replay. */ }}
+   throw error;
+  }
+ };
  try{return await prisma.$transaction(async tx=>{
   await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"warlock-product-prices:"+input.productId}))::text`;
   await tx.$queryRaw`SELECT id FROM "SpellmarkProduct" WHERE id = ${input.productId} FOR NO KEY UPDATE`;
@@ -46,6 +54,7 @@ export async function applyGarmentMigration(input:{productId:string;previewId:st
   const manifest=await findWarlockProduct({productId:input.productId},tx);if(!manifest)throw Error("garment_migration_product_missing");
   const concurrent=await tx.spellmarkJournal.findUnique({where:{productId_requestId:key}});
   if(concurrent&&JSON.parse(concurrent.bodyJson).state==="GARMENT_MIGRATION_STAGED")return {...JSON.parse(concurrent.bodyJson),reused:true};
+  if(concurrent&&JSON.parse(concurrent.bodyJson).state==="NO_CHANGE_VERIFIED")throw Error("garment_migration_fresh_preview_required");
   // Fresh target stock/base quotes precede any inventory or description write.
   const quotes=await migrationMap(p.targets,t=>quotePrintfulVariant({productId:t.catalogProductId,catalogVariantId:t.catalogVariantId,storeId:t.storeId}));
   if(quotes.some((q,i)=>q.availability!=="in_stock"||q.productionBaseCents!==p.targets[i].quote.productionBaseCents))throw Error("garment_migration_stock_or_quote_changed");
@@ -55,7 +64,7 @@ export async function applyGarmentMigration(input:{productId:string;previewId:st
     // Independent commit survives an interrupted external operation or transaction.
     await prisma.spellmarkJournal.upsert({where:{productId_requestId:key},create:{...key,kind:"GARMENT_MIGRATION_RESULT",bodyJson:JSON.stringify({state:"STARTED",previewId:input.previewId,startedAt:new Date().toISOString()})},update:{}});started=true;
    },
-   writeInventory:(id,body)=>writeEtsyPriceInventory(ctx.token,id,body),writeDescription:(id,description)=>writeDescription(ctx.token,ctx.shopId,id,description),
+   writeInventory:(id,body)=>writeWithDiagnostics(()=>writeEtsyPriceInventory(ctx.token,id,body)),writeDescription:(id,description)=>writeWithDiagnostics(()=>writeDescription(ctx.token,ctx.shopId,id,description)),
    save:async mapped=>{
     for(const t of mapped){
      const previous=manifest.variants.find(v=>v.id===t.sourceVariantId)!;
@@ -72,8 +81,8 @@ export async function applyGarmentMigration(input:{productId:string;previewId:st
   await tx.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify({...result,previewId:input.previewId,previousCanonical:manifest})}});
   return {...result,previewId:input.previewId};
  },{timeout:165000,maxWait:10000});}
- catch(error){return {productId:input.productId,previewId:input.previewId,state:started||old?"VERIFY_OR_RETRY_REQUIRED":"BLOCKED",errorCode:safeMigrationError(error),
-  nextAction:"Inspect Etsy inventory and description before retrying the same previewId. Uncertain inventory writes are not replayed. Supplier production is unchanged; affected editions may already be disabled. Do not rerun draft execution or publish a duplicate listing."};}
+ catch(error){return {productId:input.productId,previewId:input.previewId,state:started||old?"VERIFY_OR_RETRY_REQUIRED":"BLOCKED",errorCode:safeMigrationError(error),supplierError:etsyFailureDetails(error),
+  nextAction:"Use inspect_garment_migration with the saved previewId to check target inventory or an exact unchanged source. Confirm unchanged-source resolution before creating a fresh preview. Uncertain inventory writes are not replayed. Supplier production is unchanged; affected editions may already be disabled. Do not rerun draft execution or publish a duplicate listing."};}
 }
 
 /** Availability is a separate step after saved placement evidence and owner visual review. */
@@ -118,15 +127,38 @@ export async function enableMigratedGarment(input:{productId:string;previewId:st
    nextAction:"The approved migrated editions are available and supplier quotes include saved placements. Existing active listing identity is retained; no new listing was published and no orders were placed."};
   await tx.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify(result)}});return result;
  },{timeout:165000,maxWait:10000});}
- catch(error){return {productId:input.productId,previewId:input.previewId,state:started?"VERIFY_OR_RETRY_REQUIRED":"BLOCKED",errorCode:safeMigrationError(error),nextAction:"Inspect current availability before retrying the same migration. Do not enable editions without saved placement evidence, current combined quotes and owner visual review."};}
+ catch(error){return {productId:input.productId,previewId:input.previewId,state:started?"VERIFY_OR_RETRY_REQUIRED":"BLOCKED",errorCode:safeMigrationError(error),supplierError:etsyFailureDetails(error),nextAction:"Inspect current availability before retrying the same migration. Do not enable editions without saved placement evidence, current combined quotes and owner visual review."};}
 }
 
-export async function inspectGarmentMigration(input:{productId:string;previewId:string}){
+export async function inspectGarmentMigration(input:{productId:string;previewId:string;confirmUnchangedSourceResolution?:true}){
  const p=await savedPreview(input.productId,input.previewId),ctx=await context(input.productId);
  if(ctx.shopId!==p.shopId)throw Error("garment_migration_shop_changed");
- const target=await readMigrationTarget(p,ctx.read,false).catch(()=>readMigrationTarget(p,ctx.read,true));
- return {productId:input.productId,previewId:input.previewId,state:"GARMENT_MIGRATION_INSPECTED",inventoryFingerprint:target.observed.fingerprint,
-  editionsAvailable:target.observed.body.products.every(v=>v.offerings[0].is_enabled),descriptionMatches:String(target.listing.description??"")===p.description,
-  variants:target.mapped.map(t=>({variantId:t.variantId,label:t.label,etsyProductId:t.etsyProductId,catalogProductId:t.catalogProductId,catalogVariantId:t.catalogVariantId})),
-  nextAction:"Use this fresh inventory fingerprint for enable_migrated_garment only after placements and revised mockups have been approved and verified."};
+ const inspect=async(manifest:NonNullable<Awaited<ReturnType<typeof findWarlockProduct>>>)=>{
+  const key={productId:input.productId,requestId:"garment-migrate:"+input.previewId};
+  const journal=await prisma.spellmarkJournal.findUnique({where:{productId_requestId:key}});
+  const failure=journal?JSON.parse(journal.bodyJson):null;
+  let target;
+  try{target=await readMigrationTarget(p,ctx.read,false).catch(()=>readMigrationTarget(p,ctx.read,true));}catch{
+   const source=await inspectUnchangedMigrationSource(manifest,p,ctx.read);
+   if(input.confirmUnchangedSourceResolution===true){
+    if(!failure||!["STARTED","RESPONSE_REJECTED_VERIFY_REQUIRED","NO_CHANGE_VERIFIED"].includes(failure.state))throw Error("garment_migration_failed_intent_required");
+    await prisma.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify({...source,state:"NO_CHANGE_VERIFIED",previewId:input.previewId,resolvedAt:new Date().toISOString(),previousFailure:failure.state==="NO_CHANGE_VERIFIED"?failure.previousFailure:failure})}});
+   }
+   return {...source,productId:input.productId,previewId:input.previewId,resolved:input.confirmUnchangedSourceResolution===true,supplierError:failure?.supplierError??failure?.previousFailure?.supplierError??null,
+    nextAction:input.confirmUnchangedSourceResolution===true?"Failed intent resolved by exact live source readback. Create and approve a FRESH migration preview; do not reuse this expired or rejected preview. No Etsy or supplier writes were made.":"Source inventory, listing and description exactly match the saved pre-migration snapshot. Call inspect_garment_migration with confirmUnchangedSourceResolution:true to record resolution, then create a fresh owner-approved preview. This inspection performs no Etsy or supplier writes."};
+  }
+  return {productId:input.productId,previewId:input.previewId,state:"GARMENT_MIGRATION_INSPECTED",inventoryFingerprint:target.observed.fingerprint,
+   editionsAvailable:target.observed.body.products.every(v=>v.offerings[0].is_enabled),descriptionMatches:String(target.listing.description??"")===p.description,supplierError:failure?.supplierError??null,
+   variants:target.mapped.map(t=>({variantId:t.variantId,label:t.label,etsyProductId:t.etsyProductId,catalogProductId:t.catalogProductId,catalogVariantId:t.catalogVariantId})),
+   nextAction:"Target inventory exists. Resume the same previewId to finish staging if necessary; never replace an uncertain saved target with a fresh migration. Enable only after placements and revised mockups have been approved and verified."};
+ };
+ if(input.confirmUnchangedSourceResolution!==true)return inspect(ctx.manifest);
+ // Serialize the durable resolution with apply, then inspect again under the product lock.
+ return prisma.$transaction(async tx=>{
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"warlock-product-prices:"+input.productId}))::text`;
+  await tx.$queryRaw`SELECT id FROM "SpellmarkProduct" WHERE id = ${input.productId} FOR NO KEY UPDATE`;
+  await tx.$queryRaw`SELECT id FROM "SpellmarkVariant" WHERE "productId" = ${input.productId} FOR UPDATE`;
+  const manifest=await findWarlockProduct({productId:input.productId},tx);if(!manifest)throw Error("garment_migration_product_missing");
+  return inspect(manifest);
+ },{timeout:60000,maxWait:10000});
 }

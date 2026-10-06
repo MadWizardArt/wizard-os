@@ -75,3 +75,24 @@ The listing itself remains active; its migrated editions become temporarily
 unavailable. This is explicitly approved when applying the preview. A blank
 change must not be considered complete until availability and supplier checks
 pass. Final visual review is an owner attestation, not automated image analysis.
+
+## Rejected writes and unchanged-source resolution
+
+Migration writes now return `supplierError` containing the HTTP status, operation
+(inventory or description) and bounded, sanitized Etsy error fields. Raw response
+bodies, headers, credentials and private URLs are not returned. The same detail is
+saved with the durable failed intent before returning the failure. A received
+HTTP rejection is recorded separately from a timeout; neither is proof that the
+live source is unchanged until inspected.
+
+For a failed preview, call `inspect_garment_migration` with productId and previewId.
+If target inventory exists, resume that same preview to finish staging. If the
+complete original inventory, listing ownership/protected fields, description and
+canonical snapshot still match, inspection returns `GARMENT_MIGRATION_SOURCE_UNCHANGED`.
+Call again with `confirmUnchangedSourceResolution:true` to record `NO_CHANGE_VERIFIED`
+under the product lock. This performs no Etsy or Printful writes. The resolved
+preview cannot be reapplied; create a fresh preview and obtain owner approval.
+Any partial change or drift blocks resolution. Legacy STARTED intents can be
+resolved by this check even after preview expiry, but their discarded Etsy error
+body cannot be reconstructed. A new rejected attempt will expose the actual reason.
+No workaround enables an offering, publishes, or changes a listing's state.
