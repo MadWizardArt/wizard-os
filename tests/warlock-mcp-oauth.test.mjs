@@ -96,8 +96,8 @@ test("OAuth endpoints are fail-closed and never alter commerce write mode", () =
   assert.match(authorize, /codeChallenge/);
   assert.match(token, /exchangeWarlockAuthorizationCode/);
   assert.match(token, /refreshWarlockOAuthGrant/);
-  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 28);
-  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 28);
+  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 32);
+  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 32);
   assert.doesNotMatch(server, /_registeredTools/);
 
   assert.doesNotMatch(authorize, /WARLOCK_COMMERCE_WRITE_MODE/);

@@ -15,6 +15,7 @@ export type SyncDependencies = {
 };
 
 export async function configureImportedPrintful(manifest: WarlockProductManifest, deps: SyncDependencies, options: { preserveStoreInventory?: boolean; beforeConfigure?: () => void } = {}): Promise<PrintfulSyncResult> {
+  if (manifest.listings.some(l=>l.fulfillment==="PHYSICAL"&&l.status==="MIGRATION_PENDING")) return { productId:manifest.id, state:"BLOCKED", checkedAt:new Date().toISOString(), variants:[], importPrerequisite:{setting:"Import not synced products",verification:"MANUAL_CHECK_REQUIRED" as const}, errorCode:"printful_garment_migration_placements_required", nextAction:"Use saved placement previews for the migrated blank, then enable_migrated_garment. Automatic default-file configuration is blocked during migration." };
   const imported = await inspectPrintfulImport(manifest, deps.request);
   if (imported.state === "SKIPPED" || imported.state === "BLOCKED" || imported.state === "PRINTFUL_API_ERROR") return imported;
   const listing = manifest.listings.find(l => l.fulfillment === "PHYSICAL")!;

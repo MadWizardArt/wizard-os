@@ -74,7 +74,7 @@ export async function applyPrintfulPlacements(input:{productId:string;previewId:
       await tx.spellmarkVariant.update({where:{id:variantId},data:{printfulSyncVariantId:storedSyncId(plan.syncVariantId),productionBaseCents:quote.productionBaseCents,productionQuotedAt:new Date(quote.quotedAt),productionQuoteJson:JSON.stringify(quote)}});
     });
     const listing=manifest.listings.find(l=>l.fulfillment==="PHYSICAL")!;
-    await tx.spellmarkListing.update({where:{id:listing.id},data:{printfulSyncProductId:storedSyncId(preview.syncProductId),status:result.state==="PLACEMENT_FILES_VERIFIED"?"SYNCED":"PRINTFUL_MAPPING_FAILED",...(result.state==="PLACEMENT_FILES_VERIFIED"?{lastDraftSyncAt:new Date()}: {})}});
+    await tx.spellmarkListing.update({where:{id:listing.id},data:{printfulSyncProductId:storedSyncId(preview.syncProductId),status:listing.status==="MIGRATION_PENDING"?"MIGRATION_PENDING":result.state==="PLACEMENT_FILES_VERIFIED"?"SYNCED":"PRINTFUL_MAPPING_FAILED",...(result.state==="PLACEMENT_FILES_VERIFIED"?{lastDraftSyncAt:new Date()}: {})}});
     await tx.spellmarkJournal.create({data:{productId:input.productId,requestId,kind:"PRINTFUL_PLACEMENT_RESULT",bodyJson:JSON.stringify({...result,previewId:saved.id,evidence})}});
     return {...result,previewId:saved.id};
   },{timeout:120000,maxWait:10000});
