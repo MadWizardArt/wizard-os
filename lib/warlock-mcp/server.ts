@@ -1,3 +1,5 @@
+import { previewGarmentMigration, applyGarmentMigration, inspectGarmentMigration, enableMigratedGarment } from "../warlock-commerce/garment-migration-executor";
+import { garmentPreviewShape, garmentApplyShape, garmentEnableShape, safeMigrationError } from "../warlock-commerce/garment-migration";
 import { attachPostDraftImage } from "../warlock-post-draft-images";
 import { inspectEtsyListingImages, updateEtsyListingImage } from "../warlock-commerce/listing-image-executor";
 import { imageInspectionShape, imageUpdateShape, safeImageError } from "../warlock-commerce/listing-images";
@@ -215,6 +217,31 @@ export function createWarlockCommerceMcpServer() {
       }
     },
   );
+
+  server.registerTool("preview_garment_migration", {
+    title: "Preview Active Garment Migration",
+    description: "Preview a new blank and added colors on an existing active physical Etsy listing. Resolve exact catalog IDs first. Retain each existing physical variantId once; new editions omit variantId and copy the selected sourceVariantId's price, quantity and readiness. Returns exact editions, description with disclosure, base quotes and disabled inventory for owner review. No external writes. Apply only with confirmed temporary unavailability, then approve new placement previews.",
+    inputSchema: garmentPreviewShape, annotations: liveReadAnnotations,
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await previewGarmentMigration(input)); } catch(error) { return failure("garment_migration_preview_failed", safeMigrationError(error)); } });
+  server.registerTool("apply_garment_migration", {
+    title: "Stage Approved Garment Migration",
+    description: "Apply an owner-reviewed saved migration preview to the existing active Etsy listing. Explicitly confirms temporarily disabling all target editions. Updates full Etsy variants and description, then verifies and saves new canonical blank mappings. Does not configure production artwork, publish or order. Retry the SAME previewId after uncertainty; unknown inventory writes are not replayed. Next use check_printful_import, preview_printful_placements and approved apply_printful_placements for every size/color.",
+    inputSchema: garmentApplyShape, annotations: { ...draftWriteAnnotations, destructiveHint: true },
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await applyGarmentMigration(input)); } catch(error) { return failure("garment_migration_apply_failed", safeMigrationError(error)); } });
+  server.registerTool("inspect_garment_migration", {
+    title: "Inspect Migrated Garment Availability",
+    description: "Read target Etsy editions and description for a saved migration, returning a fresh inventory fingerprint. Does not mutate availability or production.",
+    inputSchema: {productId:z.string().min(1).max(100),previewId:z.string().min(1).max(100)}, annotations: liveReadAnnotations,
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await inspectGarmentMigration(input)); } catch(error) { return failure("garment_migration_inspection_failed", safeMigrationError(error)); } });
+  server.registerTool("enable_migrated_garment", {
+    title: "Enable Verified Migrated Garment Editions",
+    description: "Enable the existing active listing's migrated editions only after saved placement evidence covers all sizes/colors, live combined supplier quotes and margins pass, and the owner confirms visual garment/mockup review. Requires a fresh inspect_garment_migration inventory fingerprint. Changes only offering availability. Never publishes a new listing or places orders.",
+    inputSchema: garmentEnableShape, annotations: { ...draftWriteAnnotations, destructiveHint: true },
+    _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => { try { return success(await enableMigratedGarment(input)); } catch(error) { return failure("garment_migration_enable_failed", safeMigrationError(error)); } });
 
   server.registerTool("inspect_etsy_listing_images", {
     title: "Inspect Etsy Listing Images",
