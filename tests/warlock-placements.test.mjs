@@ -118,3 +118,5 @@ test('other exports still require storage ownership verification and unchanged p
  await assert.rejects(applyPlacementPreview(g.manifest,p,g.deps,async()=>{}),/printful_placement_preview_stale/);
  assert.ok(!g.calls.some(c=>c.init.method==='PUT'));
 });
+
+test('inactive listings permit placement previews only during a pending garment migration',async()=>{const f=fixture();f.deps.etsyRead=async()=>({shop_id:9,listing_id:123,listing_type:'physical',state:'inactive'});await assert.rejects(buildPlacementPreview(f.manifest,f.input,f.deps),/listing_mismatch/);f.manifest.listings[0].status='MIGRATION_PENDING';const p=await buildPlacementPreview(f.manifest,f.input,f.deps);assert.equal(p.productId,f.manifest.id);assert.ok(f.calls.every(c=>c.init.method!=='PUT'))});

@@ -24,10 +24,10 @@ export function physicalPriceManifest(manifest:WarlockProductManifest){
  return {...manifest,listings,variants};
 }
 /** Build the full current inventory body. Only caller-selected prices may be replaced. */
-export function readLiveInventory(manifest:WarlockProductManifest,shopId:number,listing:Json,inventory:Json){
+export function readLiveInventory(manifest:WarlockProductManifest,shopId:number,listing:Json,inventory:Json,allowedStates:readonly string[]=["active"]){
  const listingId=manifest.listings[0].etsyListingId!;
  if(positiveId(listing.listing_id)!==listingId || positiveId(listing.shop_id)!==String(shopId))throw Error("live_price_listing_ownership_mismatch");
- if(listing.state!=="active")throw Error("live_price_listing_not_active");
+ if(!allowedStates.includes(String(listing.state)))throw Error("live_price_listing_not_active");
  const products=rows(inventory.products).filter(p=>p.is_deleted!==true);
  if(products.length!==manifest.variants.length)throw Error("live_price_variant_set_changed");
  const used=new Set<string>();

@@ -18,8 +18,8 @@ export const garmentPreviewShape={productId:id,description:z.string().trim().min
  propertyValues:z.array(property).min(1).max(3).optional().describe("For listings using separate Color/Size properties, provide the inspected property IDs with target values. Single custom Edition listings derive Color / Size automatically.")
 })).min(1).max(30)};
 export const garmentPreviewSchema=z.strictObject(garmentPreviewShape);
-export const garmentApplyShape={productId:id,previewId:id,confirmMigration:z.literal(true),confirmTemporaryUnavailability:z.literal(true)};
-export const garmentEnableShape={productId:id,previewId:id,expectedInventoryFingerprint:z.string().regex(/^[a-f0-9]{64}$/),confirmVisualReview:z.literal(true),confirmAvailability:z.literal(true)};
+export const garmentApplyShape={productId:id,previewId:id,confirmMigration:z.literal(true),confirmTemporaryUnavailability:z.literal(true),confirmTemporaryDeactivation:z.literal(true)};
+export const garmentEnableShape={productId:id,previewId:id,expectedInventoryFingerprint:z.string().regex(/^[a-f0-9]{64}$/),confirmVisualReview:z.literal(true),confirmAvailability:z.literal(true),confirmExistingListingReactivation:z.literal(true)};
 export type MigrationRead=(path:string)=>Promise<Json>;
 export function migrationCanonical(m:WarlockProductManifest){return fingerprint({id:m.id,listings:m.listings,variants:m.variants});}
 export function protectedListing(remote:Json){return Object.fromEntries(["listing_id","shop_id","state","listing_type","type","title","tags","taxonomy_id","shipping_profile_id","return_policy_id","who_made","when_made","is_supply"].map(k=>[k,remote[k]??null]));}
@@ -28,13 +28,13 @@ export function migrationPhysical(m:WarlockProductManifest){
  if(new Set(physical.variants.map(v=>v.printfulStoreId)).size!==1)throw Error("garment_migration_store_ambiguous");
  return physical;
 }
-export async function inspectMigration(m:WarlockProductManifest,shopId:number,read:MigrationRead){
+export async function inspectMigration(m:WarlockProductManifest,shopId:number,read:MigrationRead,allowInactive=false){
  const listings=m.listings.filter(l=>l.fulfillment==="PHYSICAL");if(listings.length!==1||!listings[0].etsyListingId)throw Error("garment_migration_listing_missing");
  const physical={...m,listings,variants:m.variants.filter(v=>v.fulfillment==="PHYSICAL")};
  const listing=await read("/listings/"+listings[0].etsyListingId);
  if(etsyListingType(listing)!=="physical")throw Error("garment_migration_physical_required");
  const inventory=await read("/listings/"+listings[0].etsyListingId+"/inventory?legacy=false");
- return {manifest:physical,listing,inventory:readLiveInventory(physical,shopId,listing,inventory)};
+ return {manifest:physical,listing,inventory:readLiveInventory(physical,shopId,listing,inventory,allowInactive?["active","inactive"]:["active"])};
 }
 export async function buildGarmentPreview(m:WarlockProductManifest,raw:unknown,shopId:number,read:MigrationRead,get:Get,operationId:string){
  const input=garmentPreviewSchema.parse(raw);if(input.productId!==m.id)throw Error("garment_migration_product_mismatch");
@@ -59,7 +59,7 @@ export async function buildGarmentPreview(m:WarlockProductManifest,raw:unknown,s
   const properties=t.propertyValues??(template.length===1&&template[0].property_id===513?[{...template[0],value_ids:[],values:[label]}]:null);
   if(!properties||properties.length!==template.length||properties.some(p=>!template.some(old=>old.property_id===p.property_id&&old.property_name===p.property_name&&old.scale_id===p.scale_id))||new Set(properties.map(p=>p.property_id)).size!==properties.length)throw Error("garment_migration_property_plan_required");
   if(t.propertyValues&&!([t.color,t.size].every(value=>properties.some(p=>p.values.includes(value)))||properties.some(p=>p.values.includes(label))))throw Error("garment_migration_property_catalog_mismatch");
-  const body={...structuredClone(current.body),sku,property_values:properties,offerings:[{...current.body.offerings[0],is_enabled:false}]};
+  const body={...structuredClone(current.body),sku,property_values:properties,offerings:[{...current.body.offerings[0],is_enabled:true}]};
   return {variantId,sourceVariantId:source.id,isNew:!t.variantId,label,sku,color:t.color,size:t.size,catalogProductId:t.catalogProductId,catalogVariantId:t.catalogVariantId,storeId,retailPriceCents:source.retailPriceCents!,quote,body};
  });
  if(new Set(targets.map(t=>t.label)).size!==targets.length||new Set(targets.map(t=>t.sku)).size!==targets.length)throw Error("garment_migration_duplicate_edition");
@@ -73,17 +73,20 @@ export async function buildGarmentPreview(m:WarlockProductManifest,raw:unknown,s
  const description=ensureEtsyAiDisclosure(input.description);if(description.length>11800)throw Error("garment_migration_description_too_long");
  const proposed={...physical,variants:targets.map(t=>({...physical.variants.find(v=>v.id===t.sourceVariantId)!,id:t.variantId,label:t.label,printfulProductId:t.catalogProductId,printfulVariantId:t.catalogVariantId,productionBaseCents:t.quote.productionBaseCents,productionQuotedAt:t.quote.quotedAt}))};
  if(!evaluateCommerceGates(proposed).margin.pass)throw Error("garment_migration_base_margin_below_floor");
- return {schemaVersion:1,productId:m.id,etsyListingId:physical.listings[0].etsyListingId!,listingId:physical.listings[0].id,shopId,storeId,
+ return {schemaVersion:2,availabilityStrategy:"INACTIVE_LISTING",productId:m.id,etsyListingId:physical.listings[0].etsyListingId!,listingId:physical.listings[0].id,shopId,storeId,
   canonicalFingerprint:migrationCanonical(m),beforeInventoryFingerprint:before.inventory.fingerprint,beforeBody:before.inventory.body,
   beforeDescription:String(before.listing.description??""),protectedListing:protectedListing(before.listing),description,targets,desired,
   expiresAt:new Date(Date.now()+15*60000).toISOString(),state:"GARMENT_MIGRATION_PREVIEW",supplierMutated:false,
-  nextAction:"Review the target blank, colors, sizes, preserved prices, quantities, description and temporarily disabled editions. Apply this saved preview only with confirmation of temporary unavailability. Then wait for Etsy-to-Printful import, create and approve new placement previews, visually check mockups, and enable_migrated_garment after combined quotes pass. Base quotes here exclude additional placements."};
+  nextAction:"Review the target blank, colors, sizes, preserved prices, quantities, description and temporary listing deactivation. Apply this saved preview only with explicit confirmation of temporary listing deactivation. Then wait for Etsy-to-Printful import, create and approve new placement previews, visually check mockups, and enable_migrated_garment after combined quotes pass. Base quotes here exclude additional placements."};
 }
 export type GarmentPreview=Awaited<ReturnType<typeof buildGarmentPreview>>;
 function semanticBody(body:GarmentPreview["desired"]){return {...body,products:body.products.map(p=>({...p,property_values:p.property_values.map(({value_ids:_,...v})=>v)}))};}
-export async function readMigrationTarget(preview:GarmentPreview,read:MigrationRead,enabled=false){
+export async function readMigrationTarget(preview:GarmentPreview,read:MigrationRead,enabled:boolean|"inspect"=false){
  const listing=await read("/listings/"+preview.etsyListingId);
- if(fingerprint(protectedListing(listing))!==fingerprint(preview.protectedListing))throw Error("garment_migration_listing_changed");
+ const v2=preview.schemaVersion===2;
+ const expectedState=v2?(enabled==="inspect"?String(listing.state):enabled?"active":"inactive"):String(preview.protectedListing.state);
+ if(v2&&!["active","inactive"].includes(expectedState))throw Error("garment_migration_listing_changed");
+ if(listing.state!==expectedState||fingerprint({...protectedListing(listing),state:preview.protectedListing.state})!==fingerprint(preview.protectedListing))throw Error("garment_migration_listing_changed");
  const raw=await read("/listings/"+preview.etsyListingId+"/inventory?legacy=false");
  const products=rows(raw.products).filter(p=>p.is_deleted!==true);
  if(products.length!==preview.targets.length)throw Error("garment_migration_target_not_saved");
@@ -92,35 +95,52 @@ export async function readMigrationTarget(preview:GarmentPreview,read:MigrationR
   return {...t,id:t.variantId,fulfillment:"PHYSICAL" as const,etsySku:t.sku,etsyProductId:positiveId(matches[0].product_id),etsyListingId:preview.etsyListingId,currency:"USD"};
  });
  const synthetic={id:preview.productId,listings:[{etsyListingId:preview.etsyListingId}],variants:mapped} as unknown as WarlockProductManifest;
- const observed=readLiveInventory(synthetic,preview.shopId,listing,raw);
- const expected=structuredClone(preview.desired);expected.products.forEach(p=>p.offerings[0].is_enabled=enabled);
+ const observed=readLiveInventory(synthetic,preview.shopId,listing,raw,[expectedState]);
+ const expected=structuredClone(preview.desired);expected.products.forEach(p=>p.offerings[0].is_enabled=v2?true:enabled==="inspect"?observed.body.products.every(v=>v.offerings[0].is_enabled):enabled);
  if(fingerprint(semanticBody(observed.body))!==fingerprint(semanticBody(expected)))throw Error("garment_migration_target_not_saved");
  return {listing,observed,mapped};
 }
-export type MigrationDependencies={read:MigrationRead;writeInventory:(id:string,body:Json)=>Promise<unknown>;writeDescription:(id:string,description:string)=>Promise<unknown>;recordIntent:()=>Promise<void>;save:(mapped:Awaited<ReturnType<typeof readMigrationTarget>>["mapped"])=>Promise<void>};
-export async function applyGarmentPreview(m:WarlockProductManifest,p:GarmentPreview,deps:MigrationDependencies,recovery=false){
+export type MigrationPhase="DEACTIVATION_STARTED"|"DEACTIVATION_VERIFIED"|"INVENTORY_STARTED"|"DESCRIPTION_STARTED";
+export type MigrationDependencies={read:MigrationRead;writeState:(id:string,state:"inactive")=>Promise<unknown>;writeInventory:(id:string,body:Json)=>Promise<unknown>;writeDescription:(id:string,description:string)=>Promise<unknown>;recordIntent:(phase:MigrationPhase)=>Promise<void>;save:(mapped:Awaited<ReturnType<typeof readMigrationTarget>>["mapped"])=>Promise<void>};
+export async function applyGarmentPreview(m:WarlockProductManifest,p:GarmentPreview,deps:MigrationDependencies,recovery:boolean|MigrationPhase=false){
+ if(p.schemaVersion!==2||p.availabilityStrategy!=="INACTIVE_LISTING")throw Error("garment_migration_fresh_preview_required");
  if(p.productId!==m.id||p.canonicalFingerprint!==migrationCanonical(m))throw Error("garment_migration_canonical_changed");
  if(!recovery&&Date.parse(p.expiresAt)<Date.now())throw Error("garment_migration_preview_expired");
- const listing=await deps.read("/listings/"+p.etsyListingId);
- if(fingerprint(protectedListing(listing))!==fingerprint(p.protectedListing))throw Error("garment_migration_listing_changed");
  let target:Awaited<ReturnType<typeof readMigrationTarget>>|undefined;
- try{target=await readMigrationTarget(p,deps.read);}catch{ /* Only an unchanged source inventory may be written below. */ }
- if(!target&&(await inspectMigration(m,p.shopId,deps.read)).inventory.fingerprint!==p.beforeInventoryFingerprint)throw Error("garment_migration_inventory_changed");
- if(String(listing.description??"")!==p.beforeDescription&&String(listing.description??"")!==p.description)throw Error("garment_migration_description_changed");
- // Recovery never replays an uncertain inventory write. It only verifies saved target inventory.
- if(recovery&&!target)throw Error("garment_migration_uncertain_inventory_inspect_required");
- await deps.recordIntent();
+ try{target=await readMigrationTarget(p,deps.read);}catch{ /* Only a fully unchanged source may advance. */ }
  if(!target){
-  const rechecked=await inspectMigration(m,p.shopId,deps.read);
-  if(rechecked.inventory.fingerprint!==p.beforeInventoryFingerprint||fingerprint(protectedListing(rechecked.listing))!==fingerprint(p.protectedListing)||String(rechecked.listing.description??"")!==p.beforeDescription)throw Error("garment_migration_inventory_changed");
-  await deps.writeInventory(p.etsyListingId,p.desired);target=await readMigrationTarget(p,deps.read);}
+  let source=await inspectUnchangedMigrationSource(m,p,deps.read,true);
+  if(source.listingState==="active"){
+   if(recovery)throw Error("garment_migration_uncertain_inventory_inspect_required");
+   await deps.recordIntent("DEACTIVATION_STARTED");
+   await inspectUnchangedMigrationSource(m,p,deps.read); // recheck after durable intent
+   await deps.writeState(p.etsyListingId,"inactive");
+   source=await inspectUnchangedMigrationSource(m,p,deps.read,true);
+   if(source.listingState!=="inactive")throw Error("garment_migration_deactivation_not_verified");
+   await deps.recordIntent("DEACTIVATION_VERIFIED");
+  }else if(!recovery||!["DEACTIVATION_STARTED","DEACTIVATION_VERIFIED"].includes(String(recovery))){
+   throw Error("garment_migration_uncertain_inventory_inspect_required");
+  }
+  const paused=await inspectUnchangedMigrationSource(m,p,deps.read,true);
+  if(paused.listingState!=="inactive")throw Error("garment_migration_deactivation_not_verified");
+  await deps.recordIntent("INVENTORY_STARTED");
+  const rechecked=await inspectUnchangedMigrationSource(m,p,deps.read,true);
+  if(rechecked.listingState!=="inactive")throw Error("garment_migration_deactivation_not_verified");
+  await deps.writeInventory(p.etsyListingId,p.desired);
+  target=await readMigrationTarget(p,deps.read);
+ }
+ await deps.recordIntent("DESCRIPTION_STARTED");
  if(String(target.listing.description??"")!==p.beforeDescription&&String(target.listing.description??"")!==p.description)throw Error("garment_migration_description_changed");
- if(String(target.listing.description??"")!==p.description){await deps.writeDescription(p.etsyListingId,p.description);target=await readMigrationTarget(p,deps.read);}
+ if(String(target.listing.description??"")!==p.description){
+  target=await readMigrationTarget(p,deps.read);
+  if(String(target.listing.description??"")!==p.beforeDescription&&String(target.listing.description??"")!==p.description)throw Error("garment_migration_description_changed");
+  await deps.writeDescription(p.etsyListingId,p.description);target=await readMigrationTarget(p,deps.read);
+ }
  if(String(target.listing.description??"")!==p.description)throw Error("garment_migration_description_readback_failed");
  await deps.save(target.mapped);
- return {productId:p.productId,state:"GARMENT_MIGRATION_STAGED",inventoryFingerprint:target.observed.fingerprint,editionsAvailable:false,
+ return {productId:p.productId,state:"GARMENT_MIGRATION_STAGED",inventoryFingerprint:target.observed.fingerprint,editionsAvailable:false,listingState:"inactive",availabilityStrategy:"INACTIVE_LISTING",
   targets:p.targets.map(t=>({variantId:t.variantId,label:t.label,catalogProductId:t.catalogProductId,catalogVariantId:t.catalogVariantId})),
-  nextAction:"Etsy inventory and description are verified; editions are disabled. New blank mappings are canonical but supplier production has not changed. Use check_printful_import, then saved placement previews for all sizes/colors. Approve placements and visually inspect revised mockups before enable_migrated_garment."};
+  nextAction:"Existing listing is temporarily inactive; valid enabled inventory and description are verified. Supplier production is unchanged. Wait for Etsy-to-Printful import, then approve and verify placement previews for every size/color and visually inspect revised mockups. Reactivation requires explicit owner approval in enable_migrated_garment."};
 }
 export function safeMigrationError(error:unknown){const code=error instanceof Error?error.message:"";return /^(garment_migration_[a-z_]+|etsy_http_\d{3}|printful_[a-z0-9_]+|live_price_[a-z_]+|warlock_commerce_writes_disabled|supplier_preflight_failed|live_production_quote_[a-z_]+)$/.test(code)?code:"garment_migration_failed";}
 
@@ -141,11 +161,27 @@ export async function migrationMap<T,R>(values:T[],fn:(value:T,index:number)=>Pr
 }
 
 /** A fresh complete source match proves no migration is currently saved; it never authorizes a PUT. */
-export async function inspectUnchangedMigrationSource(m:WarlockProductManifest,p:GarmentPreview,read:MigrationRead){
+export async function inspectUnchangedMigrationSource(m:WarlockProductManifest,p:GarmentPreview,read:MigrationRead,allowInactive=false){
  if(migrationCanonical(m)!==p.canonicalFingerprint)throw Error("garment_migration_canonical_changed");
- const source=await inspectMigration(m,p.shopId,read);
- if(fingerprint(protectedListing(source.listing))!==fingerprint(p.protectedListing))throw Error("garment_migration_listing_changed");
+ const source=await inspectMigration(m,p.shopId,read,allowInactive);
+ if(fingerprint({...protectedListing(source.listing),state:p.protectedListing.state})!==fingerprint(p.protectedListing))throw Error("garment_migration_listing_changed");
  if(String(source.listing.description??"")!==p.beforeDescription)throw Error("garment_migration_description_changed");
  if(source.inventory.fingerprint!==p.beforeInventoryFingerprint)throw Error("garment_migration_inventory_changed");
- return {state:"GARMENT_MIGRATION_SOURCE_UNCHANGED",inventoryFingerprint:source.inventory.fingerprint,editionsAvailable:source.inventory.body.products.every(v=>v.offerings[0].is_enabled)};
+ return {state:source.listing.state==="inactive"?"GARMENT_MIGRATION_DEACTIVATED_SOURCE_UNCHANGED":"GARMENT_MIGRATION_SOURCE_UNCHANGED",listingState:String(source.listing.state),inventoryFingerprint:source.inventory.fingerprint,editionsAvailable:source.listing.state==="active"&&source.inventory.body.products.every(v=>v.offerings[0].is_enabled)};
+}
+
+/** Restore only the reviewed, previously active listing; never activate draft/expired/sold-out listings. */
+export async function reactivateGarmentPreview(p:GarmentPreview,read:MigrationRead,writeState:(id:string,state:"active")=>Promise<unknown>,expectedFingerprint:string,confirmed:boolean){
+ if(confirmed!==true)throw Error("garment_migration_confirmation_required");
+ if(p.schemaVersion!==2||p.availabilityStrategy!=="INACTIVE_LISTING"||p.protectedListing.state!=="active")throw Error("garment_migration_fresh_preview_required");
+ const before=await readMigrationTarget(p,read,"inspect");
+ if(String(before.listing.description??"")!==p.description)throw Error("garment_migration_description_changed");
+ const already=before.listing.state==="active";
+ if(!already&&before.observed.fingerprint!==expectedFingerprint)throw Error("garment_migration_inventory_changed");
+ const rechecked=await readMigrationTarget(p,read,already);
+ if(rechecked.observed.fingerprint!==before.observed.fingerprint||String(rechecked.listing.description??"")!==p.description)throw Error("garment_migration_inventory_changed");
+ if(!already)await writeState(p.etsyListingId,"active");
+ const after=await readMigrationTarget(p,read,true);
+ if(after.observed.fingerprint!==before.observed.fingerprint||String(after.listing.description??"")!==p.description)throw Error("garment_migration_reactivation_readback_failed");
+ return {...after,existingListingReactivated:!already};
 }

@@ -1,98 +1,99 @@
-# Active garment migration
+# Existing garment blank migration — version 2
 
-This extends Etsy-first → Printful sync for changing an active listing's blank,
-adding colors, and revising its garment description. No garment, brand, product,
-color, price, sleeve or placement is hardcoded. No listing publication or orders
-are included. No schema migration is needed.
+Etsy requires at least one enabled offering, so disabling every offering is not a
+valid way to pause a garment migration. Version 2 temporarily deactivates the
+existing active listing, verifies state `inactive`, then updates valid enabled
+inventory and description. It preserves listing identity, retained variant IDs,
+prices, quantities, processing profiles, images and unrelated digital listings.
+No blank, brand, color, price or placement is hardcoded. No schema migration,
+new listing publication or order placement is included.
 
-## Operator sequence
+## Owner-reviewed sequence
 
-1. `get_product` identifies existing physical variant IDs, store and listing.
-   Resolve the new blank with `search_printful_catalog` and
-   `resolve_printful_catalog`; use exact catalog product/variant IDs, color names
-   and sizes returned by Printful.
-2. `preview_garment_migration`: provide productId, approved revised description
-   and the complete target edition list. Every existing physical variantId must
-   occur exactly once. For that target use sourceVariantId equal to variantId.
-   To add a color/size, omit variantId and select an existing sourceVariantId;
-   its retail price, quantity and processing profile are copied. Existing SKUs
-   remain; new editions receive deterministic SKUs in the saved preview.
-   A single custom Edition property automatically uses `Color / Size`. Listings
-   using separate properties require exact inspected propertyValues. Removing
-   existing editions or changing prices is outside this operation.
-3. Review the returned description, blank, all colors/sizes, prices, quantities,
-   and temporary unavailability with the owner. The preview expires in 15 minutes.
-   Default base quotes are preliminary and exclude additional placements.
-4. `apply_garment_migration` requires productId, saved previewId,
-   confirmMigration:true, and confirmTemporaryUnavailability:true. It updates
-   existing Etsy inventory with all target offerings disabled and patches only
-   description. It verifies exact target editions and description before saving
-   canonical blank mappings and invalidating old production quotes. Unrelated
-   digital listings, listing images, prices, tags and fulfillment profiles are
-   not written. Prices must already agree between canonical and live Etsy.
-5. Wait for Etsy → Printful import and inspect with `check_printful_import`.
-   Added editions may require the existing store refresh/import procedure.
-   No Printful variants are created outside the Etsy integration. Automatic
-   default-master configuration is blocked while status is MIGRATION_PENDING.
-6. `preview_printful_placements` uses the new canonical blank for every target
-   edition. Submit explicit approved production asset IDs, placement names and
-   pixel positions using that blank's print areas. Show the saved preview to the
-   owner, then `apply_printful_placements` with approval. This existing operation
-   writes the new catalog variant and exact placement files together; no old
-   placement is automatically copied to the new garment. Preview quotes include
-   the entire planned placement set. Pending migration status survives placement
-   application until the separate availability step.
-7. Visually inspect revised garment/mockup appearance and refresh Etsy photos
-   through the existing confirmed listing-image tools as needed. A successful
-   API sync alone is not visual verification.
-8. `inspect_garment_migration` returns fresh target inventory fingerprint and
-   availability. `enable_migrated_garment` requires this fingerprint, saved
-   previewId, confirmVisualReview:true and confirmAvailability:true. It requires
-   placement-result evidence covering all editions, current CONFIGURED_SYNC
-   quotes, and combined margins. It enables only offerings, verifies inventory,
-   rechecks supplier configuration/quotes, and records completion.
+1. Identify the product and physical variants with `get_product`. Resolve exact
+   target catalog IDs, colors and sizes through the Printful catalog tools.
+2. `preview_garment_migration` takes productId, approved revised description and
+   the complete target edition set. Retain every existing physical variantId
+   exactly once, with sourceVariantId equal to variantId. For a new color/size,
+   omit variantId and select an existing sourceVariantId whose retail price,
+   quantity and processing profile will be copied. Retained SKUs stay unchanged;
+   new editions receive deterministic SKUs. Single custom Edition property 513
+   derives `Color / Size`; separate properties require exact propertyValues.
+   Removing editions or changing prices is outside this operation.
+3. Show the exact version-2 preview to the owner. It includes
+   `availabilityStrategy: INACTIVE_LISTING`, enabled inventory, description,
+   catalog targets, preserved prices/quantities and preliminary base quotes.
+   Explain that the whole existing physical listing becomes temporarily
+   unavailable. Preview expires in 15 minutes. Base quotes exclude extra placements.
+4. `apply_garment_migration` requires saved previewId, productId,
+   confirmMigration:true, confirmTemporaryUnavailability:true and the NEW
+   confirmTemporaryDeactivation:true. It records durable phases, patches only
+   state:inactive, verifies the original inventory and protected fields, then
+   writes the approved enabled inventory and description. Canonical blank
+   mappings and MIGRATION_PENDING are saved only after exact readback. Old
+   production quotes are invalidated. No supplier artwork is changed at this step.
+5. Wait for Etsy → Printful import and use `check_printful_import`. Added colors
+   may require the existing store refresh/import process. Printful documents that
+   inactive listings sync once daily, limited to the first 1,000 listings. Do not
+   reactivate an unverified garment just to accelerate import. Sold-out listings
+   do not sync, so zeroing quantities is not this workflow's strategy.
+6. Create `preview_printful_placements` for every edition on the new blank with
+   explicit approved asset IDs, print areas and pixel positions. Inactive Etsy
+   listings are accepted ONLY when the matching canonical physical listing is
+   MIGRATION_PENDING. Show the saved placement preview to the owner before
+   `apply_printful_placements`. Catalog variant and exact files are saved together;
+   old placements are not automatically copied. The pending status is preserved.
+7. Verify the actual garment/mockup appearance and revise Etsy photos through the
+   existing approved listing-image tools as needed. API sync is not visual review.
+8. `inspect_garment_migration` reports listingState, actual availability,
+   description match and fresh inventory fingerprint. Enabled offerings on an
+   inactive listing are correctly reported as unavailable.
+9. `enable_migrated_garment` requires that fingerprint, saved previewId,
+   confirmVisualReview:true, confirmAvailability:true and the NEW
+   confirmExistingListingReactivation:true. This is explicit authorization to
+   restore only this previously active listing; it must be withheld while a
+   no-publication/no-reactivation restriction applies. All-edition saved placement
+   evidence, configured supplier files, fresh combined quotes and margins must
+   pass before activation. Inventory remains untouched; only state:active is
+   patched. Inventory, description and supplier evidence are checked afterward.
+   Draft, expired, sold-out, foreign or changed listings are never activated.
 
-## Recovery and limits
+## Recovery
 
-A durable intent is committed before inventory or description mutation. If the
-external operation or canonical transaction is interrupted, retry the SAME
-previewId. Recovery verifies already-saved target inventory and may finish the
-exact description and canonical mapping; it never repeats an uncertain inventory
-PUT. If no verified target inventory exists, inspect before authorizing a fresh
-preview. No rollback or duplicate listing is attempted. Completed application
-replays return the historical saved result; inspect for current availability.
+Intent phases distinguish DEACTIVATION_STARTED, DEACTIVATION_VERIFIED,
+INVENTORY_STARTED and DESCRIPTION_STARTED. If deactivation times out but exact
+readback shows an inactive unchanged source, an explicit same-preview retry can
+continue without repeating deactivation. An uncertain inventory PUT is never
+replayed automatically. Saved target inventory is verified and staging can finish
+without another PUT. Description writes are restricted to the approved exact copy.
 
-Availability writes are idempotent: a retry verifies already-enabled target
-inventory, but still checks supplier evidence and quotes. Any mismatch remains
-BLOCKED or VERIFY_OR_RETRY_REQUIRED rather than being declared complete.
+For rejected/uncertain inventory with unchanged original source, call
+`inspect_garment_migration` using the failed previewId. Confirm
+`confirmUnchangedSourceResolution:true` only after the returned complete live
+source match. This records resolution under product/variant locks and performs
+no Etsy or supplier writes. If still active, the old intent becomes
+NO_CHANGE_VERIFIED and a fresh approved preview is required. If version 2 has
+already deactivated the listing, resolution records DEACTIVATION_VERIFIED and
+allows an explicit SAME-preview resume. Any partial change or drift blocks it.
 
-Etsy does not offer an atomic conditional write spanning inventory, description
-and Printful. Fresh snapshots, product locks, exact readback and disabled target
-offerings limit inconsistent operation. External operator edits can still occur
-between API calls; resolve reported drift through fresh inspection.
+Version-1 all-disabled previews are never reinterpreted as deactivation approval.
+Resolve their unchanged active source, then generate a fresh version-2 preview.
+Legacy discarded Etsy rejection text cannot be reconstructed. New inventory,
+description and state failures expose bounded sanitized supplierError fields;
+credentials, raw bodies, headers and private URLs are omitted.
 
-The listing itself remains active; its migrated editions become temporarily
-unavailable. This is explicitly approved when applying the preview. A blank
-change must not be considered complete until availability and supplier checks
-pass. Final visual review is an owner attestation, not automated image analysis.
+There is no automatic rollback or activation on failure. A failure after an
+activation request may leave the listing active; inspect before retrying. State
+restoration is idempotent: a retry verifies the same already-active target and
+current supplier evidence without another activation PATCH. Etsy/Printful lack
+an atomic conditional transaction; fresh snapshots, locks, exact readback and
+owner confirmations limit but cannot eliminate external operator races.
 
-## Rejected writes and unchanged-source resolution
+## Provider references
 
-Migration writes now return `supplierError` containing the HTTP status, operation
-(inventory or description) and bounded, sanitized Etsy error fields. Raw response
-bodies, headers, credentials and private URLs are not returned. The same detail is
-saved with the durable failed intent before returning the failure. A received
-HTTP rejection is recorded separately from a timeout; neither is proof that the
-live source is unchanged until inspected.
-
-For a failed preview, call `inspect_garment_migration` with productId and previewId.
-If target inventory exists, resume that same preview to finish staging. If the
-complete original inventory, listing ownership/protected fields, description and
-canonical snapshot still match, inspection returns `GARMENT_MIGRATION_SOURCE_UNCHANGED`.
-Call again with `confirmUnchangedSourceResolution:true` to record `NO_CHANGE_VERIFIED`
-under the product lock. This performs no Etsy or Printful writes. The resolved
-preview cannot be reapplied; create a fresh preview and obtain owner approval.
-Any partial change or drift blocks resolution. Legacy STARTED intents can be
-resolved by this check even after preview expiry, but their discarded Etsy error
-body cannot be reconstructed. A new rejected attempt will expose the actual reason.
-No workaround enables an offering, publishes, or changes a listing's state.
+- Etsy deactivation preserves the listing and makes it unavailable:
+  https://help.etsy.com/hc/en-us/articles/360000336187-How-to-Deactivate-a-Listing
+- Etsy state definitions:
+  https://developers.etsy.com/documentation/essentials/definitions/
+- Printful inactive and sold-out import behavior:
+  https://help.printful.com/hc/en-us/articles/50262491807889-Why-don-t-all-of-my-Etsy-products-show-up-on-Printful

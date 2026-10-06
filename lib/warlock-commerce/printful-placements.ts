@@ -56,7 +56,7 @@ export async function buildPlacementPreview(manifest:WarlockProductManifest, raw
   const imported=await inspectPrintfulImport(manifest,deps.request);
   if(imported.state!=="IMPORTED") throw Error(imported.errorCode ?? "printful_placement_import_missing");
   const listing=await deps.etsyRead("/listings/"+imported.etsyListingId);
-  if(String(listing.listing_id)!==imported.etsyListingId || String(listing.shop_id)!==String(deps.shopId) || !["draft","active"].includes(String(listing.state)) || etsyListingType(listing)!=="physical") throw Error("printful_placement_listing_mismatch");
+  if(String(listing.listing_id)!==imported.etsyListingId || String(listing.shop_id)!==String(deps.shopId) || !(["draft","active"].includes(String(listing.state))||(listing.state==="inactive"&&manifest.listings.some(l=>l.fulfillment==="PHYSICAL"&&l.etsyListingId===imported.etsyListingId&&l.status==="MIGRATION_PENDING"))) || etsyListingType(listing)!=="physical") throw Error("printful_placement_listing_mismatch");
   const variants=[];
   for(const plan of input.variants){
     const variant=physical.find(v=>v.id===plan.variantId)!;
