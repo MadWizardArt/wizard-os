@@ -10,7 +10,7 @@ import { assertCommerceDraftWritesEnabled } from "./write-guard";
 import { printfulGet, quotePrintfulVariant } from "./printful-catalog";
 import { runPrintfulSupplierPreflight } from "./printful-preflight";
 
-import { buildGarmentPreview, applyGarmentPreview, reactivateGarmentPreview, inspectUnchangedMigrationSource, readMigrationTarget, safeMigrationError, garmentPreviewSchema, migrationCanonical, migrationMap, validateMigrationAvailability, type MigrationPhase, type GarmentPreview } from "./garment-migration";
+import { buildGarmentPreview, applyGarmentPreview, classifyGarmentMigration, reactivateGarmentPreview, inspectUnchangedMigrationSource, readMigrationTarget, safeMigrationError, garmentPreviewSchema, migrationCanonical, migrationMap, validateMigrationAvailability, type MigrationPhase, type GarmentPreview } from "./garment-migration";
 
 async function context(productId:string){
  const manifest=await findWarlockProduct({productId});if(!manifest)throw Error("garment_migration_product_missing");
@@ -144,16 +144,18 @@ export async function inspectGarmentMigration(input:{productId:string;previewId:
   const key={productId:input.productId,requestId:"garment-migrate:"+input.previewId};
   const journal=await prisma.spellmarkJournal.findUnique({where:{productId_requestId:key}});
   const failure=journal?JSON.parse(journal.bodyJson):null;
-  let target;
-  try{target=await readMigrationTarget(p,ctx.read,"inspect");}catch{
-   const source=await inspectUnchangedMigrationSource(manifest,p,ctx.read,p.schemaVersion===2);
+  const classification=await classifyGarmentMigration(manifest,p,ctx.read);
+  if(classification.kind==="SOURCE"){
+   const source=classification.source;
    if(input.confirmUnchangedSourceResolution===true){
-    if(!failure||!["STARTED","RESPONSE_REJECTED_VERIFY_REQUIRED","NO_CHANGE_VERIFIED","SOURCE_UNCHANGED_DEACTIVATED_RESOLVED"].includes(failure.state))throw Error("garment_migration_failed_intent_required");
-    await prisma.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify({...source,state:source.listingState==="inactive"?"SOURCE_UNCHANGED_DEACTIVATED_RESOLVED":"NO_CHANGE_VERIFIED",phase:source.listingState==="inactive"?"DEACTIVATION_VERIFIED":undefined,previewId:input.previewId,resolvedAt:new Date().toISOString(),previousFailure:["NO_CHANGE_VERIFIED","SOURCE_UNCHANGED_DEACTIVATED_RESOLVED"].includes(failure.state)?failure.previousFailure:failure})}});
+    if(failure&&!["STARTED","RESPONSE_REJECTED_VERIFY_REQUIRED","NO_CHANGE_VERIFIED","SOURCE_UNCHANGED_DEACTIVATED_RESOLVED"].includes(failure.state))throw Error("garment_migration_failed_intent_required");
+    const resolution=JSON.stringify({...source,state:source.listingState==="inactive"?"SOURCE_UNCHANGED_DEACTIVATED_RESOLVED":"NO_CHANGE_VERIFIED",phase:source.listingState==="inactive"?"DEACTIVATION_VERIFIED":undefined,previewId:input.previewId,resolvedAt:new Date().toISOString(),previousFailure:failure&&["NO_CHANGE_VERIFIED","SOURCE_UNCHANGED_DEACTIVATED_RESOLVED"].includes(failure.state)?failure.previousFailure:failure});
+    await prisma.spellmarkJournal.upsert({where:{productId_requestId:key},create:{...key,kind:"GARMENT_MIGRATION_RESULT",bodyJson:resolution},update:{bodyJson:resolution}});
    }
    return {...source,productId:input.productId,previewId:input.previewId,resolved:input.confirmUnchangedSourceResolution===true,supplierError:failure?.supplierError??failure?.previousFailure?.supplierError??null,
     nextAction:source.listingState==="inactive"?(input.confirmUnchangedSourceResolution===true?"Verified inactive original inventory; failed inventory outcome resolved. Resume the SAME version-2 preview to stage the approved target. Keep the listing inactive until placements and visual review pass.":"Listing is inactive and original inventory is unchanged. Confirm unchanged-source resolution to allow an explicit same-preview resume; no uncertain inventory PUT is replayed automatically."):input.confirmUnchangedSourceResolution===true?"Failed intent resolved by exact live source readback. Create and approve a FRESH migration preview; do not reuse this expired or rejected preview. No Etsy or supplier writes were made.":"Source inventory, listing and description exactly match the saved pre-migration snapshot. Call inspect_garment_migration with confirmUnchangedSourceResolution:true to record resolution, then create a fresh owner-approved preview. This inspection performs no Etsy or supplier writes."};
   }
+  const target=classification.target;
   return {productId:input.productId,previewId:input.previewId,state:"GARMENT_MIGRATION_INSPECTED",inventoryFingerprint:target.observed.fingerprint,
    listingState:String(target.listing.state),editionsAvailable:target.listing.state==="active"&&target.observed.body.products.every(v=>v.offerings[0].is_enabled),descriptionMatches:String(target.listing.description??"")===p.description,supplierError:failure?.supplierError??null,
    variants:target.mapped.map(t=>({variantId:t.variantId,label:t.label,etsyProductId:t.etsyProductId,catalogProductId:t.catalogProductId,catalogVariantId:t.catalogVariantId})),

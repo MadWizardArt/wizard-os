@@ -97,3 +97,13 @@ owner confirmations limit but cannot eliminate external operator races.
   https://developers.etsy.com/documentation/essentials/definitions/
 - Printful inactive and sold-out import behavior:
   https://help.printful.com/hc/en-us/articles/50262491807889-Why-don-t-all-of-my-Etsy-products-show-up-on-Printful
+
+## Source/target ambiguity
+
+Inspection proves the complete unchanged source before classifying target inventory.
+A same-color blank change can preserve every Etsy SKU, property, price and quantity;
+matching target inventory alone is not evidence that migration occurred. An active
+original listing with unchanged description/canonical snapshot is resolved as source
+unchanged even when its inventory also matches the planned target. Expired previews
+with no write intent can likewise be resolved after this full check; resolution records
+NO_CHANGE_VERIFIED but never authorizes reuse of the expired preview.

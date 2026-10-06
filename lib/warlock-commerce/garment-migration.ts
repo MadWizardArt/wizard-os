@@ -185,3 +185,8 @@ export async function reactivateGarmentPreview(p:GarmentPreview,read:MigrationRe
  if(after.observed.fingerprint!==before.observed.fingerprint||String(after.listing.description??"")!==p.description)throw Error("garment_migration_reactivation_readback_failed");
  return {...after,existingListingReactivated:!already};
 }
+
+export async function classifyGarmentMigration(m:WarlockProductManifest,p:GarmentPreview,read:MigrationRead){
+ try{return {kind:"SOURCE" as const,source:await inspectUnchangedMigrationSource(m,p,read,p.schemaVersion===2)};}
+ catch{ return {kind:"TARGET" as const,target:await readMigrationTarget(p,read,"inspect")}; }
+}
