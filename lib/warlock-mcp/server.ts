@@ -1,3 +1,5 @@
+import { previewEtsyListingTitle, applyEtsyListingTitle } from "../warlock-commerce/etsy-title-executor";
+import { titlePreviewShape, titleApplyShape, safeTitleError } from "../warlock-commerce/etsy-listing-title";
 import { previewEtsyDraftImport, applyEtsyDraftImport } from "../warlock-commerce/etsy-draft-import-executor";
 import { draftImportPreviewShape, draftImportApplyShape, safeDraftImportError } from "../warlock-commerce/etsy-draft-import";
 import { previewEtsyListingLink, applyEtsyListingLink } from "../warlock-commerce/etsy-listing-link-executor";
@@ -160,6 +162,17 @@ export function createWarlockCommerceMcpServer() {
     name: "warlock-commerce",
     version: "0.8.0",
   });
+
+  server.registerTool("preview_etsy_listing_title", {
+    title: "Preview Existing Etsy Listing Title Change",
+    description: "Preview an exact proposed title on an existing draft or ACTIVE digital/physical Etsy listing. First get_product and select the saved Etsy ID. Returns old canonical title, observed Etsy title/state, proposed title, character/word counts and clarity guidance for owner review. Aurelia supplies the accurate optimized title; no unsupported claims or SEO ranking promises. Saves ten-minute approval evidence without changing copy or Etsy. Preserves internal product name, description/disclosure, tags, category, prices, variants, images and supplier mapping. Apply only after exact-preview approval.",
+    inputSchema: titlePreviewShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: false }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input=>{try{return success(await previewEtsyListingTitle(input));}catch(e){return failure("etsy_title_edit_failed",safeTitleError(e));}});
+  server.registerTool("apply_etsy_listing_title", {
+    title: "Apply Approved Existing Etsy Listing Title",
+    description: "Apply exact owner-approved previewId with confirmTitleChange:true to a draft or ACTIVE digital/physical listing. Saves canonical listing-title intent durably before a title-only Etsy PATCH, then verifies title and unchanged stable metadata/state. Internal product name stays intact. Uses existing write-mode gate; never publishes, alters description/disclosure, tags, inventory, images or Printful. Unknown outcomes return NEEDS_REVIEW; same-preview retries verify only, never blindly resend. Fresh approval required for a new attempt. Product journal stores intent and verification evidence.",
+    inputSchema: titleApplyShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: true, idempotentHint: true }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input=>{try{return success(await applyEtsyListingTitle(input));}catch(e){return failure("etsy_title_edit_failed",safeTitleError(e));}});
 
   server.registerTool("preview_etsy_draft_import", {
     title: "Preview Import of an Existing Etsy Draft",

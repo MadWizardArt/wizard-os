@@ -30,6 +30,11 @@ try {
  await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:true},false);
  assert.equal((await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:false})).isError,true);
  assert.match((await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:true})).content[0].text,/etsy_import_preview_not_found/);
+ const titlePreview={productId:'nonexistent',fulfillment:'DIGITAL',expectedEtsyListingId:'20',newTitle:'Clear Digital Art Print'};
+ await call('preview_etsy_listing_title',titlePreview,false);
+ const missingTitleProduct=await call('preview_etsy_listing_title',titlePreview);assert.equal(missingTitleProduct.isError,true);assert.match(missingTitleProduct.content[0].text,/etsy_title_product_missing/);
+ await call('apply_etsy_listing_title',{productId,previewId:'missing',confirmTitleChange:true},false);
+ assert.equal((await call('apply_etsy_listing_title',{productId,previewId:'missing',confirmTitleChange:false})).isError,true);
  const still=(await pool.query('SELECT * FROM "SpellmarkListing" WHERE id=$1',[listing.id])).rows[0];assert.deepEqual(still,listing);
  assert.equal((await fetch(base+`/api/warlock/products/${productId}/bookkeeping`)).status,401);
  console.log('Custom digital and bookkeeping MCP integration: persisted modes, auth, confirmations, concurrent retry notes, conflict rejection, ledger read and unchanged listing identities passed.');
