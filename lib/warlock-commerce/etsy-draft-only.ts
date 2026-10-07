@@ -1,3 +1,4 @@
+import { draftSettingsManualActions } from "./etsy-draft-settings.ts";
 import type { WarlockProductManifest, WarlockManifestAsset } from "../warlock-mcp/manifest.ts";
 import { validateWarlockManifest } from "../warlock-mcp/manifest.ts";
 import { evaluateCommerceGates } from "./gates.ts";
@@ -22,6 +23,9 @@ export async function executeEtsyDraftOnly<T>(productId: string, deps: EtsyDraft
   const physical = manifest.variants.some(v => v.fulfillment === "PHYSICAL");
   let supplier: SupplierPreflight | null = null;
   const report = () => ({ productId, packageValidation, gates, supplier,
+    fullyConfigured: false as const,
+    manualActions: manifest!.listings.map(listing => ({ listingId: listing.id, fulfillment: listing.fulfillment,
+      actions: draftSettingsManualActions(listing) })),
     printfulMutated: false as const, published: false as const,
     productionReady: false as const,
     quoteScope: physical ? "PROVISIONAL_PREFLIGHT" as const : "NOT_APPLICABLE" as const });

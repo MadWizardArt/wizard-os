@@ -12,6 +12,10 @@ const listing = z.object({
   digitalDelivery: z.enum(["INSTANT_DOWNLOAD", "MADE_TO_ORDER"]).optional().describe("MADE_TO_ORDER for personalized digital work delivered after purchase; no instant-download file is required or uploaded."),
   listingType: z.enum(["download", "physical"]).optional(),
   taxonomyId: z.number().int().positive().max(2147483647).optional(),
+  shopSectionId: profile.optional(),
+  productionPartnerId: profile.nullable().optional(),
+  digitalContentCreationType: z.literal("AI_ASSISTED_DIGITAL_DESIGN").nullable().optional().describe("Canonical intent only; Etsy editor selection requires manual action because the API has no structured field."),
+  etsyAdsEnabled: z.boolean().optional().describe("Defaults true; canonical intent only, not verified Etsy Ads activation."),
   shippingProfileId: profile.optional(), readinessStateId: profile.optional(),
 });
 // ChatGPT file objects declare all four supported properties; only URL and ID are required.

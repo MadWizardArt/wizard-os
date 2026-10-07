@@ -48,6 +48,7 @@ const listing = {
 test("physical Etsy configuration requires taxonomy, shipping, and readiness IDs", () => {
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "PHYSICAL",
+    shopSectionId: "11", productionPartnerId: "12",
     taxonomyId: 123,
   }), [
     "shipping_profile_id_required",
@@ -56,6 +57,7 @@ test("physical Etsy configuration requires taxonomy, shipping, and readiness IDs
 
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "PHYSICAL",
+    shopSectionId: "11", productionPartnerId: "12",
     taxonomyId: 123,
     shippingProfileId: "456",
     readinessStateId: "789",
@@ -65,6 +67,7 @@ test("physical Etsy configuration requires taxonomy, shipping, and readiness IDs
 test("digital Etsy configuration rejects physical fulfillment profile IDs", () => {
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "DIGITAL",
+    shopSectionId: "11", digitalContentCreationType: "AI_ASSISTED_DIGITAL_DESIGN",
     taxonomyId: 123,
     shippingProfileId: "456",
   }), ["digital_shipping_profile_not_allowed"]);
@@ -73,6 +76,7 @@ test("digital Etsy configuration rejects physical fulfillment profile IDs", () =
 test("verified listing configuration becomes READY only when listing essentials exist", () => {
   const selection = {
     fulfillment: "PHYSICAL",
+    shopSectionId: "11", productionPartnerId: "12",
     taxonomyId: 123,
     shippingProfileId: "456",
     readinessStateId: "789",
@@ -94,7 +98,7 @@ test("made-to-order digital configuration does not require an instant-download c
     digitalDelivery: "MADE_TO_ORDER",
     whenMade: "made_to_order",
   };
-  const selection = { fulfillment: "DIGITAL", taxonomyId: 123 };
+  const selection = { fulfillment: "DIGITAL", taxonomyId: 123, shopSectionId: "11", digitalContentCreationType: "AI_ASSISTED_DIGITAL_DESIGN" };
 
   const blockers = listingConfigurationBlockers(customDigitalListing, selection);
   assert.deepEqual(blockers, []);
@@ -110,6 +114,7 @@ test("instant-download digital configuration still requires a customer file", ()
   };
   const blockers = listingConfigurationBlockers(instantDigitalListing, {
     fulfillment: "DIGITAL",
+    shopSectionId: "11", digitalContentCreationType: "AI_ASSISTED_DIGITAL_DESIGN",
     taxonomyId: 123,
   });
   assert.deepEqual(blockers, ["digital_customer_files_missing"]);
@@ -154,6 +159,7 @@ test("MCP configuration action requires explicit confirmation and is not a comme
 test("verified configuration accepts Etsy profile IDs beyond JavaScript safe integer range", () => {
   assert.deepEqual(validateEtsyConfigurationSelection({
     fulfillment: "PHYSICAL",
+    shopSectionId: "11", productionPartnerId: "12",
     taxonomyId: 123,
     shippingProfileId: "9223372036854775807",
     readinessStateId: "9007199254740993",

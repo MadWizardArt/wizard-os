@@ -1,6 +1,7 @@
+import { draftSettingsBlockers, type EtsyDraftSettings } from "./etsy-draft-settings.ts";
 import type { WarlockManifestListing } from "../warlock-mcp/manifest.ts";
 
-export type EtsyConfigurationSelection = {
+export type EtsyConfigurationSelection = EtsyDraftSettings & {
   fulfillment: "DIGITAL" | "PHYSICAL";
   taxonomyId: number;
   shippingProfileId?: string;
@@ -26,6 +27,7 @@ export function validateEtsyConfigurationSelection(
     if (selection.readinessStateId !== undefined) errors.push("digital_readiness_state_not_allowed");
   }
 
+  errors.push(...draftSettingsBlockers(selection));
   return errors;
 }
 
@@ -33,7 +35,7 @@ export function listingConfigurationBlockers(
   listing: WarlockManifestListing,
   selection: EtsyConfigurationSelection,
 ) {
-  const blockers: string[] = [];
+  const blockers: string[] = draftSettingsBlockers(selection);
   if (!listing.title.trim()) blockers.push("listing_title_missing");
   if (!selection.taxonomyId) blockers.push("listing_taxonomy_missing");
 

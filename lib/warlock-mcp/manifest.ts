@@ -42,6 +42,12 @@ export type WarlockManifestListing = {
   description: string;
   tagsJson: string;
   taxonomyId: number | null;
+  shopSectionId?: string | null;
+  productionPartnerId?: string | null;
+  digitalContentCreationType?: string | null;
+  etsyAdsEnabled?: boolean;
+  etsyConfigurationEvidenceJson?: string | null;
+  etsyDraftSettingsVerificationJson?: string | null;
   shippingProfileId: string | null;
   readinessStateId: string | null;
   quantity: number;

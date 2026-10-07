@@ -1,3 +1,4 @@
+import { appendDraftSettings, verifyDraftSettingsIds, observeDraftSettings } from "./etsy-draft-settings.ts";
 import { get } from "@vercel/blob";
 import { etsyHeaders } from "../etsy-client";
 import { getWarlockEtsyOperatorContext } from "../warlock-auth";
@@ -27,6 +28,7 @@ export type EtsyDraftExecutionResult = {
     inventoryUpdated: boolean;
     assetsUploaded: number;
     assetsSkipped: number;
+    settingsVerification: ReturnType<typeof observeDraftSettings>;
   }>;
 };
 
@@ -84,6 +86,7 @@ function listingForm(
     form.set("shipping_profile_id", String(listing.shippingProfileId));
     form.set("readiness_state_id", String(listing.readinessStateId));
   }
+  appendDraftSettings(form, listing);
   return form;
 }
 
@@ -263,6 +266,12 @@ export async function executeEtsyDrafts(
 
   const { auth, shopId } = await getWarlockEtsyOperatorContext();
   const results: EtsyDraftExecutionResult["listings"] = [];
+  // Revalidate every mutable setting before the first remote write, including retries.
+  for (const listing of manifest.listings) {
+    if (!listingVariants(manifest, listing.fulfillment).length) continue;
+    await verifyDraftSettingsIds(manifest, listing, shopId,
+      path => etsyJson(auth.session.access_token, path));
+  }
 
   for (const listing of manifest.listings) {
     const variants = listingVariants(manifest, listing.fulfillment);
@@ -271,6 +280,10 @@ export async function executeEtsyDrafts(
       throw new Error("digital_listing_requires_single_variant");
     }
 
+    // A prior successful observation must not survive a failed new write/readback attempt.
+    await prisma.spellmarkListing.update({ where: { id: listing.id }, data: {
+      etsyDraftSettingsVerificationJson: null,
+    } });
     const ensured = await ensureDraftListing(
       auth.session.access_token,
       shopId,
@@ -326,6 +339,23 @@ export async function executeEtsyDrafts(
         assetsUploaded, inventoryUpdated, published: false }),
     } });
 
+    let remote: Json = {};
+    let readbackUnavailable = false;
+    try { remote = await etsyJson(auth.session.access_token, "/listings/" + ensured.listingId); }
+    catch { readbackUnavailable = true; }
+    const settingsVerification = observeDraftSettings({ ...listing, etsyListingId: ensured.listingId }, remote, shopId);
+    if (readbackUnavailable) settingsVerification.discrepancies.unshift("etsy_draft_settings_readback_unavailable");
+    await prisma.spellmarkListing.update({ where: { id: listing.id }, data: {
+      etsyDraftSettingsVerificationJson: JSON.stringify(settingsVerification),
+    } });
+    await prisma.spellmarkJournal.create({ data: {
+      productId: manifest.id, requestId: crypto.randomUUID(), kind: "ETSY_DRAFT_SETTINGS_VERIFICATION",
+      bodyJson: JSON.stringify(settingsVerification),
+    } });
+    // Evidence is durable even when Etsy ignores a setting; never report metadata success on discrepancy.
+    if (settingsVerification.discrepancies.length) {
+      throw new Error("etsy_draft_settings_verification_failed:" + settingsVerification.discrepancies.join(","));
+    }
     results.push({
       fulfillment: listing.fulfillment,
       listingId: ensured.listingId,
@@ -334,6 +364,7 @@ export async function executeEtsyDrafts(
       inventoryUpdated,
       assetsUploaded,
       assetsSkipped,
+      settingsVerification,
     });
   }
 

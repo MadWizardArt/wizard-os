@@ -8,7 +8,7 @@ import { observeEtsyListing, canonicalBookkeepingFingerprint, listingEvidenceFin
 import { ETSY_AI_DISCLOSURE } from '../lib/warlock-commerce/policy.ts';
 const asset={id:'hero',role:'hero',fileName:'hero.jpg',byteSize:100,contentType:'image/jpeg',blobUrl:'https://example.test/hero',pathname:'hero'};
 function fixture(custom=true){
- const listing={id:'listing',fulfillment:'DIGITAL',digitalDelivery:custom?'MADE_TO_ORDER':'INSTANT_DOWNLOAD',whenMade:custom?'made_to_order':'2020_2026',title:'Custom portrait',description:ETSY_AI_DISCLOSURE,quantity:999,taxonomyId:1,status:'READY',etsyListingId:'123',assets:[{id:'link',kind:'image',position:1,etsyRemoteId:'456',etsySyncedAt:null,asset}]};
+ const listing={id:'listing',fulfillment:'DIGITAL',shopSectionId:'11',digitalContentCreationType:'AI_ASSISTED_DIGITAL_DESIGN',digitalDelivery:custom?'MADE_TO_ORDER':'INSTANT_DOWNLOAD',whenMade:custom?'made_to_order':'2020_2026',title:'Custom portrait',description:ETSY_AI_DISCLOSURE,quantity:999,taxonomyId:1,status:'READY',etsyListingId:'123',assets:[{id:'link',kind:'image',position:1,etsyRemoteId:'456',etsySyncedAt:null,asset}]};
  const product={id:'product',title:listing.title,status:'READY',notes:'',collection:'',description:'',artworkReference:'',assets:[asset],listings:[listing],variants:[{id:'variant',fulfillment:'DIGITAL',label:'Portrait',retailPriceCents:2495,currency:'USD'}]};
  const remote={listing_id:123,shop_id:77,state:'active',type:'download',when_made:listing.whenMade,title:listing.title,description:ETSY_AI_DISCLOSURE,price:{amount:2495,divisor:100,currency_code:'USD'}};
  return {product,listing,remote,images:{count:1,results:[{listing_id:123,listing_image_id:456,rank:1}]},files:{count:0,results:[]}};

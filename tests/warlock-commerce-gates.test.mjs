@@ -39,14 +39,14 @@ const manifest = {
   ],
   listings: [
     {
-      id: "l1", fulfillment: "PHYSICAL", title: "Volans physical", description: "Physical copy.",
+      id: "l1", fulfillment: "PHYSICAL", shopSectionId: "11", productionPartnerId: "12", title: "Volans physical", description: "Physical copy.",
       tagsJson: "[]", taxonomyId: 10, shippingProfileId: 20, readinessStateId: 30,
       quantity: 999, whoMade: "i_did", whenMade: "2020_2026", isSupply: false,
       shouldAutoRenew: true, etsyListingId: null, status: "READY",
       assets: [{ id: "la1", kind: "image", position: 1, asset: { id: "a2", role: "hero", fileName: "hero.jpg", blobUrl: "https://example.test/hero.jpg", pathname: "hero.jpg", contentType: "image/jpeg", byteSize: 100 } }],
     },
     {
-      id: "l2", fulfillment: "DIGITAL", title: "Volans Aethereus — Digital Version", description: "Digital copy.",
+      id: "l2", fulfillment: "DIGITAL", shopSectionId: "13", digitalContentCreationType: "AI_ASSISTED_DIGITAL_DESIGN", title: "Volans Aethereus — Digital Version", description: "Digital copy.",
       tagsJson: "[]", taxonomyId: 10, shippingProfileId: null, readinessStateId: null,
       quantity: 999, whoMade: "i_did", whenMade: "2020_2026", isSupply: false,
       shouldAutoRenew: true, etsyListingId: null, status: "READY",

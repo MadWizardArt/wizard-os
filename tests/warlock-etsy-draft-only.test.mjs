@@ -7,7 +7,7 @@ function fixture() {
   const assets = ['master', 'hero', 'mockup'].map((role, i) => ({id:'a'+i,role,fileName:role+'.png',blobUrl:'https://private.test/'+role,pathname:role,contentType:'image/png',byteSize:100}));
   return {id:'p',title:'Vulpis',collection:'Spellmark',description:disclosure,artworkReference:'back and sleeve',status:'PRODUCTION',notes:'',assets,
     variants:[{id:'v',fulfillment:'PHYSICAL',label:'Black / S',printfulProductId:411,printfulVariantId:11254,printfulStoreId:99,etsyListingId:null,etsySku:null,etsyProductId:null,printfulSyncVariantId:null,retailPriceCents:4995,productionBaseCents:null,productionQuotedAt:null,currency:'USD'}],
-    listings:[{id:'l',fulfillment:'PHYSICAL',title:'Vulpis',description:disclosure,tagsJson:'[]',taxonomyId:2202,shippingProfileId:'123',readinessStateId:'456',quantity:999,whoMade:'i_did',whenMade:'2020_2026',isSupply:false,shouldAutoRenew:true,etsyListingId:null,printfulSyncProductId:null,lastDraftSyncAt:null,status:'READY',assets:[{id:'link',kind:'image',position:1,etsyRemoteId:null,etsySyncedAt:null,asset:assets[1]}]}]};
+    listings:[{id:'l',fulfillment:'PHYSICAL',shopSectionId:'11',productionPartnerId:'12',title:'Vulpis',description:disclosure,tagsJson:'[]',taxonomyId:2202,shippingProfileId:'123',readinessStateId:'456',quantity:999,whoMade:'i_did',whenMade:'2020_2026',isSupply:false,shouldAutoRenew:true,etsyListingId:null,printfulSyncProductId:null,lastDraftSyncAt:null,status:'READY',assets:[{id:'link',kind:'image',position:1,etsyRemoteId:null,etsySyncedAt:null,asset:assets[1]}]}]};
 }
 function harness(manifest=fixture()) {
   const calls=[];
