@@ -92,7 +92,7 @@ async function persistWorkflowImages(workflowId: string, input: StudioGeneration
     let image;
     try {
       image = await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)`);
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)::text`);
         const count = await tx.grottoImage.count({ where: { deletedAt: null } });
         if (count >= MAX_GROTTO_IMAGES) throw new Error(`The Grotto is limited to ${MAX_GROTTO_IMAGES} images. Delete images before creating more.`);
         return tx.grottoImage.create({
