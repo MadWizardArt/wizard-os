@@ -2,7 +2,7 @@ import { etsyHeaders } from "../etsy-client";
 
 /** Reconciliation has a GET-only Etsy transport, with no mutation argument. */
 export async function readEtsyForReconciliation(accessToken: string, path: string): Promise<Record<string, unknown>> {
-  if (!/^\/listings\/[1-9]\d*(\/inventory\?legacy=false|\/images)?$/.test(path) && !/^\/shops\/[1-9]\d*\/listings\/[1-9]\d*\/files$/.test(path)) throw new Error("etsy_reconciliation_path_invalid");
+  if (!/^\/shops\/[1-9]\d*\/listings\?state=draft&limit=1$/.test(path) && !/^\/listings\/[1-9]\d*(\/inventory\?legacy=false|\/images)?$/.test(path) && !/^\/shops\/[1-9]\d*\/listings\/[1-9]\d*\/files$/.test(path)) throw new Error("etsy_reconciliation_path_invalid");
   const response = await fetch("https://api.etsy.com/v3/application" + path, {
     method: "GET", headers: etsyHeaders(accessToken), cache: "no-store",
     redirect: "error", signal: AbortSignal.timeout(15_000),

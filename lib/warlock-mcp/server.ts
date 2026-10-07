@@ -1,3 +1,5 @@
+import { previewEtsyListingLink, applyEtsyListingLink } from "../warlock-commerce/etsy-listing-link-executor";
+import { listingLinkPreviewShape, listingLinkApplyShape, safeListingLinkError } from "../warlock-commerce/etsy-listing-link";
 import { previewGarmentMigration, applyGarmentMigration, inspectGarmentMigration, enableMigratedGarment } from "../warlock-commerce/garment-migration-executor";
 import { garmentPreviewShape, garmentApplyShape, garmentEnableShape, safeMigrationError } from "../warlock-commerce/garment-migration";
 import { attachPostDraftImage } from "../warlock-post-draft-images";
@@ -156,6 +158,21 @@ export function createWarlockCommerceMcpServer() {
     name: "warlock-commerce",
     version: "0.8.0",
   });
+
+  server.registerTool(
+    "preview_etsy_listing_link",
+    { title: "Preview Missing Etsy Link Cleanup or Existing Draft Link", description: "Prepare a durable review preview to clear a stale canonical Etsy link or link an existing Etsy draft. Requires the exact currently saved Etsy ID (or null if unlinked) and a target existing draft ID (or null to clear only). Existing source must return 404 with authenticated shop listing access; any extant listing including inactive/expired refuses cleanup. Verifies target shop ownership, draft state, type, exact title, taxonomy and canonical prices. Physical inventory must map completely by unique exact SKUs or explicit variantMappings; ambiguous matches return inventory choices without an applicable preview. Preserves product assets/copy/prices/catalog mappings and archives old external links. No Etsy/Printful writes, uploads, deletions, creation, publication or orders. Show the full preview for owner approval.", inputSchema: listingLinkPreviewShape,
+      annotations: { ...annotations, readOnlyHint: false, destructiveHint: false }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+    async input => { try { return success(await previewEtsyListingLink(input)); }
+      catch (error) { return failure("etsy_listing_link_failed", safeListingLinkError(error)); } },
+  );
+  server.registerTool(
+    "apply_etsy_listing_link",
+    { title: "Apply Approved Canonical Etsy Listing Link", description: "Apply the exact owner-approved unexpired previewId with confirmListingLink:true. Rechecks authenticated shop access, source 404, target draft identity/inventory, canonical fingerprint and duplicate linkage under database locks. Atomically archives old references and clears stale Etsy asset IDs, supplier sync IDs, observations and physical quote evidence; preserves product files, listing copy, retail prices, settings and Printful catalog mappings. Can clear a missing link or adopt an existing draft without recreating it. Exact retries do not repeat writes and return historical evidence. Never deletes Etsy/Printful listings or files, uploads, publishes, orders or applies artwork. Supplier and visual verification remain pending.", inputSchema: listingLinkApplyShape,
+      annotations: { ...annotations, readOnlyHint: false, destructiveHint: true, idempotentHint: true }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES } },
+    async input => { try { return success(await applyEtsyListingLink(input)); }
+      catch (error) { return failure("etsy_listing_link_failed", safeListingLinkError(error)); } },
+  );
 
   server.registerTool(
     "get_product_bookkeeping",
