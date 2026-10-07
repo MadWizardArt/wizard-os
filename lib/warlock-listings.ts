@@ -1,3 +1,4 @@
+import { DIGITAL_CREATION_INTENT, etsySettingId } from "./warlock-commerce/etsy-draft-settings.ts";
 export const LISTING_STATUSES = ["CONFIG", "READY", "DRAFT_CREATED", "WAITING_PRINTFUL", "SYNCED"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
@@ -7,6 +8,10 @@ export type ListingManifestInput = {
   description: string;
   tags: string[];
   taxonomyId: number | null;
+  shopSectionId: string | null;
+  productionPartnerId: string | null;
+  digitalContentCreationType: string | null;
+  etsyAdsEnabled: boolean;
   shippingProfileId: string | null;
   readinessStateId: string | null;
   quantity: number;
@@ -85,6 +90,15 @@ export function readListingManifest(raw: unknown): ListingManifestInput | null {
     : [];
   if (tags.length > 13 || tags.some((tag) => tag.length > 20)) return null;
 
+  const shopSectionId = etsySettingId(value.shopSectionId);
+  const productionPartnerId = etsySettingId(value.productionPartnerId);
+  const digitalContentCreationType = value.digitalContentCreationType ?? (fulfillment === "DIGITAL" ? DIGITAL_CREATION_INTENT : null);
+  if (value.shopSectionId != null && !shopSectionId) return null;
+  if (value.productionPartnerId != null && !productionPartnerId) return null;
+  if (fulfillment === "DIGITAL" && productionPartnerId !== null) return null;
+  if (fulfillment === "DIGITAL" && digitalContentCreationType !== DIGITAL_CREATION_INTENT) return null;
+  if (fulfillment === "PHYSICAL" && digitalContentCreationType !== null) return null;
+  if (value.etsyAdsEnabled !== undefined && typeof value.etsyAdsEnabled !== "boolean") return null;
   const taxonomyId = positiveId(value.taxonomyId);
   const shippingProfileId = externalId(value.shippingProfileId);
   const readinessStateId = externalId(value.readinessStateId);
@@ -99,6 +113,10 @@ export function readListingManifest(raw: unknown): ListingManifestInput | null {
     description,
     tags,
     taxonomyId,
+    shopSectionId,
+    productionPartnerId,
+    digitalContentCreationType: digitalContentCreationType as string | null,
+    etsyAdsEnabled: value.etsyAdsEnabled !== false,
     shippingProfileId,
     readinessStateId,
     quantity,

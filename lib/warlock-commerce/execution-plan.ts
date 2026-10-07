@@ -1,3 +1,4 @@
+import { draftSettingsManualActions } from "./etsy-draft-settings.ts";
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 import { validateWarlockManifest } from "../warlock-mcp/manifest.ts";
 import { evaluateCommerceGates } from "./gates.ts";
@@ -36,6 +37,7 @@ export function buildCommerceExecutionPlan(manifest: WarlockProductManifest) {
 
   add("Warlock", "Validate canonical product package.");
   add("Warlock", "Evaluate compliance and contribution-margin gates.");
+  add("Etsy", "Revalidate canonical shop section and production partner IDs against live Etsy before writes.");
   add("Warlock", "Verify private master, listing images, and customer file availability before Etsy writes.");
 
   if (hasPhysical) {
@@ -52,6 +54,10 @@ export function buildCommerceExecutionPlan(manifest: WarlockProductManifest) {
     add("Etsy", "Upload approved digital listing imagery and customer download files.", true);
   }
 
+  add("Etsy", "Read back shop section, category and required disclosure; save evidence and report discrepancies.");
+  for (const listing of manifest.listings ?? []) {
+    for (const action of draftSettingsManualActions(listing)) add("Etsy", listing.fulfillment + ": " + action.code + " — " + action.reason);
+  }
   add("Warlock", "Persist Etsy/Printful identifiers and return a final review report.");
   add("Warlock", "Stop at human review. Publishing is outside automated execution.");
 

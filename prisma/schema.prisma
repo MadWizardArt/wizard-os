@@ -517,6 +517,12 @@ model SpellmarkListing {
   description      String               @default("")
   tagsJson         String               @default("[]")
   taxonomyId       Int?
+  shopSectionId String?
+  productionPartnerId String?
+  digitalContentCreationType String?
+  etsyAdsEnabled Boolean @default(true)
+  etsyConfigurationEvidenceJson String?
+  etsyDraftSettingsVerificationJson String?
   shippingProfileId String?
   readinessStateId String?
   quantity         Int                  @default(999)

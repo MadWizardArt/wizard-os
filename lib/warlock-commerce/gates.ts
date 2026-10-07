@@ -1,3 +1,4 @@
+import { draftSettingsBlockers, draftSettingsManualActions } from "./etsy-draft-settings.ts";
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
 import {
   ensureEtsyAiDisclosure,
@@ -32,6 +33,11 @@ export type CommerceGateReport = {
       taxonomyId: number | null;
       shippingProfileId: string | null;
       readinessStateId: string | null;
+      shopSectionId?: string | null;
+      productionPartnerId?: string | null;
+      digitalContentCreationType?: string | null;
+      etsyAdsEnabled?: boolean;
+      manualActions?: ReturnType<typeof draftSettingsManualActions>;
       imageCount: number;
       customerFileCount: number;
       status: string;
@@ -87,6 +93,7 @@ function quoteMaxAgeDays() {
 export function evaluateCommerceGates(
   manifest: WarlockProductManifest,
   now = new Date(),
+  options: { draftSettings?: boolean } = {},
 ): CommerceGateReport {
   const errors: CommerceGateIssue[] = [];
   const warnings: CommerceGateIssue[] = [];
@@ -134,6 +141,13 @@ export function evaluateCommerceGates(
     const imageCount = listing.assets.filter((link) => link.kind === "image").length;
     const customerFileCount = listing.assets.filter((link) => link.kind === "customer_file").length;
     let pass = true;
+    for (const code of options.draftSettings === false ? [] : draftSettingsBlockers(listing)) {
+      pass = false;
+      errors.push(issue("COMPLIANCE", "error", code, "Canonical Etsy draft setting requires configuration: " + code, { listingId: listing.id }));
+    }
+    for (const action of draftSettingsManualActions(listing)) {
+      warnings.push(issue("COMPLIANCE", "warning", action.code, action.reason, { listingId: listing.id }));
+    }
 
     if (!disclosurePresent) {
       warnings.push(issue(
@@ -285,6 +299,11 @@ export function evaluateCommerceGates(
       taxonomyId: listing.taxonomyId,
       shippingProfileId: listing.shippingProfileId,
       readinessStateId: listing.readinessStateId,
+      shopSectionId: listing.shopSectionId ?? null,
+      productionPartnerId: listing.productionPartnerId ?? null,
+      digitalContentCreationType: listing.digitalContentCreationType ?? null,
+      etsyAdsEnabled: listing.etsyAdsEnabled ?? true,
+      manualActions: draftSettingsManualActions(listing),
       imageCount,
       customerFileCount,
       status: listing.status,

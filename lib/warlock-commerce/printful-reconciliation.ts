@@ -65,7 +65,7 @@ export async function reconcileActivePrintful(manifest: WarlockProductManifest, 
     const supplier = await deps.supplier(physical);
     if (!supplier.pass) return { ...blocked("supplier_preflight_failed"), supplier };
     let fresh = withLivePrintfulQuotes(physical, supplier);
-    const gates = evaluateCommerceGates(fresh);
+    const gates = evaluateCommerceGates(fresh, undefined, { draftSettings: false });
     if (!gates.pass) return { ...blocked("commerce_gates_failed"), gates, supplier, blockers: gates.errors.map(e => e.code) };
     const master = fresh.assets.find(a => a.role === "master");
     if (!master) return blocked("master_missing");

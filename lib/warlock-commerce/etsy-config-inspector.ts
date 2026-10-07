@@ -1,3 +1,4 @@
+import { ETSY_DRAFT_CAPABILITIES, draftSettingsManualActions, draftSettingsBlockers, etsySettingId } from "./etsy-draft-settings.ts";
 import { etsyHeaders } from "../etsy-client";
 import { getWarlockEtsyOperatorContext } from "../warlock-auth";
 import type { WarlockProductManifest } from "../warlock-mcp/manifest.ts";
@@ -104,7 +105,11 @@ function existingListingSummary(payload: Json | null) {
     taxonomyId: numberId(payload.taxonomy_id),
     shippingProfileId: externalId(payload.shipping_profile_id),
     readinessStateId: externalId(payload.readiness_state_id),
-    type: text(payload.type),
+    type: text(payload.type ?? payload.listing_type),
+    shopSectionId: etsySettingId(payload.shop_section_id),
+    productionPartnerAssignment: "NOT_EXPOSED_BY_API",
+    digitalContentCreation: "NOT_EXPOSED_BY_API",
+    etsyAds: "NOT_EXPOSED_BY_API",
   };
 }
 
@@ -116,23 +121,36 @@ export async function inspectEtsyConfiguration(
   const accessToken = auth.session.access_token;
   const physical = manifest.listings.find((listing) => listing.fulfillment === "PHYSICAL") ?? null;
 
-  const [shippingPayload, readinessPayload, taxonomyPayload] = await Promise.all([
-    getJson(accessToken, "/shops/" + shopId + "/shipping-profiles"),
-    getJson(accessToken, "/shops/" + shopId + "/readiness-state-definitions?limit=100"),
+  const [shippingPayload, readinessPayload, taxonomyPayload, sectionsPayload, partnersPayload] = await Promise.all([
+    physical ? getJson(accessToken, "/shops/" + shopId + "/shipping-profiles") : Promise.resolve({ results: [] }),
+    physical ? getJson(accessToken, "/shops/" + shopId + "/readiness-state-definitions?limit=100") : Promise.resolve({ results: [] }),
     getJson(accessToken, "/seller-taxonomy/nodes"),
+    getJson(accessToken, "/shops/" + shopId + "/sections"),
+    getJson(accessToken, "/shops/" + shopId + "/production-partners"),
   ]);
 
-  let existingListing: Json | null = null;
-  if (physical?.etsyListingId) {
-    try {
-      existingListing = await getJson(
-        accessToken,
-        "/listings/" + encodeURIComponent(physical.etsyListingId),
-      );
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.includes("etsy_http_404")) throw error;
+  const listingConfigurations = await Promise.all(manifest.listings.map(async listing => {
+    let remote: Json | null = null;
+    if (listing.etsyListingId) {
+      try { remote = await getJson(accessToken, "/listings/" + encodeURIComponent(listing.etsyListingId)); }
+      catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("etsy_http_404")) throw error;
+      }
     }
-  }
+    return {
+      fulfillment: listing.fulfillment,
+      canonical: {
+        listingId: listing.id, etsyListingId: listing.etsyListingId, taxonomyId: listing.taxonomyId,
+        shopSectionId: listing.shopSectionId ?? null, productionPartnerId: listing.productionPartnerId ?? null,
+        digitalContentCreationType: listing.digitalContentCreationType ?? null, etsyAdsEnabled: listing.etsyAdsEnabled ?? true,
+        configurationEvidenceJson: listing.etsyConfigurationEvidenceJson ?? null,
+        settingsVerificationJson: listing.etsyDraftSettingsVerificationJson ?? null,
+      },
+      existingEtsyListing: existingListingSummary(remote),
+      configurationRequirements: draftSettingsBlockers(listing),
+      manualActions: draftSettingsManualActions(listing), fullyConfigured: false,
+    };
+  }));
 
   const query = taxonomyQuery?.trim() || deriveTaxonomyQuery(manifest);
   const shippingProfiles = normalizeShippingProfiles(shippingPayload);
@@ -151,7 +169,16 @@ export async function inspectEtsyConfiguration(
       readinessStateId: physical.readinessStateId,
       status: physical.status,
     } : null,
-    existingEtsyListing: existingListingSummary(existingListing),
+    existingEtsyListing: listingConfigurations.find(l => l.fulfillment === "PHYSICAL")?.existingEtsyListing ?? null,
+    listingConfigurations,
+    shopSections: resultArray(sectionsPayload).map(section => ({
+      shopSectionId: etsySettingId(section.shop_section_id), title: text(section.title),
+    })).filter(section => section.shopSectionId),
+    productionPartners: resultArray(partnersPayload).map(partner => ({
+      productionPartnerId: etsySettingId(partner.production_partner_id), name: text(partner.partner_name), location: text(partner.location),
+    })).filter(partner => partner.productionPartnerId),
+    capabilities: ETSY_DRAFT_CAPABILITIES,
+    sectionAutoSelected: false,
     shippingProfiles,
     readinessStates,
     taxonomy: {

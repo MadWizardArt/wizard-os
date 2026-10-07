@@ -1,3 +1,4 @@
+import { draftSettingsManualActions } from "./etsy-draft-settings.ts";
 import { withLivePrintfulQuotes } from "./live-quotes.ts";
 import { verifyIntakeAsset } from "../warlock-intake-assets.ts";
 import { evaluateCommerceGates } from "./gates.ts";
@@ -17,6 +18,8 @@ export type DraftExecutionResult = {
   etsy?: Awaited<ReturnType<typeof executeEtsyDrafts>>;
   printful?: Awaited<ReturnType<typeof syncPhysicalListingToPrintful>>;
   blockers?: string[];
+  fullyConfigured?: false;
+  manualActions?: Array<{ listingId: string; actions: ReturnType<typeof draftSettingsManualActions> }>;
 };
 
 export async function executeDraftProduct(productId: string): Promise<DraftExecutionResult> {
@@ -112,6 +115,8 @@ export async function executeDraftProduct(productId: string): Promise<DraftExecu
   return {
     productId,
     state: "READY_FOR_HUMAN_REVIEW",
+    fullyConfigured: false,
+    manualActions: refreshed.listings.map(listing => ({ listingId: listing.id, actions: draftSettingsManualActions(listing) })),
     packageValidation,
     gates,
     supplier,

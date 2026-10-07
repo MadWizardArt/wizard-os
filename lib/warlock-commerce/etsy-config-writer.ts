@@ -1,3 +1,4 @@
+import { DIGITAL_CREATION_INTENT, verifyDraftSettingsIds, draftSettingsManualActions, ETSY_DRAFT_CAPABILITIES } from "./etsy-draft-settings.ts";
 import { etsyHeaders } from "../etsy-client";
 import { getWarlockEtsyOperatorContext } from "../warlock-auth";
 import { prisma } from "../prisma";
@@ -58,8 +59,14 @@ function listingExternalId(payload: Json | null, key: string) {
 
 export async function applyVerifiedEtsyConfiguration(
   manifest: WarlockProductManifest,
-  selection: EtsyConfigurationSelection,
+  input: EtsyConfigurationSelection,
 ) {
+  const selection: EtsyConfigurationSelection = {
+    ...input,
+    digitalContentCreationType: input.digitalContentCreationType === undefined
+      ? (input.fulfillment === "DIGITAL" ? DIGITAL_CREATION_INTENT : null) : input.digitalContentCreationType,
+    etsyAdsEnabled: input.etsyAdsEnabled ?? manifest.listings.find(l => l.fulfillment === input.fulfillment)?.etsyAdsEnabled ?? true,
+  };
   const inputErrors = validateEtsyConfigurationSelection(selection);
   if (inputErrors.length) {
     throw new Error("invalid_etsy_configuration:" + inputErrors.join(","));
@@ -139,6 +146,8 @@ export async function applyVerifiedEtsyConfiguration(
     }
   }
 
+  const settingsEvidence = await verifyDraftSettingsIds(manifest, { ...listing, ...selection }, shopId,
+    path => getJson(token, path));
   const blockers = listingConfigurationBlockers(listing, selection);
   const status = configuredListingStatus(listing, blockers);
 
@@ -146,6 +155,12 @@ export async function applyVerifiedEtsyConfiguration(
     where: { id: listing.id },
     data: {
       taxonomyId: selection.taxonomyId,
+      shopSectionId: selection.shopSectionId,
+      productionPartnerId: selection.productionPartnerId ?? null,
+      digitalContentCreationType: selection.digitalContentCreationType,
+      etsyAdsEnabled: selection.etsyAdsEnabled,
+      etsyConfigurationEvidenceJson: JSON.stringify(settingsEvidence),
+      etsyDraftSettingsVerificationJson: null,
       shippingProfileId: selection.fulfillment === "PHYSICAL"
         ? selection.shippingProfileId ?? null
         : null,
@@ -158,6 +173,10 @@ export async function applyVerifiedEtsyConfiguration(
       id: true,
       fulfillment: true,
       taxonomyId: true,
+      shopSectionId: true,
+      productionPartnerId: true,
+      digitalContentCreationType: true,
+      etsyAdsEnabled: true,
       shippingProfileId: true,
       readinessStateId: true,
       etsyListingId: true,
@@ -191,6 +210,10 @@ export async function applyVerifiedEtsyConfiguration(
       existingEtsyListingId: listing.etsyListingId,
     },
     configurationBlockers: blockers,
+    draftSettingsEvidence: settingsEvidence,
+    capabilities: ETSY_DRAFT_CAPABILITIES,
+    manualActions: draftSettingsManualActions(selection),
+    fullyConfigured: false,
     externalEtsyMutation: false,
   };
 }

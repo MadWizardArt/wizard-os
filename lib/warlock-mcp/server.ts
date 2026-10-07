@@ -80,6 +80,10 @@ const verifiedEtsyConfigShape = {
   taxonomyId: z.number().int().positive(),
   shippingProfileId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
   readinessStateId: z.string().trim().regex(/^[1-9]\d{0,18}$/).optional(),
+  shopSectionId: z.string().trim().regex(/^[1-9]\d{0,18}$/),
+  productionPartnerId: z.string().trim().regex(/^[1-9]\d{0,18}$/).nullable().optional(),
+  digitalContentCreationType: z.literal("AI_ASSISTED_DIGITAL_DESIGN").nullable().optional(),
+  etsyAdsEnabled: z.boolean().optional(),
   confirmConfiguration: z.literal(true),
 };
 
@@ -433,7 +437,7 @@ export function createWarlockCommerceMcpServer() {
     "inspect_etsy_configuration",
     {
       title: "Inspect Etsy Configuration",
-      description: "Read the shop's current shipping profiles, processing profiles, existing physical listing metadata, and ranked seller-taxonomy candidates. Never changes Etsy or WizardOS.",
+      description: "Read live shop sections, production partners, all listing metadata, profiles, taxonomy candidates, and draft-setting API capabilities/manual requirements. Never changes Etsy or WizardOS.",
       inputSchema: etsyConfigShape,
       annotations: liveReadAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
@@ -457,7 +461,7 @@ export function createWarlockCommerceMcpServer() {
     "configure_etsy_listing",
     {
       title: "Configure Etsy Listing",
-      description: "Verify selected Etsy taxonomy and shop profile IDs against live Etsy, then save them to the canonical WizardOS listing only. Does not modify Etsy.",
+      description: "Verify taxonomy, section and Printful production-partner IDs against live Etsy, then save canonical draft settings and evidence. Digital creation and Ads are intent only and require manual Etsy action. Digital listings cannot have a partner. Does not modify Etsy.",
       inputSchema: verifiedEtsyConfigShape,
       annotations: configurationWriteAnnotations,
       _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
@@ -491,6 +495,10 @@ export function createWarlockCommerceMcpServer() {
           taxonomyId: input.taxonomyId,
           shippingProfileId: input.shippingProfileId,
           readinessStateId: input.readinessStateId,
+          shopSectionId: input.shopSectionId,
+          productionPartnerId: input.productionPartnerId,
+          digitalContentCreationType: input.digitalContentCreationType,
+          etsyAdsEnabled: input.etsyAdsEnabled,
         }));
       } catch (error) {
         console.error("Warlock MCP Etsy configuration save failed", error);
