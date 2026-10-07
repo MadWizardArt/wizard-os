@@ -18,6 +18,12 @@ try {
  const ledger=(await call('get_product_bookkeeping',{productId})).structuredContent;assert.equal(ledger.history[0].body.note,note.note);assert.equal(ledger.listings[0].observation,null);assert.equal(ledger.listings[0].verificationCurrent,false);
  const catalog=(await call('get_product_bookkeeping',{limit:50})).structuredContent;assert.ok(catalog.products.some(p=>p.id===productId));
  const wrong=await call('reconcile_etsy_listing',{productId,fulfillment:'DIGITAL',expectedEtsyListingId:'999',confirmReconciliation:true});assert.equal(wrong.isError,true);assert.match(wrong.content[0].text,/identity_changed/);
+ const linkPreview={productId:'nonexistent',fulfillment:'DIGITAL',expectedEtsyListingId:null,targetEtsyListingId:'20'};
+ await call('preview_etsy_listing_link',linkPreview,false);
+ const missingLinkProduct=await call('preview_etsy_listing_link',linkPreview);assert.equal(missingLinkProduct.isError,true);assert.match(missingLinkProduct.content[0].text,/etsy_link_product_missing/);
+ const linkApply={productId,previewId:'missing',confirmListingLink:false};
+ await call('apply_etsy_listing_link',linkApply,false);
+ assert.equal((await call('apply_etsy_listing_link',linkApply)).isError,true);
  const still=(await pool.query('SELECT * FROM "SpellmarkListing" WHERE id=$1',[listing.id])).rows[0];assert.deepEqual(still,listing);
  assert.equal((await fetch(base+`/api/warlock/products/${productId}/bookkeeping`)).status,401);
  console.log('Custom digital and bookkeeping MCP integration: persisted modes, auth, confirmations, concurrent retry notes, conflict rejection, ledger read and unchanged listing identities passed.');
