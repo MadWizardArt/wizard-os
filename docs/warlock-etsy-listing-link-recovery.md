@@ -39,7 +39,11 @@ canonical package before linking; this operation does not invent a product from 
 unreviewed remote listing.
 
 The target must be an unlinked draft in the configured shop with the exact canonical
-listing title, taxonomy and fulfillment type. Digital price and delivery mode must
+listing title, taxonomy and fulfillment type. If the target title differs, provide
+`expectedTargetTitle` equal to the exact observed Etsy title and show both titles
+in the saved preview for owner approval. This adopts the reviewed draft while
+preserving canonical copy; it does not rename either listing. Any subsequent title
+change invalidates approval. Digital price and delivery mode must
 match. Physical inventory must have exactly the canonical variant count, one enabled
 non-deleted offering per variant, unique non-empty SKUs and matching USD prices.
 

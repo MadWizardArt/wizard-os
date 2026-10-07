@@ -11,6 +11,7 @@ export const listingLinkPreviewShape = {
   productId: id, fulfillment: z.enum(["PHYSICAL", "DIGITAL"]),
   expectedEtsyListingId: remoteId.nullable().describe("Exact currently saved Etsy ID; null only when no listing is linked."),
   targetEtsyListingId: remoteId.nullable().describe("Existing replacement draft ID, or null to clear a missing Etsy link only. Never creates or deletes anything in Etsy."),
+  expectedTargetTitle: z.string().min(1).max(140).optional().describe("Exact observed Etsy draft title when it differs from canonical copy. Explicitly review both titles in the saved preview; canonical title is preserved."),
   variantMappings: z.array(z.object({ variantId: id, etsyProductId: remoteId })).max(50).optional()
     .describe("Explicit complete physical inventory mapping. Omit only when every canonical SKU matches exactly and uniquely. Review color/size values in the preview."),
 };
@@ -34,6 +35,7 @@ const money = (value: unknown) => {
 export function linkListing(manifest: WarlockProductManifest, input: ListingLinkInput) {
   const listings = manifest.listings.filter(l => l.fulfillment === input.fulfillment);
   if (listings.length !== 1 || listings[0].etsyListingId !== input.expectedEtsyListingId) fail("source_identity_changed");
+  if (!input.targetEtsyListingId && input.expectedTargetTitle !== undefined) fail("title_review_requires_target");
   if (input.targetEtsyListingId === input.expectedEtsyListingId) fail("different_target_required");
   const variants = manifest.variants.filter(v => v.fulfillment === input.fulfillment);
   if (!variants.length || variants.some(v => v.etsyListingId && v.etsyListingId !== input.expectedEtsyListingId)) fail("variant_source_identity_changed");
@@ -61,7 +63,9 @@ export async function inspectListingLink(
   if (remote(target.listing_id) !== targetId || remote(target.shop_id) !== String(shopId)) fail("target_ownership_mismatch");
   if (target.state !== "draft") fail("target_not_draft");
   if (etsyListingType(target) !== (input.fulfillment === "DIGITAL" ? "download" : "physical")) fail("target_type_mismatch");
-  if (target.title !== listing.title) fail("target_title_mismatch");
+  if (typeof target.title !== "string" || !target.title.trim()) fail("invalid_response");
+  if (input.expectedTargetTitle !== undefined && target.title !== input.expectedTargetTitle) fail("target_title_changed");
+  if (target.title !== listing.title && input.expectedTargetTitle === undefined) fail("target_title_mismatch");
   if (!listing.taxonomyId || Number(target.taxonomy_id) !== listing.taxonomyId) fail("target_taxonomy_mismatch");
   if (input.fulfillment === "DIGITAL" && (target.when_made === "made_to_order") !== (listing.digitalDelivery === "MADE_TO_ORDER")) fail("target_delivery_mismatch");
   if (input.fulfillment === "DIGITAL" && money(target.price) !== variants[0].retailPriceCents) fail("target_price_mismatch");
@@ -98,7 +102,8 @@ export async function inspectListingLink(
   if (bookkeepingFingerprint(target) !== bookkeepingFingerprint(rechecked)) fail("target_changed_retry");
   return { mode: "LINK_EXISTING_DRAFT" as const,
     source: { etsyListingId: input.expectedEtsyListingId, status: input.expectedEtsyListingId ? "NOT_FOUND" : "UNLINKED" },
-    target: { etsyListingId: targetId, shopId: String(shopId), state: "draft", title: listing.title,
+    target: { etsyListingId: targetId, shopId: String(shopId), state: "draft", title: target.title, canonicalTitle: listing.title,
+      titleDifferenceReviewed: target.title !== listing.title, canonicalTitlePreserved: true,
       taxonomyId: listing.taxonomyId, listingFingerprint: bookkeepingFingerprint(target),
       inventoryFingerprint: bookkeepingFingerprint(inventory),
       observedInventory: inventory.map(p => ({ etsyProductId: remote(p.product_id), sku: p.sku, values: p.property_values, offerings: p.offerings })),

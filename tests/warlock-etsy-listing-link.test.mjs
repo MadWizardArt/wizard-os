@@ -161,3 +161,22 @@ test('mid-transaction database failure rolls back link resets and the archive to
   assert.deepEqual(db.product,before);assert.equal(db.journals.filter(j=>j.kind==='ETSY_LISTING_LINK_RESULT').length,0);
  }finally{db.spellmarkVariant.update=update;}
 });
+
+ test('different target title requires exact explicit review and remains bound to approval',async()=>{
+ const f=fixture();f.target.title='Replacement draft title';
+ await assert.rejects(buildListingLinkPreview(f.product,f.input,99,f.read),/target_title_mismatch/);
+ f.input.expectedTargetTitle='Wrong title';
+ await assert.rejects(buildListingLinkPreview(f.product,f.input,99,f.read),/target_title_changed/);
+ f.input.expectedTargetTitle=f.target.title;
+ const r=await buildListingLinkPreview(f.product,f.input,99,f.read);
+ assert.equal(r.state,'PREVIEW_READY');
+ assert.equal(r.preview.snapshot.target.title,'Replacement draft title');
+ assert.equal(r.preview.snapshot.target.canonicalTitle,'Approved art');
+ assert.equal(r.preview.snapshot.target.titleDifferenceReviewed,true);
+ assert.equal(f.product.listings[0].title,'Approved art');
+ await validateListingLinkPreview(f.product,r.preview,99,f.read);
+ f.target.title='Changed after review';
+ await assert.rejects(validateListingLinkPreview(f.product,r.preview,99,f.read),/target_title_changed/);
+ f.input.targetEtsyListingId=null;
+ await assert.rejects(buildListingLinkPreview(f.product,f.input,99,f.read),/title_review_requires_target/);
+ });
