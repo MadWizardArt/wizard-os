@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     let image;
     try {
       image = await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)`);
+        await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(907300)::text`);
         const count = await tx.grottoImage.count({ where: { deletedAt: null } });
         if (count >= MAX_GROTTO_IMAGES) throw new Error(`The Grotto is limited to ${MAX_GROTTO_IMAGES} images. Delete images before uploading more.`);
         return tx.grottoImage.create({ data: { museId, provider: "reference", contentType, blobUrl: blob.url, byteSize: bytes.length }, select: { id: true, museId: true } });
