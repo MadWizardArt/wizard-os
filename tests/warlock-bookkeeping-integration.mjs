@@ -24,6 +24,12 @@ try {
  const linkApply={productId,previewId:'missing',confirmListingLink:false};
  await call('apply_etsy_listing_link',linkApply,false);
  assert.equal((await call('apply_etsy_listing_link',linkApply)).isError,true);
+ const importPreview={productId:'nonexistent',expectedEtsyListingId:null,etsyListingId:'20'};
+ await call('preview_etsy_draft_import',importPreview,false);
+ const missingImportProduct=await call('preview_etsy_draft_import',importPreview);assert.equal(missingImportProduct.isError,true);assert.match(missingImportProduct.content[0].text,/etsy_import_product_missing/);
+ await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:true},false);
+ assert.equal((await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:false})).isError,true);
+ assert.match((await call('apply_etsy_draft_import',{previewId:'missing',confirmImport:true})).content[0].text,/etsy_import_preview_not_found/);
  const still=(await pool.query('SELECT * FROM "SpellmarkListing" WHERE id=$1',[listing.id])).rows[0];assert.deepEqual(still,listing);
  assert.equal((await fetch(base+`/api/warlock/products/${productId}/bookkeeping`)).status,401);
  console.log('Custom digital and bookkeeping MCP integration: persisted modes, auth, confirmations, concurrent retry notes, conflict rejection, ledger read and unchanged listing identities passed.');
