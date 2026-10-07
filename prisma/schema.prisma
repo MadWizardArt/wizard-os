@@ -576,3 +576,14 @@ model SpellmarkJournal {
   @@unique([productId, requestId])
   @@index([productId, createdAt])
 }
+
+// Durable approval for importing an Etsy draft before its canonical product exists.
+model SpellmarkDraftImportPreview {
+  id String @id @default(cuid())
+  bodyJson String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  appliedProductId String?
+  resultJson String?
+  @@index([expiresAt])
+}
