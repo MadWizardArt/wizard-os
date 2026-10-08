@@ -45,8 +45,8 @@ test('owned physical draft matches exact canonical SKUs, prices and variant set'
  assert.equal(r.state,'PREVIEW_READY');assert.equal(r.preview.snapshot.mappings[0].etsyProductId,'51');
  assert.equal(r.preview.snapshot.mappings[0].canonicalLabel,'Black / S');assert.ok(f.calls.every(p=>!p.includes('DELETE')));
 });
-test('active/foreign/wrong product or fulfillment targets never produce an approval preview',async()=>{
- for(const [field,value,code] of [['state','active','not_draft'],['shop_id',100,'ownership_mismatch'],['listing_id',21,'ownership_mismatch'],
+test('unsupported/foreign/wrong product or fulfillment targets never produce an approval preview',async()=>{
+ for(const [field,value,code] of [['state','inactive','state_unsupported'],['shop_id',100,'ownership_mismatch'],['listing_id',21,'ownership_mismatch'],
   ['title','Other product','title_mismatch'],['taxonomy_id',456,'taxonomy_mismatch'],['listing_type','download','type_mismatch']]){
   const f=fixture();f.target[field]=value;
   // The authenticated shop probe itself remains valid so target ownership is independently tested.
@@ -180,3 +180,17 @@ test('mid-transaction database failure rolls back link resets and the archive to
  f.input.targetEtsyListingId=null;
  await assert.rejects(buildListingLinkPreview(f.product,f.input,99,f.read),/title_review_requires_target/);
  });
+
+test('active physical and digital linking preserves live state and canonical prices',async()=>{
+ for(const fulfillment of ['PHYSICAL','DIGITAL']) {
+  const f=fixture(fulfillment);f.target.state='active';setup(f);const p=await previewEtsyListingLink(f.input);
+  assert.equal(p.preview.snapshot.target.state,'active');assert.equal(p.preview.snapshot.mode,'LINK_EXISTING_ACTIVE');
+  const before=db.product.variants[0].retailPriceCents;const r=await applyEtsyListingLink({productId:'p',previewId:p.previewId,confirmListingLink:true});
+  assert.equal(r.state,'EXISTING_ACTIVE_LISTING_LINKED');assert.equal(r.remoteState,'active');assert.equal(r.etsyMutated,false);assert.equal(r.published,false);
+  assert.equal(db.product.variants[0].retailPriceCents,before);assert.equal(JSON.parse(db.product.listings[0].observationJson).snapshot.target.state,'active');
+ }
+});
+test('active link state drift invalidates approval before any writes',async()=>{
+ const f=fixture();f.target.state='active';setup(f);const p=await previewEtsyListingLink(f.input);f.target.state='draft';
+ await assert.rejects(applyEtsyListingLink({productId:'p',previewId:p.previewId,confirmListingLink:true}),/snapshot_changed/);assert.equal(db.writes.length,0);
+});

@@ -10,8 +10,8 @@ const remoteId = z.string().regex(/^[1-9]\d{0,18}$/);
 export const listingLinkPreviewShape = {
   productId: id, fulfillment: z.enum(["PHYSICAL", "DIGITAL"]),
   expectedEtsyListingId: remoteId.nullable().describe("Exact currently saved Etsy ID; null only when no listing is linked."),
-  targetEtsyListingId: remoteId.nullable().describe("Existing replacement draft ID, or null to clear a missing Etsy link only. Never creates or deletes anything in Etsy."),
-  expectedTargetTitle: z.string().min(1).max(140).optional().describe("Exact observed Etsy draft title when it differs from canonical copy. Explicitly review both titles in the saved preview; canonical title is preserved."),
+  targetEtsyListingId: remoteId.nullable().describe("Existing replacement draft or active listing ID, or null to clear a missing Etsy link only. Never creates or deletes anything in Etsy."),
+  expectedTargetTitle: z.string().min(1).max(140).optional().describe("Exact observed Etsy listing title when it differs from canonical copy. Explicitly review both titles in the saved preview; canonical title is preserved."),
   variantMappings: z.array(z.object({ variantId: id, etsyProductId: remoteId })).max(50).optional()
     .describe("Explicit complete physical inventory mapping. Omit only when every canonical SKU matches exactly and uniquely. Review color/size values in the preview."),
 };
@@ -61,7 +61,7 @@ export async function inspectListingLink(
   };
   const targetId = input.targetEtsyListingId, target = await read("/listings/" + targetId);
   if (remote(target.listing_id) !== targetId || remote(target.shop_id) !== String(shopId)) fail("target_ownership_mismatch");
-  if (target.state !== "draft") fail("target_not_draft");
+  if (target.state !== "draft" && target.state !== "active") fail("target_state_unsupported");
   if (etsyListingType(target) !== (input.fulfillment === "DIGITAL" ? "download" : "physical")) fail("target_type_mismatch");
   if (typeof target.title !== "string" || !target.title.trim()) fail("invalid_response");
   if (input.expectedTargetTitle !== undefined && target.title !== input.expectedTargetTitle) fail("target_title_changed");
@@ -100,9 +100,9 @@ export async function inspectListingLink(
   // Check the target again after inventory inspection; signatures include all read listing metadata.
   const rechecked = await read("/listings/" + targetId);
   if (bookkeepingFingerprint(target) !== bookkeepingFingerprint(rechecked)) fail("target_changed_retry");
-  return { mode: "LINK_EXISTING_DRAFT" as const,
+  return { mode: target.state === "active" ? "LINK_EXISTING_ACTIVE" as const : "LINK_EXISTING_DRAFT" as const,
     source: { etsyListingId: input.expectedEtsyListingId, status: input.expectedEtsyListingId ? "NOT_FOUND" : "UNLINKED" },
-    target: { etsyListingId: targetId, shopId: String(shopId), state: "draft", title: target.title, canonicalTitle: listing.title,
+    target: { etsyListingId: targetId, shopId: String(shopId), state: target.state, title: target.title, canonicalTitle: listing.title,
       titleDifferenceReviewed: target.title !== listing.title, canonicalTitlePreserved: true,
       taxonomyId: listing.taxonomyId, listingFingerprint: bookkeepingFingerprint(target),
       inventoryFingerprint: bookkeepingFingerprint(inventory),

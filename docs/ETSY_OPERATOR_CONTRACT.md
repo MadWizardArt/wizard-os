@@ -102,3 +102,13 @@ Do not infer an engineering request from a failed or unavailable transaction too
 The persistent direct connector is intended to authenticate with `WARLOCK_API_KEY` using the `x-warlock-api-key` header. Etsy OAuth remains stored server-side by Warlock.
 
 Secrets must never be committed to GitHub, included in product assets, or pasted into listing data.
+
+## Retroactive intake of existing Etsy listings
+
+Warlock supports both directions: canonical product → new Etsy draft, and an owned existing Etsy draft or active listing → canonical product. For manually created listings, use the existing `preview_etsy_draft_import` / `apply_etsy_draft_import` tools (names retained for compatibility). Pass `productId:null` and `expectedEtsyListingId:null` when creating a missing canonical record. Import reads copy, category, prices and the complete variant set; it does not require matching old SKUs. For an existing canonical product whose inventory already matches, `preview_etsy_listing_link` / `apply_etsy_listing_link` can instead adopt a draft or active listing.
+
+Show the exact fresh preview for owner approval. Both paths verify shop ownership, recheck remote/canonical state under locks and reject duplicate linkage. They perform no Etsy/Printful writes, preserve the observed `draft` or `active` state, and never recreate, deactivate or publish the listing. State changes between preview and apply require a fresh preview. Inactive, expired and sold-out targets remain unsupported by these adoption tools.
+
+After adoption, use the returned canonical product ID with `attach_product_file` for hero/mockup images, then `inspect_etsy_listing_images` and an owner-approved `update_etsy_listing_image`. Title edits use their existing preview/apply tools. Do not rerun draft creation to send mockups. Supplier mapping, quotes, AI disclosure and visual verification remain separate; importing a live listing is not proof of fulfillment readiness.
+
+`DRAFT_CREATED` remains the existing internal linked workflow stage; it is not an assertion that Etsy is currently a draft. The observed remote state is recorded in the preview, result and durable evidence. No API credential, new integration, schema migration or browser upload is needed.
