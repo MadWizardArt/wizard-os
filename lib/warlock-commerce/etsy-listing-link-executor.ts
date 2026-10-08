@@ -32,7 +32,7 @@ export async function previewEtsyListingLink(raw: unknown) {
     kind: "ETSY_LISTING_LINK_PREVIEW", bodyJson: JSON.stringify(result.preview) } });
   return { ...result, previewId: saved.id, etsyMutated: false, printfulMutated: false,
     changes: { preserveProductAssetsPricesAndCatalogMappings: true, clearOldRemoteAssetAndSupplierLinks: true,
-      preserveOldLinksInLedger: true, createEtsyListing: false, deleteEtsyListing: false },
+      preserveOldLinksInLedger: true, preserveRemoteListingState: true, createEtsyListing: false, deleteEtsyListing: false },
     nextAction: "Show the exact preview to the owner. Only apply this previewId after approval with confirmListingLink:true. A 404 means NOT_FOUND, not an independently proven deletion. Existing Etsy/Printful listings and files are never deleted." };
 }
 
@@ -71,7 +71,7 @@ export async function applyEtsyListingLink(raw: unknown) {
     const archive = { listing, variants };
     await tx.spellmarkListing.update({ where: { id: listing.id }, data: {
       etsyListingId: target, printfulSyncProductId: null, status: target ? "DRAFT_CREATED" : "CONFIG",
-      lastDraftSyncAt: null, lastVerifiedAt: null, observationJson: null,
+      lastDraftSyncAt: null, lastVerifiedAt: null, observationJson: snapshot.target?.state === "active" ? JSON.stringify({ source: "ETSY_LISTING_LINK", previewId: saved.id, snapshot }) : null,
       etsyConfigurationEvidenceJson: null, etsyDraftSettingsVerificationJson: null,
     } });
     await tx.spellmarkListingAsset.updateMany({ where: { listingId: listing.id }, data: { etsyRemoteId: null, etsySyncedAt: null } });
@@ -83,13 +83,14 @@ export async function applyEtsyListingLink(raw: unknown) {
         ...(v.fulfillment === "PHYSICAL" ? { productionBaseCents: null, productionQuotedAt: null, productionQuoteJson: null } : {}),
       } });
     }
-    const result = { state: target ? "EXISTING_DRAFT_LINKED" : "MISSING_ETSY_LINK_CLEARED", productId: product.id,
+    const result = { state: target ? (snapshot.target?.state === "active" ? "EXISTING_ACTIVE_LISTING_LINKED" : "EXISTING_DRAFT_LINKED") : "MISSING_ETSY_LINK_CLEARED",
+      remoteState: snapshot.target?.state ?? null, productId: product.id,
       fulfillment: listing.fulfillment, previewId: saved.id, listingId: listing.id,
       previousEtsyListingId: preview.input.expectedEtsyListingId, etsyListingId: target,
       appliedAt: new Date().toISOString(), etsyMutated: false, printfulMutated: false, published: false,
       supplierVerificationPending: listing.fulfillment === "PHYSICAL", visualVerificationPending: true,
-      nextAction: target ? "Use inspect_etsy_listing_images and the approved existing image tools for this draft. Do not create a duplicate. Recheck configuration, supplier import, explicit placements, combined quotes and owner visual review independently."
-        : "The stale Etsy link is cleared. Product files, copy, prices and catalog mappings remain available. Link an existing draft with a fresh preview or prepare a separately approved new draft." };
+      nextAction: target ? "Use inspect_etsy_listing_images and the approved existing image tools for this existing listing. Do not create a duplicate. Recheck configuration, supplier import, explicit placements, combined quotes and owner visual review independently."
+        : "The stale Etsy link is cleared. Product files, copy, prices and catalog mappings remain available. Link an existing draft or active listing with a fresh preview or prepare a separately approved new draft." };
     await tx.spellmarkJournal.create({ data: { ...key, kind: "ETSY_LISTING_LINK_RESULT",
       bodyJson: JSON.stringify({ ...result, archive, approvedSnapshot: snapshot }) } });
     // Do not return the bulky archive; it is available through the canonical ledger.

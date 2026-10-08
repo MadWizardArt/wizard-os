@@ -7,8 +7,8 @@ import type { ListingLinkRead } from "./etsy-listing-link.ts";
 const id = z.string().trim().min(1).max(100);
 const remoteId = z.string().regex(/^[1-9]\d{0,18}$/);
 export const draftImportPreviewShape = {
-  etsyListingId: remoteId.describe("Existing owned Etsy draft to import. No new Etsy listing is created."),
-  productId: id.nullable().describe("Existing canonical product to update, or null to create its canonical record from this draft."),
+  etsyListingId: remoteId.describe("Existing owned Etsy draft or active listing to import. No new Etsy listing is created."),
+  productId: id.nullable().describe("Existing canonical product to update, or null to create its canonical record from this listing."),
   expectedEtsyListingId: remoteId.nullable().describe("Exact currently saved ID for this fulfillment, or null if none. An old different ID must be freshly missing."),
   collection: z.string().max(200).optional().describe("Collection for a new canonical product; existing product metadata is preserved."),
 };
@@ -43,7 +43,8 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
     (Number(access.count) > 0 && access.results.length !== 1) || access.results.some(v => rid(obj(v).shop_id) !== String(shopId))) fail("shop_access_not_verified");
   const remote = await read("/listings/" + input.etsyListingId);
   if (rid(remote.listing_id) !== input.etsyListingId || rid(remote.shop_id) !== String(shopId)) fail("ownership_mismatch");
-  if (remote.state !== "draft") fail("not_draft");
+  if (remote.state !== "draft" && remote.state !== "active") fail("state_unsupported");
+  const remoteState = remote.state;
   const fulfillment = etsyListingType(remote) === "physical" ? "PHYSICAL" as const : "DIGITAL" as const;
   const source = importSource(product, input, fulfillment);
   if (input.expectedEtsyListingId && input.expectedEtsyListingId !== input.etsyListingId) {
@@ -86,9 +87,9 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
   } else variants = [{ etsyProductId: null, etsySku: null, label: title, retailPriceCents: money(remote.price), currency: "USD", quantity: listing.quantity, enabled: true, values: [] }];
   const recheck = await read("/listings/" + input.etsyListingId);
   if (bookkeepingFingerprint(remote) !== bookkeepingFingerprint(recheck)) fail("remote_changed_retry");
-  return { fulfillment, listing, variants, observedAt: remote.last_modified_timestamp ?? null, remoteFingerprint: bookkeepingFingerprint({ remote, inventory }),
+  return { fulfillment, remoteState, listing, variants, observedAt: remote.last_modified_timestamp ?? null, remoteFingerprint: bookkeepingFingerprint({ remote, inventory }),
     previous: { listing: source, variants: product?.variants.filter(v => v.fulfillment === fulfillment) ?? [] },
-    warnings: [...(!hasRequiredEtsyAiDisclosure(description) ? ["AI_DISCLOSURE_MISSING: imported copy is preserved; correct the draft through an approved edit before publication."] : []),
+    warnings: [...(!hasRequiredEtsyAiDisclosure(description) ? ["AI_DISCLOSURE_MISSING: imported copy is preserved; correct the listing through an approved edit."] : []),
       ...(fulfillment === "PHYSICAL" ? ["PRINTFUL_MAPPING_AND_QUOTES_PENDING: no old supplier identity is assigned to imported variants."] : []),
       "PRODUCTION_PARTNER_ETSY_ADS_AND_DIGITAL_CREATION_NOT_VERIFIED", "REMOTE_IMAGES_ARE_NOT_PRODUCT_OWNED_ASSETS", "VISUAL_REVIEW_PENDING"],
   };

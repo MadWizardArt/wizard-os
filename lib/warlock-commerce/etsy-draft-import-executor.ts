@@ -26,7 +26,7 @@ export async function previewEtsyDraftImport(raw: unknown) {
   return { state: "PREVIEW_READY", previewId: saved.id, preview,
     changes: { createCanonicalProduct: !product, replaceSelectedCanonicalCopyPricesAndVariantsFromEtsy: true,
       preserveExistingProductAssetsMetadataAndOtherFulfillment: true, archiveReplacedRecords: true,
-      inferPrintfulMappings: false, uploadMockups: false, etsyMutated: false, published: false },
+      inferPrintfulMappings: false, uploadMockups: false, preserveRemoteListingState: true, etsyMutated: false, published: false },
     nextAction: "Show this exact preview, including old/new copy, prices, all variants and warnings, for owner approval. Apply with confirmImport:true. Do not intake or create a duplicate Etsy draft. Mockup uploads are a separate approved image edit after import." };
 }
 export async function applyEtsyDraftImport(raw: unknown) {
@@ -57,6 +57,7 @@ export async function applyEtsyDraftImport(raw: unknown) {
     const imported = product ?? await tx.spellmarkProduct.create({ data: { title: snapshot.listing.title,
       description: snapshot.listing.description, collection: preview.input.collection ?? "", status: "DESIGN" } });
     const previousListing = snapshot.previous.listing;
+    // DRAFT_CREATED is the existing linked workflow stage, not the observed Etsy state.
     // Keep Ads and structured digital intent as intent, without claiming remote verification.
     const listing = await tx.spellmarkListing.upsert({ where: { productId_fulfillment: { productId: imported.id, fulfillment: snapshot.fulfillment } },
       create: { ...snapshot.listing, productId: imported.id, etsyListingId: target, status: "DRAFT_CREATED", lastVerifiedAt: new Date(),
@@ -68,11 +69,12 @@ export async function applyEtsyDraftImport(raw: unknown) {
     await tx.spellmarkVariant.deleteMany({ where: { productId: imported.id, fulfillment: snapshot.fulfillment } });
     await tx.spellmarkVariant.createMany({ data: snapshot.variants.map(v => ({ productId: imported.id, fulfillment: snapshot.fulfillment,
       label: v.label, etsyListingId: target, etsyProductId: v.etsyProductId, etsySku: v.etsySku, retailPriceCents: v.retailPriceCents, currency: v.currency })) });
-    const result = { state: "ETSY_DRAFT_IMPORTED", productId: imported.id, listingId: listing.id, etsyListingId: target,
+    const result = { state: snapshot.remoteState === "active" ? "ETSY_ACTIVE_LISTING_IMPORTED" : "ETSY_DRAFT_IMPORTED",
+      remoteState: snapshot.remoteState, productId: imported.id, listingId: listing.id, etsyListingId: target,
       fulfillment: snapshot.fulfillment, variantCount: snapshot.variants.length, previewId: saved.id,
       supplierVerificationPending: snapshot.fulfillment === "PHYSICAL", visualVerificationPending: true,
       etsyMutated: false, printfulMutated: false, published: false, warnings: snapshot.warnings,
-      nextAction: "Use get_product, attach_product_file (hero/mockup), inspect_etsy_listing_images, then owner-approved update_etsy_listing_image on this existing draft. No intake or draft creation is needed. Supplier configuration and publication remain separate." };
+      nextAction: "Use get_product, attach_product_file (hero/mockup), inspect_etsy_listing_images, then owner-approved update_etsy_listing_image on this existing listing. No intake or draft creation is needed. Supplier configuration and publication remain separate." };
     await tx.spellmarkJournal.create({ data: { productId: imported.id, requestId: "etsy-draft-import:" + saved.id, kind: "ETSY_DRAFT_IMPORTED",
       bodyJson: JSON.stringify({ ...result, archive: snapshot.previous, approvedPreview: preview }) } });
     await tx.spellmarkDraftImportPreview.update({ where: { id: saved.id }, data: { appliedProductId: imported.id, resultJson: JSON.stringify(result) } });

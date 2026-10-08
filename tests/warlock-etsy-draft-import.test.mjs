@@ -26,7 +26,7 @@ test('new digital import needs no intake/assets/master and retains copy with exp
  assert.ok(!f.calls.some(p=>p.includes('inventory')));
 });
 test('owned draft identity, complete inventory and USD price are mandatory',async()=>{
- for(const mutate of [f=>f.target.state='active',f=>f.target.shop_id=100,f=>f.target.listing_id=21,f=>f.inventory.products=[],f=>f.inventory.products[1].product_id=100,f=>f.inventory.products[0].offerings.push(structuredClone(f.inventory.products[0].offerings[0])),f=>f.inventory.products[0].offerings[0].price.currency_code='EUR',f=>f.inventory.products[0].offerings[0].price.divisor=0,f=>f.target.quantity=-1]){
+ for(const mutate of [f=>f.target.state='inactive',f=>f.target.shop_id=100,f=>f.target.listing_id=21,f=>f.inventory.products=[],f=>f.inventory.products[1].product_id=100,f=>f.inventory.products[0].offerings.push(structuredClone(f.inventory.products[0].offerings[0])),f=>f.inventory.products[0].offerings[0].price.currency_code='EUR',f=>f.inventory.products[0].offerings[0].price.divisor=0,f=>f.target.quantity=-1]){
   const f=fixture();mutate(f);await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read));
  }
 });
@@ -97,3 +97,20 @@ test('DB failure rolls back variant deletion, listing replacement, evidence and 
  const plan=imagePlan(db.product,{productId:'p',fulfillment:'PHYSICAL',assetId:'a',rank:1,expectedImageId:null,expectedImagesFingerprint:snapshot.imagesFingerprint},snapshot);
  assert.equal(plan.listing.etsyListingId,'20');assert.equal(plan.asset.id,'a');assert.equal(db.product.listings[0].status,'DRAFT_CREATED');
  });
+
+test('active digital and physical imports record state and support image edits without changing Etsy',async()=>{
+ for(const digital of [true,false]) {
+  const f=fixture(digital,false,2);f.target.state='active';setup(f);
+  const p=await previewEtsyDraftImport(f.input);assert.equal(p.preview.snapshot.remoteState,'active');
+  const r=await applyEtsyDraftImport({previewId:p.previewId,confirmImport:true});
+  assert.equal(r.state,'ETSY_ACTIVE_LISTING_IMPORTED');assert.equal(r.remoteState,'active');assert.equal(r.etsyMutated,false);assert.equal(r.published,false);
+  assert.equal(JSON.parse(db.product.listings[0].observationJson).snapshot.remoteState,'active');
+  db.product.assets.push({id:'mockup',role:'mockup',contentType:'image/png'});
+  const snapshot={etsyListingId:'20',shopId:99,state:'active',images:[],imagesFingerprint:'current'};
+  assert.equal(imagePlan(db.product,{productId:r.productId,fulfillment:r.fulfillment,assetId:'mockup',rank:1,expectedImageId:null,expectedImagesFingerprint:'current'},snapshot).listing.etsyListingId,'20');
+ }
+});
+test('active import approval rejects state changes before canonical writes',async()=>{
+ const f=fixture(true,false);f.target.state='active';setup(f);const p=await previewEtsyDraftImport(f.input);f.target.state='draft';
+ await assert.rejects(applyEtsyDraftImport({previewId:p.previewId,confirmImport:true}),/remote_changed/);assert.equal(db.product,null);
+});
