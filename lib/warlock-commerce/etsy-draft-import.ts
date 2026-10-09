@@ -38,10 +38,10 @@ export function draftImportErrorDetails(e: unknown): Record<string, unknown> {
   return e instanceof ImportNumericError ? { validation: e.details } : {};
 }
 function money(v: unknown, context: NumericContext) {
-  const p = obj(v), amount = integer(p.amount, 1, { ...context, field: context.field + ".amount" }),
+  const p = obj(v), amount = integer(p.amount, 0, { ...context, field: context.field + ".amount" }),
     divisor = integer(p.divisor, 1, { ...context, field: context.field + ".divisor" });
   if (p.currency_code !== "USD" || !Number.isSafeInteger(amount * 100) || amount * 100 % divisor) fail("unsupported_price");
-  return integer(amount * 100 / divisor, 1, { ...context, field: context.field + ".retailPriceCents" });
+  return integer(amount * 100 / divisor, 0, { ...context, field: context.field + ".retailPriceCents" });
 }
 const optionalId = (v: unknown) => v == null || v === 0 ? null : rid(v);
 export function importSource(product: WarlockProductManifest | null, input: DraftImportInput, fulfillment: "PHYSICAL" | "DIGITAL") {
@@ -80,7 +80,7 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
     digitalDelivery: remote.when_made === "made_to_order" ? "MADE_TO_ORDER" : "INSTANT_DOWNLOAD",
   };
   let inventory: Json | null = null;
-  let variants: Array<{ etsyProductId: string | null; etsySku: string | null; label: string; retailPriceCents: number; currency: string; quantity: number; enabled: boolean; values: unknown }>;
+  let variants: Array<{ etsyProductId: string | null; etsySku: string | null; label: string; retailPriceCents: number | null; observedPriceCents: number; currency: string; quantity: number; enabled: boolean; values: unknown }>;
   if (fulfillment === "PHYSICAL") {
     inventory = await read(`/listings/${input.etsyListingId}/inventory?legacy=false`);
     if (!Array.isArray(inventory.products) || inventory.products.length > 500) fail("inventory_incomplete");
@@ -97,16 +97,22 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
         if (!Array.isArray(row.values) || row.values.some(s => typeof s !== "string" || s.length > 200)) fail("invalid_options");
         return (row.values as string[]).join(" / "); });
       const sku = p.sku == null ? "" : text(p.sku, 100);
+      const observedPriceCents = money(offering.price, { field: field + ".price", etsyProductId });
       return { etsyProductId, etsySku: sku || null, label: labels.filter(Boolean).join(" / ") || sku || `Etsy variant ${etsyProductId}`,
-        retailPriceCents: money(offering.price, { field: field + ".price", etsyProductId }), currency: "USD", quantity: integer(offering.quantity, 0, { field: field + ".quantity", etsyProductId }), enabled: z.boolean().parse(offering.is_enabled), values: p.property_values };
+        observedPriceCents, retailPriceCents: observedPriceCents === 0 ? null : observedPriceCents, currency: "USD", quantity: integer(offering.quantity, 0, { field: field + ".quantity", etsyProductId }), enabled: z.boolean().parse(offering.is_enabled), values: p.property_values };
     });
     if (new Set(variants.map(v => v.etsyProductId)).size !== variants.length) fail("duplicate_inventory_identity");
-  } else variants = [{ etsyProductId: null, etsySku: null, label: title, retailPriceCents: money(remote.price, { field: "listing.price" }), currency: "USD", quantity: listing.quantity, enabled: true, values: [] }];
+  } else {
+    const observedPriceCents = money(remote.price, { field: "listing.price" });
+    variants = [{ etsyProductId: null, etsySku: null, label: title, observedPriceCents, retailPriceCents: observedPriceCents === 0 ? null : observedPriceCents, currency: "USD", quantity: listing.quantity, enabled: true, values: [] }];
+  }
   const recheck = await read("/listings/" + input.etsyListingId);
   if (bookkeepingFingerprint(remote) !== bookkeepingFingerprint(recheck)) fail("remote_changed_retry");
   return { fulfillment, remoteState, listing, variants, observedAt: remote.last_modified_timestamp ?? null, remoteFingerprint: bookkeepingFingerprint({ remote, inventory }),
     previous: { listing: source, variants: product?.variants.filter(v => v.fulfillment === fulfillment) ?? [] },
-    warnings: [...(!hasRequiredEtsyAiDisclosure(description) ? ["AI_DISCLOSURE_MISSING: imported copy is preserved; correct the listing through an approved edit."] : []),
+    warnings: [...variants.filter(v => v.observedPriceCents === 0).map(v =>
+      `RETAIL_PRICE_REVIEW_REQUIRED: ${v.etsyProductId ? `Etsy variant ${v.etsyProductId}` : "Digital listing"} reports USD 0 (${v.enabled ? "enabled" : "disabled"}); canonical retail price is unresolved. Import and approved image/title edits are allowed; commerce price gates remain blocked.`),
+      ...(!hasRequiredEtsyAiDisclosure(description) ? ["AI_DISCLOSURE_MISSING: imported copy is preserved; correct the listing through an approved edit."] : []),
       ...(fulfillment === "PHYSICAL" ? ["PRINTFUL_MAPPING_AND_QUOTES_PENDING: no old supplier identity is assigned to imported variants."] : []),
       "PRODUCTION_PARTNER_ETSY_ADS_AND_DIGITAL_CREATION_NOT_VERIFIED", "REMOTE_IMAGES_ARE_NOT_PRODUCT_OWNED_ASSETS", "VISUAL_REVIEW_PENDING"],
   };
