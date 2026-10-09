@@ -21,11 +21,27 @@ const fail = (s: string): never => { throw Error("etsy_import_" + s); };
 const obj = (v: unknown): Json => v && typeof v === "object" && !Array.isArray(v) ? v as Json : fail("invalid_response");
 const rid = (v: unknown): string => remoteId.safeParse(String(v ?? "")).success && (typeof v !== "number" || Number.isSafeInteger(v)) ? String(v) : fail("invalid_id");
 const text = (v: unknown, max: number) => typeof v === "string" && v.length <= max ? v : fail("invalid_copy");
-const integer = (v: unknown, min: number, max = 2147483647): number => typeof v === "number" && Number.isSafeInteger(v) && v >= min && v <= max ? v : fail("invalid_integer");
-function money(v: unknown) {
-  const p = obj(v), amount = integer(p.amount, 1), divisor = integer(p.divisor, 1);
+type NumericContext = { field: string; etsyProductId?: string };
+class ImportNumericError extends Error {
+  readonly details: Record<string, unknown>;
+  constructor(details: Record<string, unknown>) { super("etsy_import_invalid_integer"); this.details = details; }
+}
+function integer(v: unknown, min: number, context: NumericContext, max = 2147483647): number {
+  if (typeof v === "number" && Number.isSafeInteger(v) && v >= min && v <= max) return v;
+  // Only expose numeric scalars. Never echo arbitrary remote strings, URLs or objects.
+  const value = v == null ? null : typeof v === "number" ? (Number.isFinite(v) ? v : String(v))
+    : typeof v === "string" && v.length <= 40 && /^-?\d+(?:\.\d+)?$/.test(v) ? v : "[redacted]";
+  throw new ImportNumericError({ ...context, value, receivedType: v === null ? "null" : Array.isArray(v) ? "array" : typeof v,
+    expected: { type: "number", integer: true, minimum: min, maximum: max } });
+}
+export function draftImportErrorDetails(e: unknown): Record<string, unknown> {
+  return e instanceof ImportNumericError ? { validation: e.details } : {};
+}
+function money(v: unknown, context: NumericContext) {
+  const p = obj(v), amount = integer(p.amount, 1, { ...context, field: context.field + ".amount" }),
+    divisor = integer(p.divisor, 1, { ...context, field: context.field + ".divisor" });
   if (p.currency_code !== "USD" || !Number.isSafeInteger(amount * 100) || amount * 100 % divisor) fail("unsupported_price");
-  return integer(amount * 100 / divisor, 1);
+  return integer(amount * 100 / divisor, 1, { ...context, field: context.field + ".retailPriceCents" });
 }
 const optionalId = (v: unknown) => v == null || v === 0 ? null : rid(v);
 export function importSource(product: WarlockProductManifest | null, input: DraftImportInput, fulfillment: "PHYSICAL" | "DIGITAL") {
@@ -55,7 +71,7 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
   const description = text(remote.description, 100000);
   if (!Array.isArray(remote.tags) || remote.tags.length > 13 || remote.tags.some(t => typeof t !== "string" || !t.trim() || t.length > 100)) fail("invalid_tags");
   const listing = { fulfillment, title, description, tagsJson: JSON.stringify(remote.tags),
-    taxonomyId: integer(remote.taxonomy_id, 1), quantity: integer(remote.quantity, 0),
+    taxonomyId: integer(remote.taxonomy_id, 1, { field: "listing.taxonomy_id" }), quantity: integer(remote.quantity, 0, { field: "listing.quantity" }),
     whoMade: text(remote.who_made, 100), whenMade: text(remote.when_made, 100),
     isSupply: z.boolean().parse(remote.is_supply), shouldAutoRenew: z.boolean().parse(remote.should_auto_renew),
     shopSectionId: optionalId(remote.shop_section_id), productionPartnerId: fulfillment === "DIGITAL" ? null : source?.productionPartnerId ?? null,
@@ -68,23 +84,24 @@ export async function inspectDraftImport(product: WarlockProductManifest | null,
   if (fulfillment === "PHYSICAL") {
     inventory = await read(`/listings/${input.etsyListingId}/inventory?legacy=false`);
     if (!Array.isArray(inventory.products) || inventory.products.length > 500) fail("inventory_incomplete");
-    const products = (inventory.products as unknown[]).map(obj).filter(p => p.is_deleted !== true);
+    const products = (inventory.products as unknown[]).map((value, index) => ({ product: obj(value), index })).filter(row => row.product.is_deleted !== true);
     if (!products.length) fail("inventory_incomplete");
-    variants = products.map(p => {
+    variants = products.map(({ product: p, index }) => {
       const etsyProductId = rid(p.product_id);
       if (!Array.isArray(p.property_values) || p.property_values.length > 10 || !Array.isArray(p.offerings)) fail("inventory_incomplete");
-      const offerings = (p.offerings as unknown[]).map(obj).filter(o => o.is_deleted !== true);
+      const offerings = (p.offerings as unknown[]).map((value, index) => ({ offering: obj(value), index })).filter(row => row.offering.is_deleted !== true);
       if (offerings.length !== 1) fail("multiple_offerings_not_supported");
-      const offering = offerings[0];
+      const { offering, index: offeringIndex } = offerings[0];
+      const field = `inventory.products[${index}].offerings[${offeringIndex}]`;
       const labels = (p.property_values as unknown[]).map(v => { const row = obj(v); rid(row.property_id);
         if (!Array.isArray(row.values) || row.values.some(s => typeof s !== "string" || s.length > 200)) fail("invalid_options");
         return (row.values as string[]).join(" / "); });
       const sku = p.sku == null ? "" : text(p.sku, 100);
       return { etsyProductId, etsySku: sku || null, label: labels.filter(Boolean).join(" / ") || sku || `Etsy variant ${etsyProductId}`,
-        retailPriceCents: money(offering.price), currency: "USD", quantity: integer(offering.quantity, 0), enabled: z.boolean().parse(offering.is_enabled), values: p.property_values };
+        retailPriceCents: money(offering.price, { field: field + ".price", etsyProductId }), currency: "USD", quantity: integer(offering.quantity, 0, { field: field + ".quantity", etsyProductId }), enabled: z.boolean().parse(offering.is_enabled), values: p.property_values };
     });
     if (new Set(variants.map(v => v.etsyProductId)).size !== variants.length) fail("duplicate_inventory_identity");
-  } else variants = [{ etsyProductId: null, etsySku: null, label: title, retailPriceCents: money(remote.price), currency: "USD", quantity: listing.quantity, enabled: true, values: [] }];
+  } else variants = [{ etsyProductId: null, etsySku: null, label: title, retailPriceCents: money(remote.price, { field: "listing.price" }), currency: "USD", quantity: listing.quantity, enabled: true, values: [] }];
   const recheck = await read("/listings/" + input.etsyListingId);
   if (bookkeepingFingerprint(remote) !== bookkeepingFingerprint(recheck)) fail("remote_changed_retry");
   return { fulfillment, remoteState, listing, variants, observedAt: remote.last_modified_timestamp ?? null, remoteFingerprint: bookkeepingFingerprint({ remote, inventory }),
