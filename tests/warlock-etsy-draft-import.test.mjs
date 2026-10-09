@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { imagePlan } from '../lib/warlock-commerce/listing-images.ts';
-import { buildDraftImportPreview, validateDraftImportPreview, draftImportPreviewSchema, draftImportApplySchema, safeDraftImportError } from '../lib/warlock-commerce/etsy-draft-import.ts';
+import { buildDraftImportPreview, validateDraftImportPreview, draftImportPreviewSchema, draftImportApplySchema, safeDraftImportError, draftImportErrorDetails } from '../lib/warlock-commerce/etsy-draft-import.ts';
 function fixture(digital=false,existing=true,count=30){
  const target={listing_id:20,shop_id:99,state:'draft',listing_type:digital?'download':'physical',title:'New Etsy title',description:'Remote copy',tags:['art'],taxonomy_id:123,quantity:7,who_made:'i_did',when_made:'2020_2026',is_supply:false,should_auto_renew:false,shop_section_id:12,shipping_profile_id:digital?null:13,readiness_state_id:null,production_partner_ids:[],price:{amount:2900,divisor:100,currency_code:'USD'}};
  const inventory={products:Array.from({length:count},(_,n)=>({product_id:100+n,sku:'',property_values:[{property_id:513,values:[`Color ${n}`]},{property_id:514,values:['M']}],offerings:[{is_enabled:n!==0,is_deleted:false,quantity:n,price:{amount:2900+n,divisor:100,currency_code:'USD'}}]}))};
@@ -113,4 +113,21 @@ test('active digital and physical imports record state and support image edits w
 test('active import approval rejects state changes before canonical writes',async()=>{
  const f=fixture(true,false);f.target.state='active';setup(f);const p=await previewEtsyDraftImport(f.input);f.target.state='draft';
  await assert.rejects(applyEtsyDraftImport({previewId:p.previewId,confirmImport:true}),/remote_changed/);assert.equal(db.product,null);
+});
+
+test('numeric diagnostics identify original inventory indexes and variant without coercing values',async()=>{
+ const f=fixture();f.inventory.products.unshift({is_deleted:true});
+ f.inventory.products[1].offerings.unshift({is_deleted:true});
+ f.inventory.products[1].offerings[1].price.amount='2900';
+ await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read),e=>{
+  assert.equal(safeDraftImportError(e),'etsy_import_invalid_integer');
+  assert.deepEqual(draftImportErrorDetails(e).validation,{field:'inventory.products[1].offerings[1].price.amount',etsyProductId:'100',value:'2900',receivedType:'string',expected:{type:'number',integer:true,minimum:1,maximum:2147483647}});return true;
+ });
+});
+test('numeric diagnostics cover listing fields and redact arbitrary remote content',async()=>{
+ for(const [field,value] of [['quantity',-1],['taxonomy_id',null],['quantity','https://private.example/token']]){
+  const f=fixture();f.target[field]=value;
+  await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read),e=>{const d=draftImportErrorDetails(e).validation;assert.equal(d.field,'listing.'+field);assert.equal(d.value,typeof value==='string'?'[redacted]':value);return true;});
+ }
+ assert.deepEqual(draftImportErrorDetails(Error('secret')),{});
 });

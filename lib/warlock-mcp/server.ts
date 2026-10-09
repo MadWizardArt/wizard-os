@@ -1,7 +1,7 @@
 import { previewEtsyListingTitle, applyEtsyListingTitle } from "../warlock-commerce/etsy-title-executor";
 import { titlePreviewShape, titleApplyShape, safeTitleError } from "../warlock-commerce/etsy-listing-title";
 import { previewEtsyDraftImport, applyEtsyDraftImport } from "../warlock-commerce/etsy-draft-import-executor";
-import { draftImportPreviewShape, draftImportApplyShape, safeDraftImportError } from "../warlock-commerce/etsy-draft-import";
+import { draftImportPreviewShape, draftImportApplyShape, safeDraftImportError, draftImportErrorDetails } from "../warlock-commerce/etsy-draft-import";
 import { previewEtsyListingLink, applyEtsyListingLink } from "../warlock-commerce/etsy-listing-link-executor";
 import { listingLinkPreviewShape, listingLinkApplyShape, safeListingLinkError } from "../warlock-commerce/etsy-listing-link";
 import { previewGarmentMigration, applyGarmentMigration, inspectGarmentMigration, enableMigratedGarment } from "../warlock-commerce/garment-migration-executor";
@@ -179,13 +179,13 @@ export function createWarlockCommerceMcpServer() {
     description: "Retroactive Etsy-first intake: import an owned manually created Etsy draft or active listing into Warlock. Pass productId:null and expectedEtsyListingId:null for a new canonical product, or the existing product and exact saved Etsy ID. Reads the listing's copy, category, prices and complete variants as canonical candidates; old inventory need not match. Archives replaced records and preserves existing product-owned files, metadata and other fulfillment. No supplier mapping is inferred. Accepts drafts and active listings; remote state is preserved; a different old saved listing must be freshly missing. Stores a ten-minute exact approval preview with old/new state and warnings. No Etsy/Printful writes or mockup uploads. Show the full preview for owner approval; then apply_etsy_draft_import, attach_product_file and existing image editing tools. Do not recreate the Etsy listing or require intake_product first.",
     inputSchema: draftImportPreviewShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: false },
     _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
-  }, async input => { try { return success(await previewEtsyDraftImport(input)); } catch (e) { return failure("etsy_draft_import_failed", safeDraftImportError(e)); } });
+  }, async input => { try { return success(await previewEtsyDraftImport(input)); } catch (e) { return failure("etsy_draft_import_failed", safeDraftImportError(e), draftImportErrorDetails(e)); } });
   server.registerTool("apply_etsy_draft_import", {
     title: "Apply Approved Existing Etsy Listing Import",
     description: "Apply the exact unexpired preview_etsy_draft_import previewId with confirmImport:true after owner approval. Rechecks owned draft or active listing copy, inventory and canonical state under locks. Creates missing canonical product or replaces only selected listing copy/prices/variants; archives replaced state and preserves product-owned files and other fulfillment. Supplier IDs/quotes are cleared, never guessed. Retries return historical evidence without replay. Returns productId for normal mockup attachment, inspection and approved image updates on the same existing listing. No Etsy/Printful writes, draft creation, upload, publication or orders.",
     inputSchema: draftImportApplyShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
-  }, async input => { try { return success(await applyEtsyDraftImport(input)); } catch (e) { return failure("etsy_draft_import_failed", safeDraftImportError(e)); } });
+  }, async input => { try { return success(await applyEtsyDraftImport(input)); } catch (e) { return failure("etsy_draft_import_failed", safeDraftImportError(e), draftImportErrorDetails(e)); } });
 
   server.registerTool(
     "preview_etsy_listing_link",
