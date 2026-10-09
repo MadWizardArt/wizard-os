@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../prisma";
 import { findWarlockProduct } from "../warlock-mcp/repository";
 import { getWarlockEtsyOperatorContext } from "../warlock-auth";
-import { readEtsyForReconciliation } from "./etsy-reconciliation-read";
-import { writeEtsyCategory } from "./etsy-category-transport";
+import { readEtsyForReconciliation } from "./etsy-reconciliation-read.ts";
+import { writeEtsyCategory } from "./etsy-category-transport.ts";
 import { assertCommerceDraftWritesEnabled } from "./write-guard.ts";
-import { categoryPreviewSchema,categoryApplySchema,buildCategoryPreview,assertCategoryPreview,categoryListing,readCategorySnapshot,sameCategorySnapshot,safeCategoryError,verifyCategoryTarget,type CategoryPreview } from "./etsy-listing-category.ts";
+import { categoryPreviewSchema,categoryApplySchema,buildCategoryPreview,assertCategoryPreview,categoryListing,readCategorySnapshot,sameCategorySnapshot,safeCategoryError,categoryErrorDetails,verifyCategoryTarget,type CategoryPreview } from "./etsy-listing-category.ts";
 async function context(){const {auth,shopId}=await getWarlockEtsyOperatorContext();return {shopId,token:auth.session.access_token,read:(p:string)=>readEtsyForReconciliation(auth.session.access_token,p)};}
 export async function previewEtsyListingCategory(raw:unknown){const input=categoryPreviewSchema.parse(raw),product=await findWarlockProduct({productId:input.productId});if(!product)throw Error("etsy_category_product_missing");const {shopId,read}=await context();const preview=await buildCategoryPreview(product,input,shopId,read);const saved=await prisma.spellmarkJournal.create({data:{productId:product.id,requestId:randomUUID(),kind:"ETSY_CATEGORY_PREVIEW",bodyJson:JSON.stringify(preview)}});return {state:"PREVIEW_READY",previewId:saved.id,preview,etsyMutated:false,nextAction:"Show the canonical and current Etsy taxonomy IDs, exact proposed taxonomy ID/path, state and warnings for owner approval. Apply this previewId with confirmCategoryChange:true. No live write occurs during preview."};}
 export async function applyEtsyListingCategory(raw:unknown){
@@ -48,7 +48,7 @@ export async function applyEtsyListingCategory(raw:unknown){
   const result={state:"CATEGORY_VERIFIED",productId:input.productId,previewId:saved.id,listingId:listing.id,etsyListingId:listing.etsyListingId,taxonomyId:p.input.newTaxonomyId,listingState:before.state,verification:before,verifiedAt:new Date().toISOString(),etsyMutated:p.remote.taxonomyId!==p.input.newTaxonomyId,published:false,approvedPreview:p};
   await tx.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify(result)}});return result;
  },{timeout:60000,maxWait:5000});}catch(e){
-  if(!(e instanceof Error)||e.message!=="etsy_category_send_ready")return {state:"NEEDS_REVIEW",productId:input.productId,previewId:saved.id,errorCode:safeCategoryError(e),etsyRejection:etsyFailureDetails(e),canonicalTaxonomyId:p.input.newTaxonomyId,nextAction:"Inspect current Etsy category and ledger. This operation will not blindly repeat a PATCH."};
+  if(!(e instanceof Error)||e.message!=="etsy_category_send_ready")return {state:"NEEDS_REVIEW",productId:input.productId,previewId:saved.id,errorCode:safeCategoryError(e),...categoryErrorDetails(e),etsyRejection:etsyFailureDetails(e),canonicalTaxonomyId:p.input.newTaxonomyId,nextAction:"Inspect current Etsy category and ledger. This operation will not blindly repeat a PATCH."};
  }
  // A durable SENDING marker commits before PATCH. Serialize this final read/write with other canonical edits.
  try{return await prisma.$transaction(async tx=>{
@@ -72,5 +72,5 @@ export async function applyEtsyListingCategory(raw:unknown){
   if(!sameCategorySnapshot(after,{...p.remote,taxonomyId:p.input.newTaxonomyId}))throw Error("etsy_category_readback_mismatch");
   const result={state:"CATEGORY_VERIFIED",productId:input.productId,previewId:saved.id,etsyListingId:p.input.expectedEtsyListingId,taxonomyId:p.input.newTaxonomyId,listingState:after.state,verification:after,verifiedAt:new Date().toISOString(),etsyMutated:true,published:false,approvedPreview:p};
   await tx.spellmarkJournal.update({where:{productId_requestId:key},data:{bodyJson:JSON.stringify(result)}});return result;
- },{timeout:60000,maxWait:5000}));}catch(e){return {state:"NEEDS_REVIEW",productId:input.productId,previewId:saved.id,errorCode:safeCategoryError(e),etsyRejection:etsyFailureDetails(e),canonicalTaxonomyId:p.input.newTaxonomyId,nextAction:"Canonical intent is saved; inspect Etsy before continuing. Retry this same preview to verify only. No automatic rollback or repeated PATCH."};}
+ },{timeout:60000,maxWait:5000}));}catch(e){return {state:"NEEDS_REVIEW",productId:input.productId,previewId:saved.id,errorCode:safeCategoryError(e),...categoryErrorDetails(e),etsyRejection:etsyFailureDetails(e),canonicalTaxonomyId:p.input.newTaxonomyId,nextAction:"Canonical intent is saved; inspect Etsy before continuing. Retry this same preview to verify only. No automatic rollback or repeated PATCH."};}
 }

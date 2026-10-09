@@ -1,7 +1,27 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {registerHooks} from 'node:module';
-import {etsyTaxonomyId,categoryApplySchema,safeCategoryError} from '../lib/warlock-commerce/etsy-listing-category.ts';
+import {etsyTaxonomyId,categoryApplySchema,safeCategoryError,categoryErrorDetails} from '../lib/warlock-commerce/etsy-listing-category.ts';
 const db={taxonomy:[{id:456,name:'Wall Decor',level:0,parent_id:null,children:[]}],inventory:{products:[{product_id:1,offerings:[{price:{amount:0,divisor:100,currency_code:'USD'},is_enabled:false}]}]},inventoryDrift:false,product:null,journals:[],remote:null,writes:0,mode:true,unknown:false,failFinalize:false};globalThis.__categoryDb=db;
+
+// Only the network boundary is mocked: category executor uses both real HTTP transports.
+const requests=[];
+async function etsyFetch(url,args){
+ requests.push({url,method:args.method});
+ const path=String(url).replace('https://api.etsy.com/v3/application','');
+ if(args.method==='GET'){
+  const payload=path==='/seller-taxonomy/nodes'?{results:db.taxonomy}:path==='/listings/20/inventory?legacy=false'?db.inventory:path==='/listings/20'?db.remote:null;
+  if(!payload)throw Error('unexpected GET '+path);
+  return Response.json(structuredClone(payload));
+ }
+ assert.equal(path,'/shops/99/listings/20');assert.equal(args.method,'PATCH');assert.deepEqual([...args.body.keys()],['taxonomy_id']);
+ const taxonomyId=Number(args.body.get('taxonomy_id'));
+ const intent=JSON.parse(db.journals.find(j=>j.kind==='ETSY_CATEGORY_CHANGE').bodyJson);
+ assert.equal(intent.state,'SENDING');assert.equal(db.product.listings[0].taxonomyId,taxonomyId);
+ db.writes++;db.remote.taxonomy_id=taxonomyId;if(db.inventoryDrift)db.inventory.products[0].product_id=2;db.remote.last_modified_timestamp++;
+ if(db.unknown)throw Error('network failure');
+ return Response.json({});
+}
 function setup(state='active',fulfillment='DIGITAL'){
+ globalThis.fetch=etsyFetch;requests.length=0;
  db.product={id:'p',title:'Internal artwork name',description:'Product copy',assets:[],variants:[],listings:[{id:'l',fulfillment,etsyListingId:'20',title:'Keep title',taxonomyId:123,description:'Required disclosure',tagsJson:'["keep"]',status:'DRAFT_CREATED',lastVerifiedAt:'old',observationJson:'old',assets:[]}]};
  db.remote={listing_id:20,shop_id:99,state,listing_type:fulfillment==='DIGITAL'?'download':'physical',title:'Keep Etsy title',description:'Remote disclosure',tags:['keep'],quantity:10,taxonomy_id:123,price:{amount:4900,divisor:100,currency_code:'USD'},last_modified_timestamp:1};db.journals=[];db.writes=0;db.mode=true;db.unknown=false;db.failFinalize=false;db.inventoryDrift=false;db.taxonomy[0].name='Wall Decor';
  return {productId:'p',fulfillment,expectedEtsyListingId:'20',newTaxonomyId:456};
@@ -9,7 +29,7 @@ function setup(state='active',fulfillment='DIGITAL'){
 db.spellmarkJournal={findFirst:async({where})=>structuredClone(db.journals.find(j=>Object.entries(where).every(([k,v])=>j[k]===v))??null),findUnique:async({where})=>structuredClone(db.journals.find(j=>j.productId===where.productId_requestId.productId&&j.requestId===where.productId_requestId.requestId)??null),create:async({data})=>{const j={id:'journal-'+db.journals.length,...data};db.journals.push(j);return j;},update:async({where,data})=>{if(db.failFinalize&&JSON.parse(data.bodyJson).state==='CATEGORY_VERIFIED')throw Error('db failure');Object.assign(db.journals.find(j=>j.requestId===where.productId_requestId.requestId),data);}};
 db.spellmarkListing={update:async({data})=>Object.assign(db.product.listings[0],data)};db.$queryRaw=async()=>[];
 db.$transaction=async fn=>{const before=structuredClone({product:db.product,journals:db.journals});try{return await fn(db);}catch(e){Object.assign(db,before);throw e;}};
-const hooks=registerHooks({resolve(s,c,next){if(c.parentURL?.endsWith('/etsy-category-executor.ts')){const stubs={'../prisma':'export const prisma=globalThis.__categoryDb;','../warlock-mcp/repository':'export async function findWarlockProduct(){return structuredClone(globalThis.__categoryDb.product);}','../warlock-auth':'export async function getWarlockEtsyOperatorContext(){return {shopId:99,auth:{session:{access_token:"test"}}};}','./etsy-reconciliation-read':'export async function readEtsyForReconciliation(_token,path){const d=globalThis.__categoryDb;return structuredClone(path.includes("seller-taxonomy")?{results:d.taxonomy}:path.includes("/inventory")?d.inventory:d.remote);}','./etsy-category-transport':'export async function writeEtsyCategory(_token,_shop,_id,taxonomyId){const d=globalThis.__categoryDb;const intent=JSON.parse(d.journals.find(j=>j.kind==="ETSY_CATEGORY_CHANGE").bodyJson);if(intent.state!=="SENDING"||d.product.listings[0].taxonomyId!==taxonomyId)throw Error("intent not durable");d.writes++;d.remote.taxonomy_id=taxonomyId;if(d.inventoryDrift)d.inventory.products[0].product_id=2;d.remote.last_modified_timestamp++;if(d.unknown)throw Error("network failure");}','./write-guard.ts':'export function assertCommerceDraftWritesEnabled(){if(!globalThis.__categoryDb.mode)throw Error("warlock_commerce_writes_disabled");}'};if(stubs[s])return {url:'data:text/javascript,'+encodeURIComponent(stubs[s]),shortCircuit:true};}return next(s,c);}});
+const hooks=registerHooks({resolve(s,c,next){if(s==='../etsy-client'&&(c.parentURL?.endsWith('/etsy-reconciliation-read.ts')||c.parentURL?.endsWith('/etsy-category-transport.ts')))return {url:'data:text/javascript,export function etsyHeaders(){return {Authorization:"Bearer test"}}',shortCircuit:true};if(c.parentURL?.endsWith('/etsy-category-executor.ts')){const stubs={'../prisma':'export const prisma=globalThis.__categoryDb;','../warlock-mcp/repository':'export async function findWarlockProduct(){return structuredClone(globalThis.__categoryDb.product);}','../warlock-auth':'export async function getWarlockEtsyOperatorContext(){return {shopId:99,auth:{session:{access_token:"test"}}};}','./write-guard.ts':'export function assertCommerceDraftWritesEnabled(){if(!globalThis.__categoryDb.mode)throw Error("warlock_commerce_writes_disabled");}'};if(stubs[s])return {url:'data:text/javascript,'+encodeURIComponent(stubs[s]),shortCircuit:true};}return next(s,c);}});
 const {previewEtsyListingCategory,applyEtsyListingCategory}=await import('../lib/warlock-commerce/etsy-category-executor.ts');hooks.deregister();
 test('taxonomy validation rejects malformed IDs and unconfirmed approvals',()=>{for(const v of [0,-1,1.5,'456',null])assert.equal(etsyTaxonomyId.safeParse(v).success,false);assert.throws(()=>categoryApplySchema.parse({productId:'p',previewId:'x',confirmCategoryChange:false}));assert.equal(safeCategoryError(Error('secret token')),'etsy_category_edit_failed');});
 test('preview shows canonical/remote/proposed categories and active state without edits',async()=>{const input=setup();const before=structuredClone(db.product),p=await previewEtsyListingCategory(input);assert.equal(p.preview.canonicalTaxonomyId,123);assert.equal(p.preview.remote.taxonomyId,123);assert.equal(p.preview.remote.state,'active');assert.equal(p.preview.input.newTaxonomyId,input.newTaxonomyId);assert.deepEqual(db.product,before);assert.equal(db.writes,0);});
@@ -35,4 +55,19 @@ test('inventory drift before apply blocks write; post-write drift reports discre
  db.inventory.products[0].product_id=1;const fresh=await previewEtsyListingCategory(input);db.inventoryDrift=true;
  const r=await applyEtsyListingCategory({productId:'p',previewId:fresh.previewId,confirmCategoryChange:true});assert.equal(r.state,'NEEDS_REVIEW');assert.equal(r.errorCode,'etsy_category_readback_mismatch');
  const retry=await applyEtsyListingCategory({productId:'p',previewId:fresh.previewId,confirmCategoryChange:true});assert.equal(retry.state,'NEEDS_REVIEW');assert.equal(db.writes,1);
+});
+
+test('real read transport permits only exact taxonomy path and retains GET-only allowlist',async()=>{
+ const input=setup('active','PHYSICAL'),p=await previewEtsyListingCategory(input);
+ assert.ok(requests.some(r=>r.url.endsWith('/seller-taxonomy/nodes')));assert.ok(requests.every(r=>r.method==='GET'));assert.equal(p.preview.target.id,456);
+ const {readEtsyForReconciliation}=await import('../lib/warlock-commerce/etsy-reconciliation-read.ts');
+ for(const path of ['/seller-taxonomy/nodes?secret=1','/seller-taxonomy/nodes/123','/shops/99','https://private.example'])await assert.rejects(readEtsyForReconciliation('test',path),/path_invalid/);
+ assert.equal(safeCategoryError(Error('etsy_reconciliation_path_invalid')),'etsy_reconciliation_path_invalid');
+});
+test('taxonomy nodes may omit optional parent_id, but invalid IDs give sanitized field diagnostics',async()=>{
+ const input=setup();delete db.taxonomy[0].parent_id;
+ const p=await previewEtsyListingCategory(input);assert.equal(p.preview.target.path,'Wall Decor');
+ db.taxonomy[0].id='secret remote string';
+ await assert.rejects(previewEtsyListingCategory(input),e=>{assert.equal(safeCategoryError(e),'etsy_category_response_invalid');const details=categoryErrorDetails(e);assert.equal(details.validation.stage,'seller_taxonomy');assert.equal(details.validation.fields[0].field,'0.id');assert.ok(!JSON.stringify(details).includes('secret'));return true;});
+ db.taxonomy[0].id=456;db.taxonomy[0].parent_id=null;
 });
