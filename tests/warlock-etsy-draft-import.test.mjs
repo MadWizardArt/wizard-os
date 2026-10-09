@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
+import { validateWarlockManifest } from '../lib/warlock-mcp/manifest.ts';
 import { imagePlan } from '../lib/warlock-commerce/listing-images.ts';
 import { buildDraftImportPreview, validateDraftImportPreview, draftImportPreviewSchema, draftImportApplySchema, safeDraftImportError, draftImportErrorDetails } from '../lib/warlock-commerce/etsy-draft-import.ts';
 function fixture(digital=false,existing=true,count=30){
@@ -121,7 +122,7 @@ test('numeric diagnostics identify original inventory indexes and variant withou
  f.inventory.products[1].offerings[1].price.amount='2900';
  await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read),e=>{
   assert.equal(safeDraftImportError(e),'etsy_import_invalid_integer');
-  assert.deepEqual(draftImportErrorDetails(e).validation,{field:'inventory.products[1].offerings[1].price.amount',etsyProductId:'100',value:'2900',receivedType:'string',expected:{type:'number',integer:true,minimum:1,maximum:2147483647}});return true;
+  assert.deepEqual(draftImportErrorDetails(e).validation,{field:'inventory.products[1].offerings[1].price.amount',etsyProductId:'100',value:'2900',receivedType:'string',expected:{type:'number',integer:true,minimum:0,maximum:2147483647}});return true;
  });
 });
 test('numeric diagnostics cover listing fields and redact arbitrary remote content',async()=>{
@@ -130,4 +131,40 @@ test('numeric diagnostics cover listing fields and redact arbitrary remote conte
   await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read),e=>{const d=draftImportErrorDetails(e).validation;assert.equal(d.field,'listing.'+field);assert.equal(d.value,typeof value==='string'?'[redacted]':value);return true;});
  }
  assert.deepEqual(draftImportErrorDetails(Error('secret')),{});
+});
+
+test('zero-priced enabled and disabled offerings import as unresolved without blocking approved mockups',async()=>{
+ for(const enabled of [false,true]){
+  const f=fixture(false,true,2);f.target.state='active';
+  f.inventory.products[1].offerings[0].price.amount=0;f.inventory.products[1].offerings[0].is_enabled=enabled;
+  f.product.assets=[{id:'a',role:'mockup',contentType:'image/png'}];setup(f);
+  const p=await previewEtsyDraftImport(f.input),v=p.preview.snapshot.variants[1];
+  assert.equal(v.observedPriceCents,0);assert.equal(v.retailPriceCents,null);assert.equal(v.enabled,enabled);
+  assert.ok(p.preview.snapshot.warnings.some(w=>w.includes('Etsy variant 101')&&w.includes(enabled?'(enabled)':'(disabled)')));
+  const r=await applyEtsyDraftImport({previewId:p.previewId,confirmImport:true});assert.equal(r.etsyMutated,false);
+  const variants=db.product.variants.filter(v=>v.fulfillment==='PHYSICAL');assert.equal(variants.length,2);
+  assert.equal(variants[0].retailPriceCents,2900);assert.equal(variants[1].retailPriceCents,null);
+  const evidence=JSON.parse(db.product.listings[0].observationJson).snapshot.variants[1];assert.equal(evidence.observedPriceCents,0);assert.equal(evidence.enabled,enabled);
+  assert.ok(validateWarlockManifest(db.product).errors.some(e=>e.code==='physical_price_missing'));
+  const snapshot={etsyListingId:'20',shopId:99,state:'active',images:[],imagesFingerprint:'current'};
+  assert.equal(imagePlan(db.product,{productId:'p',fulfillment:'PHYSICAL',assetId:'a',rank:1,expectedImageId:null,expectedImagesFingerprint:'current'},snapshot).asset.id,'a');
+ }
+});
+test('digital zero observation is preserved with unresolved price and creation gate',async()=>{
+ const f=fixture(true,false);f.target.price.amount=0;setup(f);
+ const p=await previewEtsyDraftImport(f.input);await applyEtsyDraftImport({previewId:p.previewId,confirmImport:true});
+ assert.equal(p.preview.snapshot.variants[0].observedPriceCents,0);assert.equal(db.product.variants[0].retailPriceCents,null);
+ assert.ok(validateWarlockManifest(db.product).errors.some(e=>e.code==='digital_price_missing'));
+});
+test('zero-price approvals reject price or enabled-state drift; malformed prices still fail',async()=>{
+ for(const field of ['price','is_enabled']){
+  const f=fixture();const offering=f.inventory.products[1].offerings[0];offering.price.amount=0;
+  const p=await buildDraftImportPreview(f.product,f.input,99,f.read);
+  if(field==='price')offering.price.amount=2900;else offering.is_enabled=false;
+  await assert.rejects(validateDraftImportPreview(f.product,p,99,f.read),/remote_changed/);
+ }
+ for(const amount of [-1,0.5,'0']){
+  const f=fixture();f.inventory.products[1].offerings[0].price.amount=amount;
+  await assert.rejects(buildDraftImportPreview(f.product,f.input,99,f.read),/invalid_integer/);
+ }
 });
