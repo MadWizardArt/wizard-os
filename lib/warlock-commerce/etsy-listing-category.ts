@@ -16,12 +16,24 @@ export function categoryListing(product:WarlockProductManifest,input:CategoryInp
  if(product.id!==input.productId||listings.length!==1||listings[0].etsyListingId!==input.expectedEtsyListingId)throw Error("etsy_category_listing_changed");
  return listings[0];
 }
+class CategoryResponseError extends Error {
+ readonly validation: {stage:string; fields:Array<{field:string;code:string}>};
+ constructor(stage:string,error:z.ZodError) {
+  super("etsy_category_response_invalid");
+  this.validation={stage,fields:error.issues.slice(0,20).map(i=>({field:i.path.join('.'),code:i.code}))};
+ }
+}
+export function categoryErrorDetails(e:unknown):Record<string,unknown> {
+ return e instanceof CategoryResponseError ? {validation:e.validation} : {};
+}
 async function categoryTarget(read:ListingLinkRead,taxonomyId:number) {
  const payload=await read('/seller-taxonomy/nodes');
  if(!Array.isArray(payload.results))throw Error("etsy_category_taxonomy_invalid");
  // Validate remote nodes before passing them to the existing taxonomy path resolver.
- const nodeSchema: z.ZodType<EtsyTaxonomyNode> = z.lazy(()=>z.object({id:etsyTaxonomyId,name:z.string().min(1),level:z.number().int().nonnegative(),parent_id:z.number().int().nullable(),children:z.array(nodeSchema).optional()}));
- const nodes=z.array(nodeSchema).parse(payload.results);
+ const nodeSchema: z.ZodType<EtsyTaxonomyNode> = z.lazy(()=>z.object({id:etsyTaxonomyId,name:z.string().min(1),level:z.number().int().nonnegative(),parent_id:z.number().int().nullish().transform(v=>v??null),children:z.array(nodeSchema).optional()}));
+ const parsed=z.array(nodeSchema).safeParse(payload.results);
+ if(!parsed.success)throw new CategoryResponseError("seller_taxonomy",parsed.error);
+ const nodes=parsed.data;
  const target=flattenSellerTaxonomy(nodes).find(n=>n.id===taxonomyId);
  if(!target)throw Error("etsy_category_taxonomy_not_found");
  return {id:target.id,name:target.name,path:target.path};
@@ -31,7 +43,9 @@ export async function readCategorySnapshot(read:ListingLinkRead,input:CategoryIn
  if(String(remote.listing_id)!==input.expectedEtsyListingId||String(remote.shop_id)!==String(shopId))throw Error("etsy_category_ownership_mismatch");
  if(!["draft","active"].includes(String(remote.state)))throw Error("etsy_category_state_unsupported");
  if(etsyListingType(remote)!==(input.fulfillment==="DIGITAL"?"download":"physical"))throw Error("etsy_category_type_mismatch");
- const taxonomyId=etsyTaxonomyId.parse(remote.taxonomy_id);
+ const parsed=z.object({taxonomy_id:etsyTaxonomyId}).safeParse(remote);
+ if(!parsed.success)throw new CategoryResponseError("listing",parsed.error);
+ const taxonomyId=parsed.data.taxonomy_id;
  const stable=Object.fromEntries(Object.entries(remote).filter(([k])=>!k.endsWith('_timestamp')&&!["taxonomy_id","num_favorers","views"].includes(k)));
  let inventoryFingerprint:string|null=null;
  if(input.fulfillment==='PHYSICAL') {
@@ -57,4 +71,4 @@ export function assertCategoryPreview(product:WarlockProductManifest,p:CategoryP
  categoryListing(product,p.input);
 }
 export function sameCategorySnapshot(a:CategoryPreview['remote'],b:CategoryPreview['remote']) {return bookkeepingFingerprint(a)===bookkeepingFingerprint(b);}
-export function safeCategoryError(e:unknown) {const s=e instanceof Error?e.message:"";return /^(etsy_category_[a-z_]+|etsy_http_\d{3}|etsy_not_connected|etsy_shop_not_allowed|warlock_shop_id_missing|warlock_commerce_writes_disabled|etsy_listing_type_[a-z_]+)$/.test(s)?s:"etsy_category_edit_failed";}
+export function safeCategoryError(e:unknown) {const s=e instanceof Error?e.message:"";return /^(etsy_category_[a-z_]+|etsy_reconciliation_path_invalid|etsy_invalid_response|etsy_http_\d{3}|etsy_not_connected|etsy_shop_not_allowed|warlock_shop_id_missing|warlock_commerce_writes_disabled|etsy_listing_type_[a-z_]+)$/.test(s)?s:"etsy_category_edit_failed";}

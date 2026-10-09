@@ -1,5 +1,5 @@
 import { previewEtsyListingCategory, applyEtsyListingCategory } from "../warlock-commerce/etsy-category-executor";
-import { categoryPreviewShape, categoryApplyShape, safeCategoryError } from "../warlock-commerce/etsy-listing-category";
+import { categoryPreviewShape, categoryApplyShape, safeCategoryError, categoryErrorDetails } from "../warlock-commerce/etsy-listing-category";
 import { previewEtsyListingTitle, applyEtsyListingTitle } from "../warlock-commerce/etsy-title-executor";
 import { titlePreviewShape, titleApplyShape, safeTitleError } from "../warlock-commerce/etsy-listing-title";
 import { previewEtsyDraftImport, applyEtsyDraftImport } from "../warlock-commerce/etsy-draft-import-executor";
@@ -169,12 +169,12 @@ export function createWarlockCommerceMcpServer() {
     title: "Preview Existing Etsy Listing Category Change",
     description: "Preview an exact category change on a saved draft or ACTIVE digital/physical Etsy listing. Resolve the product-specific taxonomy ID using inspect_etsy_configuration first. Validates the ID/path against live seller taxonomy and records canonical/current/proposed IDs, state, stable listing metadata and physical inventory for owner review. Does not change Etsy. Category attributes may require review. No global category default or guessed IDs. Show the complete preview for approval.",
     inputSchema: categoryPreviewShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: false }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
-  }, async input=>{try{return success(await previewEtsyListingCategory(input));}catch(e){return failure("etsy_category_edit_failed",safeCategoryError(e));}});
+  }, async input=>{try{return success(await previewEtsyListingCategory(input));}catch(e){return failure("etsy_category_edit_failed",safeCategoryError(e),categoryErrorDetails(e));}});
   server.registerTool("apply_etsy_listing_category", {
     title: "Apply Approved Existing Etsy Listing Category",
     description: "Apply an exact owner-approved previewId with confirmCategoryChange:true. Saves canonical taxonomy intent before a taxonomy_id-only Etsy PATCH and verifies category, unchanged listing state/metadata and physical inventory. Supports draft and ACTIVE listings without recreation, publication or browser editing. Existing write-mode gate applies. Drift/expiry rejects a new write; uncertain outcomes return NEEDS_REVIEW and retries verify only. Journal retains intent and verification evidence.",
     inputSchema: categoryApplyShape, annotations: { ...annotations, readOnlyHint: false, destructiveHint: true, idempotentHint: true }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
-  }, async input=>{try{return success(await applyEtsyListingCategory(input));}catch(e){return failure("etsy_category_edit_failed",safeCategoryError(e));}});
+  }, async input=>{try{return success(await applyEtsyListingCategory(input));}catch(e){return failure("etsy_category_edit_failed",safeCategoryError(e),categoryErrorDetails(e));}});
 
   server.registerTool("preview_etsy_listing_title", {
     title: "Preview Existing Etsy Listing Title Change",
