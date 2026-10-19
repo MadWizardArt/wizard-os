@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../app/generated/prisma/client";
+import { createHash } from "node:crypto";
 import { intakeProductSchema } from "./warlock-intake-schema.ts";
 import { readProduct, readVariant } from "./warlock-products.ts";
 import { readListingManifest } from "./warlock-listings.ts";
@@ -13,6 +14,8 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
   const product = readProduct(input.product);
   if (!product) throw new Error("invalid_product");
   const variants = input.variants ?? [];
+  const removeIds = input.removeVariantIds ?? [];
+  if (new Set(removeIds).size !== removeIds.length) throw new Error("duplicate_variant_removal_id");
   if (new Set(variants.map(v => `${v.fulfillment}:${v.label}`)).size !== variants.length) throw new Error("duplicate_variant_label");
   const requestedListings = input.listings ?? (input.listing ? [input.listing] : []);
   const suppliedFiles = new Map((input.files ?? []).map(file => [file.file_id, file]));
@@ -48,6 +51,11 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
   const result = await db.$transaction(async tx => {
     // Serialize title-based intake, including concurrent first creation and retries.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${product.title}))::text`;
+    if (removeIds.length) {
+      await tx.$queryRaw`SELECT id FROM "SpellmarkProduct" WHERE id = ${input.productId!} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "SpellmarkListing" WHERE "productId" = ${input.productId!} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "SpellmarkVariant" WHERE "productId" = ${input.productId!} FOR UPDATE`;
+    }
     const matches = input.productId
       ? await tx.spellmarkProduct.findMany({ where: { id: input.productId }, include: { variants: true, listings: true } })
       : await tx.spellmarkProduct.findMany({ where: { title: product.title }, take: 2, include: { variants: true, listings: true } });
@@ -57,6 +65,7 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
     if (existing && existing.title !== product.title) throw new Error("product_title_mismatch");
     // Intake completes preparation; changes after external execution require explicit reconciliation.
     if (existing?.listings.some(l => l.etsyListingId || l.printfulSyncProductId)) throw new Error("intake_locked_after_draft_execution");
+    if (removeIds.length && !existing) throw new Error("variant_removal_product_missing");
     const saved = existing ?? await tx.spellmarkProduct.create({ data: product });
     const productId = saved.id;
     if (existing) {
@@ -64,6 +73,24 @@ export async function intakeProduct(raw: unknown, db: PrismaClient, files: Stora
       await tx.spellmarkProduct.update({ where: { id: productId }, data: updates });
     }
     const allVariants = [...(existing?.variants ?? [])];
+    if (removeIds.length) {
+      const requestId = "variant-removal:" + createHash("sha256").update(JSON.stringify([...removeIds].sort())).digest("hex");
+      const previous = await tx.spellmarkJournal.findFirst({ where: { productId, requestId } });
+      const removed = allVariants.filter(v => removeIds.includes(v.id));
+      // Exact retries use the archive; unknown or foreign IDs never silently disappear.
+      if (removed.length !== removeIds.length && !(previous && removed.length === 0)) throw new Error("variant_removal_not_owned_by_product");
+      if (removed.some(v => v.etsyListingId || v.etsyProductId || v.etsySku || v.printfulSyncVariantId)) throw new Error("variant_removal_requires_reconciliation");
+      if (variants.some(v => removeIds.includes(v.variantId ?? "") || removed.some(old => old.fulfillment === v.fulfillment && old.label === v.label))) throw new Error("variant_removal_update_conflict");
+      if (removed.length) {
+        const remaining = allVariants.filter(v => !removeIds.includes(v.id));
+        if (!remaining.length || existing!.listings.some(l => !remaining.some(v => v.fulfillment === l.fulfillment))) throw new Error("variant_removal_would_orphan_listing");
+        await tx.spellmarkJournal.create({ data: { productId, requestId, kind: "PRE_DRAFT_VARIANTS_REMOVED",
+          bodyJson: JSON.stringify({ variantIds: [...removeIds].sort(), archive: removed, etsyMutated: false, printfulMutated: false }) } });
+        const deleted = await tx.spellmarkVariant.deleteMany({ where: { productId, id: { in: removeIds } } });
+        if (deleted.count !== removed.length) throw new Error("variant_removal_state_changed");
+        allVariants.splice(0, allVariants.length, ...remaining);
+      }
+    }
     for (const variant of variants) {
       const matching = variant.variantId ? allVariants.filter(v => v.id === variant.variantId) : allVariants.filter(v => v.fulfillment === variant.fulfillment && v.label === variant.label);
       if (matching.length > 1) throw new Error("variant_label_ambiguous: Use variantId.");

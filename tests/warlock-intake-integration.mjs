@@ -14,6 +14,14 @@ try {
  const product=await pool.query('SELECT id FROM "SpellmarkProduct" WHERE title=$1',[title]);assert.equal(product.rows.length,1);
  const variants=await pool.query('SELECT * FROM "SpellmarkVariant" WHERE "productId"=$1',[first.productId]);assert.equal(variants.rows.length,1);assert.equal(variants.rows[0].retailPriceCents,900);
  const listings=await pool.query('SELECT * FROM "SpellmarkListing" WHERE "productId"=$1',[first.productId]);assert.equal(listings.rows.length,1);assert.equal(listings.rows[0].status,'CONFIG');assert.equal(listings.rows[0].title,'Moon Download');assert.match(listings.rows[0].description,/AI/);
+ // Confirmed pre-draft cleanup archives exactly selected variants; concurrent retries are safe.
+ await intake({...body,productId:first.productId,variants:[{fulfillment:'PHYSICAL',label:'Unavailable / 6M'},{fulfillment:'PHYSICAL',label:'Available / 12M',retailPriceCents:2495}]});
+ const cleanupVariants=await pool.query('SELECT * FROM "SpellmarkVariant" WHERE "productId"=$1 AND fulfillment=\'PHYSICAL\' ORDER BY label',[first.productId]);
+ const removed=cleanupVariants.rows.find(v=>v.label==='Unavailable / 6M');
+ const cleanup={...body,variants:undefined,productId:first.productId,removeVariantIds:[removed.id],confirmVariantRemoval:true};
+ await Promise.all([intake(cleanup),intake(cleanup)]);
+ const retained=await pool.query('SELECT * FROM "SpellmarkVariant" WHERE "productId"=$1',[first.productId]);assert.equal(retained.rows.length,2);assert.ok(!retained.rows.some(v=>v.id===removed.id));
+ const archived=await pool.query('SELECT "bodyJson" FROM "SpellmarkJournal" WHERE "productId"=$1 AND kind=\'PRE_DRAFT_VARIANTS_REMOVED\'',[first.productId]);assert.equal(archived.rows.length,1);assert.equal(JSON.parse(archived.rows[0].bodyJson).archive[0].id,removed.id);
  // Missing/foreign assets roll back the preceding pricing and listing changes.
  const failed=await fetch(`${base}/api/warlock/intake`,{method:'POST',headers,body:JSON.stringify({...completion,listing:{...completion.listing,price:12},assets:[{role:'hero',assetId:'foreign'}]})});assert.equal(failed.status,400);
  const unchanged=await pool.query('SELECT "retailPriceCents" FROM "SpellmarkVariant" WHERE "productId"=$1',[first.productId]);assert.equal(unchanged.rows[0].retailPriceCents,900);
