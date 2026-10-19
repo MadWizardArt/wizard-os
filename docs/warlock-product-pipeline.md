@@ -413,3 +413,18 @@ production/catalog ledger, not a revenue or tax accounting system.
 
 No new environment variable or credential is needed. Refresh the Business connector
 and verify the 23-tool descriptor set before Aurelia resumes the custom portrait.
+
+## Removing unavailable variants before draft execution
+
+`intake_product` preserves omitted variants so partial retries cannot accidentally
+erase editions. To remove explicitly approved variants before any Etsy/Printful
+execution, first read the canonical product and pass its `productId`, exact
+`removeVariantIds`, `confirmVariantRemoval: true`, and `confirmIntake: true`.
+Do not include the same variants in the update list.
+
+Removal is atomic and archives the complete selected records in a
+`PRE_DRAFT_VARIANTS_REMOVED` journal event. Exact retries are safe. Foreign IDs,
+externally linked variants, executed listings, and removal of the last variant
+supporting a listing are rejected. Other variants, artwork, prices, and listing
+records are preserved. This operation makes no Etsy or Printful changes and does
+not replace validation, supplier preflight, or the normal draft workflow.

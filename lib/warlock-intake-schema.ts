@@ -29,6 +29,8 @@ export const intakeProductShape = {
   files: z.array(chatGptFileSchema).max(40).optional(),
   productId: z.string().trim().min(1).max(100).optional(),
   source: z.string().trim().min(1).max(80).optional(),
+  removeVariantIds: z.array(z.string().trim().min(1).max(100)).min(1).max(50).optional().describe("Explicitly remove selected unlinked pre-draft variants by canonical ID, archiving their records. Omitted variants are otherwise preserved. Requires productId and confirmVariantRemoval:true."),
+  confirmVariantRemoval: z.literal(true).optional(),
   product: z.object({
     title: z.string().trim().min(1).max(140), collection: z.string().trim().max(100).optional(),
     description: z.string().trim().max(6000).optional(), artworkReference: z.string().trim().max(500).optional(),
@@ -58,5 +60,8 @@ export const intakeProductShape = {
     "Replacement requires customer_file, DIGITAL fulfillment, explicit position, expectedAssetId and confirmReplacement:true.").refine(a => [a.assetId, a.fileId, a.url, a.base64].filter(x => x !== undefined).length === 1, "Provide exactly one of assetId, fileId, url, or base64.")).max(40).optional(),
   confirmIntake: z.literal(true),
 };
-export const intakeProductSchema = z.object(intakeProductShape).refine(v => !(v.listing && v.listings), "Use listing or listings, not both.");
+export const intakeProductSchema = z.object(intakeProductShape)
+  .refine(v => !(v.listing && v.listings), "Use listing or listings, not both.")
+  .refine(v => v.removeVariantIds === undefined ? v.confirmVariantRemoval === undefined : !!v.productId && v.confirmVariantRemoval === true,
+    "Variant removal requires productId, removeVariantIds and confirmVariantRemoval:true.");
 export type IntakeInput = z.infer<typeof intakeProductSchema>;

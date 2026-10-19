@@ -7,7 +7,7 @@ import { validateWarlockManifest } from '../lib/warlock-mcp/manifest.ts';
 function database() {
   let state = { products: [], variants: [], listings: [], assets: [], links: [], journals: [] }; let seq = 0;
   const tables = { spellmarkProduct:'products', spellmarkVariant:'variants', spellmarkListing:'listings', spellmarkAsset:'assets', spellmarkListingAsset:'links', spellmarkJournal:'journals' };
-  function match(row, where = {}) { return Object.entries(where).every(([k,v]) => k === 'productId_fulfillment' ? match(row,v) : row[k] === v); }
+  function match(row, where = {}) { return Object.entries(where).every(([k,v]) => k === 'productId_fulfillment' ? match(row,v) : v && typeof v === 'object' && 'in' in v ? v.in.includes(row[k]) : row[k] === v); }
   const tx = { $queryRaw: async () => [] };
   for (const [name, key] of Object.entries(tables)) {
     tx[name] = {
@@ -16,6 +16,7 @@ function database() {
       create: async ({data}) => { const row = {id:'test'+ ++seq,...data}; state[key].push(row); return {...row}; },
       update: async ({where,data}) => { const row=state[key].find(r=>match(r,where)); if(!row) throw Error('missing'); Object.assign(row,data); return {...row}; },
       count: async args => (await tx[name].findMany(args)).length,
+      deleteMany: async ({where}) => { const before=state[key].length; state[key]=state[key].filter(r=>!match(r,where)); return {count:before-state[key].length}; },
       upsert: async ({where,create,update}) => state[key].some(r=>match(r,where)) ? tx[name].update({where,data:update}) : tx[name].create({data:create}),
     };
   }
@@ -37,6 +38,35 @@ test('existing shell completed and omitted mappings, prices, product data surviv
  const db=database();await intakeProduct({confirmIntake:true,product:{title:'Luna Noctiluca',collection:'Cabinet'},variants:input.variants},db,files);
  const id=db.state().products[0].id;await intakeProduct({...input,productId:id},db,files);assert.equal(db.state().products.length,1);assert.equal(db.state().products[0].collection,'Cabinet');
  await intakeProduct({confirmIntake:true,productId:id,product:{title:'Luna Noctiluca'},variants:input.variants},db,files);assert.equal(db.state().variants[0].retailPriceCents,900);
+});
+test('explicit pre-draft variant removal archives only selected records and exact retries preserve everything else',async()=>{
+ const db=database(); const seed={...input,variants:[{fulfillment:'PHYSICAL',label:'White / 6M'},{fulfillment:'PHYSICAL',label:'White / 12M',retailPriceCents:2495,printfulProductId:843,printfulVariantId:22158,printfulStoreId:12562279}],listing:{fulfillment:'PHYSICAL',title:'Baby bodysuit'},assets:[asset('master','master.png'),asset('hero','hero.png')]};
+ const first=await intakeProduct(seed,db,files),before=structuredClone(db.state());
+ const request={productId:first.productId,product:input.product,confirmIntake:true,removeVariantIds:[before.variants[0].id],confirmVariantRemoval:true};
+ const result=await intakeProduct(request,db,files);assert.equal(result.variantCount,1);
+ assert.deepEqual(db.state().variants,[before.variants[1]]);assert.deepEqual(db.state().assets,before.assets);assert.deepEqual(db.state().listings,before.listings);assert.deepEqual(db.state().links,before.links);
+ assert.deepEqual(JSON.parse(db.state().journals[0].bodyJson).archive,[before.variants[0]]);
+ const after=structuredClone(db.state());await intakeProduct(request,db,files);assert.deepEqual(db.state(),after);
+});
+test('variant removal rejects missing confirmation, foreign IDs, duplicates, update conflicts and orphaned listings atomically',async()=>{
+ const db=database();const first=await intakeProduct({...input,variants:[...input.variants,{fulfillment:'PHYSICAL',label:'White / 6M'},{fulfillment:'PHYSICAL',label:'White / 12M'}]},db,files);
+ const before=structuredClone(db.state()),id=before.variants[1].id;
+ const request={productId:first.productId,product:input.product,confirmIntake:true,removeVariantIds:[id],confirmVariantRemoval:true};
+ for(const invalid of [{...request,confirmVariantRemoval:undefined},{...request,productId:undefined},{...request,removeVariantIds:['foreign']},{...request,removeVariantIds:[id,id]},{...request,variants:[{variantId:id,fulfillment:'PHYSICAL',label:'Updated'}]},{...request,variants:[{fulfillment:'PHYSICAL',label:'White / 6M'}]},{...request,removeVariantIds:[before.variants[0].id]}]){
+  await assert.rejects(intakeProduct(invalid,db,files));assert.deepEqual(db.state(),before);
+ }
+ // An error after removal rolls back both the removal and the archive.
+ await assert.rejects(intakeProduct({...request,assets:[{role:'hero',assetId:'foreign'}]},db,files),/asset_not_owned/);assert.deepEqual(db.state(),before);
+ await assert.rejects(intakeProduct({...request,removeVariantIds:before.variants.map(v=>v.id)},db,files),/orphan_listing/);
+});
+test('variant removal cannot change an executed listing or externally linked variant',async()=>{
+ for(const field of ['etsyListingId','etsyProductId','etsySku','printfulSyncVariantId']){
+  const db=database();const first=await intakeProduct({...input,variants:[...input.variants,{fulfillment:'PHYSICAL',label:'White / 6M',[field]:'ignored-by-schema'}]},db,files);
+  const target=db.state().variants[1];target[field]='external-link';const before=structuredClone(db.state());
+  await assert.rejects(intakeProduct({productId:first.productId,product:input.product,confirmIntake:true,removeVariantIds:[target.id],confirmVariantRemoval:true},db,files),/requires_reconciliation/);assert.deepEqual(db.state(),before);
+ }
+ const db=database();const first=await intakeProduct(input,db,files);db.state().listings[0].etsyListingId='123';
+ await assert.rejects(intakeProduct({productId:first.productId,product:input.product,confirmIntake:true,removeVariantIds:[db.state().variants[0].id],confirmVariantRemoval:true},db,files),/intake_locked/);
 });
 test('mixed physical and digital listings retain edition prices and customer links stay digital',async()=> {
  const db=database();await intakeProduct({...input,listing:undefined,variants:[...input.variants,...[2400,2800,6900].map((p,i)=>({fulfillment:'PHYSICAL',label:`Edition ${i}`,retailPriceCents:p,printfulProductId:1,printfulVariantId:i+1,printfulStoreId:2,productionBaseCents:1000,productionQuotedAt:new Date().toISOString()}))],listings:[input.listing,{fulfillment:'PHYSICAL',description:'Physical art.'}]},db,files);
