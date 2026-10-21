@@ -50,3 +50,19 @@ Completed retries return historical evidence; inspect current canonical state.
 No Etsy/Printful mutations, uploads, deletion, publication, orders, image-identity
 inference or new integration bridge occur during preview/import. All subsequent
 writes use the established commerce tools and their existing approval guards.
+
+## Restore physical mappings after draft import
+
+After importing an existing physical draft, resolve the exact approved catalog
+colors/sizes and call `configure_printful_variant` for each returned canonical
+variant ID. A fully unmapped variant with no sync ID may receive its initial
+catalog/store mapping even though it already has an Etsy listing ID.
+
+This exception requires saved draft-import evidence plus a fresh read of the
+owned physical Etsy draft and its exact product ID, SKU, option label, enabled
+offering and approved USD price. Canonical listing locks and an optimistic
+variant guard reject concurrent changes. Partial/existing supplier mappings and
+synced variants cannot be remapped through this exception. Active imports remain
+outside this draft recovery path. Failed verification leaves mappings and quotes
+unchanged. No Etsy or Printful writes occur; placement batch approval, production
+application and supplier visual verification remain separate steps.
