@@ -1,3 +1,4 @@
+import { excludePreDraftVariants, excludePreDraftVariantsShape } from "../warlock-commerce/variant-exclusion";
 import { previewEtsyListingCategory, applyEtsyListingCategory } from "../warlock-commerce/etsy-category-executor";
 import { categoryPreviewShape, categoryApplyShape, safeCategoryError, categoryErrorDetails } from "../warlock-commerce/etsy-listing-category";
 import { previewEtsyListingTitle, applyEtsyListingTitle } from "../warlock-commerce/etsy-title-executor";
@@ -252,6 +253,23 @@ export function createWarlockCommerceMcpServer() {
       } catch (error) {
         // Do not expose/log signed asset URLs or input package bytes.
         return failure("warlock_intake_failed", error instanceof Error && error.message === "intake_locked_after_draft_execution" ? "intake_locked_after_draft_execution: Use update_product_prices for confirmed canonical retail-price edits; existing Etsy prices are updated separately. Use attach_product_file for post-draft hero/mockup images, then inspect_etsy_listing_images and update_etsy_listing_image." : error instanceof Error && !error.message.includes("https:") ? error.message : "Warlock intake failed; retry the same package after checking its assets.");
+      }
+    },
+  );
+
+  server.registerTool(
+    "exclude_pre_draft_variants",
+    {
+      title: "Exclude Approved Pre-Draft Product Variants",
+      description: "Remove exact owner-approved canonical variant IDs from an existing Warlock product before Etsy/Printful listing execution. First use get_product to select exact productId and variantIds. Requires confirmVariantRemoval:true. Archives removed records in the journal; preserves remaining sizes, assets, prices and listings. Refuses variants already linked to Etsy or Printful sync, removal of a listing's last variant, or products with externally linked listings. Never writes to Etsy or Printful. Exact retries are idempotent.",
+      inputSchema: excludePreDraftVariantsShape,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+    },
+    async input => {
+      try { return success(await excludePreDraftVariants(input)); }
+      catch (error) {
+        return failure("variant_exclusion_failed", error instanceof Error ? error.message : "Variant exclusion failed.");
       }
     },
   );
