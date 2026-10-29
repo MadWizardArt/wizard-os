@@ -4,8 +4,18 @@ import { etsyListingType } from "./etsy-listing-type.ts";
 export type Json = Record<string, unknown>;
 export type ShippingRead = (path: string) => Promise<Json>;
 const remoteId = z.string().regex(/^[1-9]\d{0,18}$/);
+const rateCorrectionSchema = z.strictObject({
+  primaryCost: z.string().regex(/^(0|[1-9]\d{0,5})\.\d{2}$/),
+  secondaryCost: z.string().regex(/^(0|[1-9]\d{0,5})\.\d{2}$/),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  sourceUrl: z.url().refine(value => new URL(value).protocol === "https:"),
+  evidence: z.string().trim().min(20).max(2000),
+  verifiedAt: z.iso.datetime(),
+  confirmRatesVerified: z.literal(true),
+});
 export const shippingPreviewShape = {
   productId: z.string().min(1).max(100), sourceProfileId: remoteId,
+  rateCorrection: rateCorrectionSchema.optional(),
   targetProfileId: remoteId.optional(), title: z.string().trim().min(1).max(100).optional(),
 };
 export const shippingApplyShape = {
@@ -52,8 +62,16 @@ export function compatible(a: ReturnType<typeof domesticProfile>, b: ReturnType<
   const { usOnly: _a, ...left } = a, { usOnly: _b, ...right } = b;
   return fingerprint(left) === fingerprint(right);
 }
-export function profileCreateBody(p: Json, sourceId: string, title: string, currency: string) {
-  const d = domesticProfile(p, sourceId);
+export function correctedDomestic(domestic: ReturnType<typeof domesticProfile>, correction?: z.infer<typeof rateCorrectionSchema>) {
+  if (!correction) return domestic;
+  const c = rateCorrectionSchema.parse(correction), age = Date.now() - Date.parse(c.verifiedAt);
+  if (age < 0 || age > 30 * 86400000) throw Error("etsy_shipping_rate_evidence_expired");
+  if (c.currency !== domestic.primary.currency) throw Error("etsy_shipping_currency_mismatch");
+  const rate = (value: string) => ({ amount: Number(value.replace(".", "")), divisor: 100, currency: c.currency });
+  return { ...domestic, primary: rate(c.primaryCost), secondary: rate(c.secondaryCost) };
+}
+export function profileCreateBody(p: Json, sourceId: string, title: string, currency: string, correction?: z.infer<typeof rateCorrectionSchema>) {
+  const d = correctedDomestic(domesticProfile(p, sourceId), correction);
   if (d.primary.currency !== currency) throw Error("etsy_shipping_shop_currency_changed");
   const decimal = (m: typeof d.primary) => {
     const n = m.amount / m.divisor;
