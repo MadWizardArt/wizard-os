@@ -5,7 +5,7 @@ import { getWarlockEtsyOperatorContext } from "../warlock-auth";
 import { findWarlockProduct } from "../warlock-mcp/repository";
 import { canonicalBookkeepingFingerprint } from "./listing-observation.ts";
 import { assertCommerceDraftWritesEnabled } from "./write-guard.ts";
-import { auditShipping, shippingPreviewSchema, shippingApplySchema, domesticProfile, compatible, profileCreateBody, listingSnapshot, fingerprint, object, id, safeShippingError, type Json } from "./etsy-shipping.ts";
+import { auditShipping, shippingPreviewSchema, shippingApplySchema, domesticProfile, correctedDomestic, compatible, profileCreateBody, listingSnapshot, fingerprint, object, id, safeShippingError, type Json } from "./etsy-shipping.ts";
 async function context() {
   const { auth, shopId, shop } = await getWarlockEtsyOperatorContext();
   const request = async (path: string, method = "GET", fields?: Record<string, string>) => {
@@ -33,6 +33,7 @@ export async function previewEtsyShippingChange(raw: unknown) {
   if (!product) throw Error("etsy_shipping_product_missing");
   const listing = physical(product), ctx = await context(), source = await ctx.profile(input.sourceProfileId);
   const domestic = domesticProfile(source, input.sourceProfileId);
+  const proposedDomestic = correctedDomestic(domestic, input.rateCorrection);
   if (domestic.primary.currency !== ctx.currency) throw Error("etsy_shipping_shop_currency_changed");
   const remote = listing.etsyListingId ? listingSnapshot(await ctx.request("/listings/" + listing.etsyListingId), listing.etsyListingId, ctx.shopId) : null;
   // Existing listings must retain their own verified rates, not another product's assumed rates.
@@ -40,17 +41,17 @@ export async function previewEtsyShippingChange(raw: unknown) {
   let target: Json | null = null;
   if (input.targetProfileId) {
     target = await ctx.profile(input.targetProfileId);
-    if (!compatible(domestic, domesticProfile(target, input.targetProfileId, true))) throw Error("etsy_shipping_target_rates_or_service_differ");
+    if (!compatible(proposedDomestic, domesticProfile(target, input.targetProfileId, true))) throw Error("etsy_shipping_target_rates_or_service_differ");
   }
   const title = input.title ?? String(source.title ?? "Shipping").slice(0, 85) + " — US only";
-  const createBody = target ? null : profileCreateBody(source, input.sourceProfileId, title, ctx.currency);
-  if (!target && domestic.usOnly) throw Error("etsy_shipping_reuse_existing_us_profile");
+  const createBody = target ? null : profileCreateBody(source, input.sourceProfileId, title, ctx.currency, input.rateCorrection);
+  if (!target && domestic.usOnly && !input.rateCorrection) throw Error("etsy_shipping_reuse_existing_us_profile");
   const preview = { version: 1, input, shopId: ctx.shopId, currency: ctx.currency, listingId: listing.id, etsyListingId: listing.etsyListingId ?? null,
-    canonicalFingerprint: canonicalBookkeepingFingerprint(product), source, target, remote, domestic, createBody,
+    canonicalFingerprint: canonicalBookkeepingFingerprint(product), source, target, remote, domestic, proposedDomestic, createBody,
     expiresAt: new Date(Date.now() + 600000).toISOString() };
   const saved = await prisma.spellmarkJournal.create({ data: { productId: product.id, requestId: randomUUID(), kind: "ETSY_SHIPPING_PREVIEW", bodyJson: JSON.stringify(preview) } });
   return { state: "PREVIEW_READY", previewId: saved.id, preview, affectedListings: [{ productId: product.id, listingId: listing.id, etsyListingId: listing.etsyListingId ?? null, title: listing.title }],
-    nextAction: "Show the owner the source and replacement profiles, unchanged first/additional item costs, delivery service, US-only destinations and affected listing. Apply this exact preview only after approval. Source profiles are never modified. For a future listing, this saves the verified profile for the existing draft workflow." };
+    nextAction: "Show the owner the source and replacement profiles, current and proposed first/additional item costs, rate evidence (owner-attested, not automatically supplier-verified),, delivery service, US-only destinations and affected listing. Apply this exact preview only after approval. Source profiles are never modified. For a future listing, this saves the verified profile for the existing draft workflow." };
 }
 type Preview = Awaited<ReturnType<typeof previewEtsyShippingChange>>['preview'];
 export async function applyEtsyShippingChange(raw: unknown) {
@@ -85,7 +86,7 @@ export async function applyEtsyShippingChange(raw: unknown) {
       if (fingerprint(source) !== fingerprint(p.source)) throw Error("etsy_shipping_source_changed");
       const checkTarget = async (targetId: string) => {
         const target = await ctx.profile(targetId);
-        if (!compatible(domesticProfile(source, p.input.sourceProfileId), domesticProfile(target, targetId, true))) throw Error("etsy_shipping_target_verification_failed");
+        if (!compatible(correctedDomestic(domesticProfile(source, p.input.sourceProfileId), p.input.rateCorrection), domesticProfile(target, targetId, true))) throw Error("etsy_shipping_target_verification_failed");
         if (p.target && fingerprint(target) !== fingerprint(p.target)) throw Error("etsy_shipping_target_changed");
         return target;
       };

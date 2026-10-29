@@ -99,3 +99,23 @@ test('post-write international destination or rate drift prevents canonical succ
   try{const r=await apply(approve(p));assert.equal(r.state,'NEEDS_REVIEW');assert.equal(db.product.listings[0].shippingProfileId,'1');}finally{globalThis.fetch=fetch;}
  }
 });
+
+const correction = () => ({primaryCost:'8.49',secondaryCost:'3.00',currency:'USD',sourceUrl:'https://www.printful.com/shipping',evidence:'Verified pillow with insert, all offered sizes: first $8.49, additional $3.00.',verifiedAt:new Date(Date.now()-1000).toISOString(),confirmRatesVerified:true});
+test('rate correction creates separate profile, verifies exact charges and preserves source',async()=>{
+ setup();db.profiles['1']=profile(1,true);const source=structuredClone(db.profiles['1']);
+ const p=await preview({productId:'p',sourceProfileId:'1',rateCorrection:correction()});
+ assert.equal(p.preview.domestic.primary.amount,499);assert.equal(p.preview.proposedDomestic.primary.amount,849);assert.equal(writeCount(),0);
+ const original=globalThis.fetch;globalThis.fetch=async(url,args)=>{const response=await original(url,args);if(args.method==='POST'){db.profiles['2'].shipping_profile_destinations[0].primary_cost=money(849);db.profiles['2'].shipping_profile_destinations[0].secondary_cost=money(300);}return response;};
+ try{assert.equal((await apply(approve(p))).state,'SHIPPING_VERIFIED');assert.deepEqual(db.profiles['1'],source);assert.equal(db.calls.find(c=>c.method==='POST').body.primary_cost,'8.49');}finally{globalThis.fetch=original;}
+});
+test('corrected compatible profile can be reused; original-rate target is blocked',async()=>{
+ setup();db.profiles['3']=profile(3,true);await assert.rejects(preview({productId:'p',sourceProfileId:'1',targetProfileId:'3',rateCorrection:correction()}));
+ db.profiles['3'].shipping_profile_destinations[0].primary_cost=money(849);db.profiles['3'].shipping_profile_destinations[0].secondary_cost=money(300);
+ const p=await preview({productId:'p',sourceProfileId:'1',targetProfileId:'3',rateCorrection:correction()});assert.equal((await apply(approve(p))).state,'SHIPPING_VERIFIED');assert.equal(writeCount(),1);
+});
+test('invalid, stale, unsupported or undocumented corrections fail before writes',async()=>{
+ for(const change of [c=>delete c.evidence,c=>c.primaryCost='8.499',c=>c.secondaryCost='-1.00',c=>c.currency='EUR',c=>c.confirmRatesVerified=false,c=>c.sourceUrl='http://example.com',c=>c.verifiedAt=new Date(0).toISOString(),c=>c.verifiedAt=new Date(Date.now()+86400000).toISOString()]){setup();const c=correction();change(c);await assert.rejects(preview({productId:'p',sourceProfileId:'1',rateCorrection:c}));assert.equal(writeCount(),0);}
+});
+test('corrected rates require matching remote readback before assignment',async()=>{
+ setup();const p=await preview({productId:'p',sourceProfileId:'1',rateCorrection:correction()});assert.equal((await apply(approve(p))).state,'NEEDS_REVIEW');assert.equal(db.remote.shipping_profile_id,1);assert.equal(writeCount(),1);
+});
