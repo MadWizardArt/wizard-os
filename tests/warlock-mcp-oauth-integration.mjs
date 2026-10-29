@@ -139,7 +139,7 @@ let tokens;
   assert.equal(tools?.length, 44, "all forty-four Warlock tools should be returned");
   assert.ok(tools.some((tool) => tool.name === "intake_product"), "intake_product must be advertised in tools/list");
   assert.ok(tools.some((tool) => tool.name === "exclude_pre_draft_variants"), "exclude_pre_draft_variants must be advertised in tools/list");
-  for (const name of ["preview_etsy_listing_category", "apply_etsy_listing_category", "preview_etsy_listing_title", "apply_etsy_listing_title", "preview_etsy_draft_import", "apply_etsy_draft_import", "preview_etsy_listing_link", "apply_etsy_listing_link", "preview_garment_migration", "apply_garment_migration", "inspect_garment_migration", "enable_migrated_garment", "inspect_etsy_listing_images", "update_etsy_listing_image", "execute_etsy_draft_only", "get_product_bookkeeping", "record_product_note", "reconcile_etsy_listing", "inspect_etsy_variant_prices", "update_etsy_variant_prices", "update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
+  for (const name of ["inspect_etsy_shipping_profiles", "preview_etsy_shipping_change", "apply_etsy_shipping_change", "preview_etsy_listing_category", "apply_etsy_listing_category", "preview_etsy_listing_title", "apply_etsy_listing_title", "preview_etsy_draft_import", "apply_etsy_draft_import", "preview_etsy_listing_link", "apply_etsy_listing_link", "preview_garment_migration", "apply_garment_migration", "inspect_garment_migration", "enable_migrated_garment", "inspect_etsy_listing_images", "update_etsy_listing_image", "execute_etsy_draft_only", "get_product_bookkeeping", "record_product_note", "reconcile_etsy_listing", "inspect_etsy_variant_prices", "update_etsy_variant_prices", "update_product_prices", "reconcile_printful_product", "check_printful_import", "search_printful_catalog", "resolve_printful_catalog", "configure_printful_variant"]) assert.ok(tools.some(tool => tool.name === name), name);
   const intakeTool = tools.find(tool => tool.name === "intake_product");
   assert.deepEqual(intakeTool._meta["openai/fileParams"], ["files"]);
   const fileSchema = intakeTool.inputSchema.properties.files.items;
@@ -205,5 +205,5 @@ let tokens;
     }),
   });
   assert.equal(replay.status, 400, "authorization codes must be single-use");
-  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all thirty-eight tools/list descriptors including intake_product passed.");
+  console.log("Warlock OAuth consent, code exchange, authenticated MCP initialize, and all forty-four tools/list descriptors including intake_product passed.");
 
