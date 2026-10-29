@@ -96,8 +96,8 @@ test("OAuth endpoints are fail-closed and never alter commerce write mode", () =
   assert.match(authorize, /codeChallenge/);
   assert.match(token, /exchangeWarlockAuthorizationCode/);
   assert.match(token, /refreshWarlockOAuthGrant/);
-  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 41);
-  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 41);
+  assert.equal((server.match(/server\.registerTool\(/g) ?? []).length, 44);
+  assert.equal((server.match(/_meta: \{ securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES/g) ?? []).length, 44);
   assert.doesNotMatch(server, /_registeredTools/);
 
   assert.doesNotMatch(authorize, /WARLOCK_COMMERCE_WRITE_MODE/);
@@ -220,3 +220,4 @@ test('placement calls return field-level validation before the SDK and valid six
   assert.equal(placementValidationResponse({...rpc,params:{name:'apply_printful_placements',arguments:{}}}),null);
  }finally{await handler.close();}
 });
+

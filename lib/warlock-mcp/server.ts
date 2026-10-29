@@ -1,3 +1,5 @@
+import { inspectEtsyShippingProfiles, previewEtsyShippingChange, applyEtsyShippingChange } from "../warlock-commerce/etsy-shipping-executor";
+import { shippingPreviewShape, shippingApplyShape, safeShippingError } from "../warlock-commerce/etsy-shipping";
 import { excludePreDraftVariants, excludePreDraftVariantsShape } from "../warlock-commerce/variant-exclusion";
 import { previewEtsyListingCategory, applyEtsyListingCategory } from "../warlock-commerce/etsy-category-executor";
 import { categoryPreviewShape, categoryApplyShape, safeCategoryError, categoryErrorDetails } from "../warlock-commerce/etsy-listing-category";
@@ -757,5 +759,31 @@ export function createWarlockCommerceMcpServer() {
     },
   );
 
+  server.registerTool("inspect_etsy_shipping_profiles", {
+    title: "Audit Etsy Shipping Profiles",
+    description: "Read shop shipping profiles and all physical active/draft/inactive/sold-out/expired listings. Show US first/additional item rates, destinations, profile groupings and blockers. Digital listings are excluded. Never modifies Etsy.",
+    inputSchema: {}, annotations: liveReadAnnotations, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async () => {
+    try { return success(await inspectEtsyShippingProfiles()); }
+    catch (e) { return failure("etsy_shipping_audit_failed", safeShippingError(e)); }
+  });
+  server.registerTool("preview_etsy_shipping_change", {
+    title: "Preview US-Only Etsy Shipping",
+    description: "Save an exact approval preview for one canonical physical listing, active or draft, or a future listing. sourceProfileId must be its current live profile for existing listings. Preserve verified US first/additional rates and delivery service. Reuse targetProfileId only when verified US-only and exactly compatible; otherwise create a separate US-only copy. Blocks calculated profiles, missing rates and upgrades requiring manual review. Show owner the complete comparison and affected listing before applying; never infer approval or prices. Never changes Etsy.",
+    inputSchema: shippingPreviewShape, annotations: configurationWriteAnnotations, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => {
+    try { return success(await previewEtsyShippingChange(input)); }
+    catch (e) { return failure("etsy_shipping_preview_failed", safeShippingError(e)); }
+  });
+  server.registerTool("apply_etsy_shipping_change", {
+    title: "Apply Approved Etsy Shipping",
+    description: "Apply a saved preview only after explicit owner approval of this exact profile, rates and listing. Requires commerce write mode. Reject changed/expired approvals; verify US-only destinations, rates and listing assignment before saving canonical shippingProfileId for future workflows. Never modifies the shared source profile or orders. Uncertain writes require review and verification-only retry. Reuse compatible profiles across products through individually approved previews.",
+    inputSchema: shippingApplyShape, annotations: { ...draftWriteAnnotations, idempotentHint: false }, _meta: { securitySchemes: WARLOCK_TOOL_SECURITY_SCHEMES },
+  }, async input => {
+    try { return success(await applyEtsyShippingChange(input)); }
+    catch (e) { return failure("etsy_shipping_apply_failed", safeShippingError(e)); }
+  });
+
   return server;
 }
+
