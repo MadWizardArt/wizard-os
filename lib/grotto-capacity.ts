@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 
-export const MAX_GROTTO_IMAGES = 1000;
+export const MAX_GROTTO_IMAGES = 2000;
 
 export async function activeGrottoImageCount() {
   return prisma.grottoImage.count({ where: { deletedAt: null } });
